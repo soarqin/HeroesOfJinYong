@@ -47,8 +47,9 @@ void Window::flush() {
 }
 
 void Window::render(const Texture *tex, int x, int y) {
-    SDL_Rect src {0, 0, 36, 18};
-    SDL_Rect dst { x, y, 36, 18};
+    auto w = tex->width(), h = tex->height();
+    SDL_Rect src {0, 0, w, h};
+    SDL_Rect dst {x - tex->originX(), y - tex->originY(), w, h};
     SDL_RenderCopy(ctx_->renderer, static_cast<SDL_Texture*>(tex->data()), &src, &dst);
 }
 

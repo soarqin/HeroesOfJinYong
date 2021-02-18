@@ -10,15 +10,24 @@
 
 using namespace hojy;
 
+enum {
+    START = 690,
+    COUNT = 32,
+};
+
 int main() {
     core::config.load("config.toml");
     data::loadData();
     scene::Window win(640, 480);
     scene::mapTextureMgr.setRenderer(win.renderer());
     scene::mapTextureMgr.setPalette(data::normalPalette.colors(), data::normalPalette.size());
-    scene::mapTextureMgr.loadFromRLE(500, data::grpData["MMAP"][500]);
+    for (int i = 0, j = START; i < COUNT; ++i, ++j) {
+        scene::mapTextureMgr.loadFromRLE(j, data::grpData["MMAP"][j]);
+    }
     while (win.processEvents()) {
-        win.render(&scene::mapTextureMgr[500], 100, 100);
+        for (int i = 0, j = START; i < COUNT; ++i, ++j) {
+            win.render(&scene::mapTextureMgr[j], 50 + (i / 8) * 50, 50 + (i % 8) * 50);
+        }
         win.flush();
     }
     return 0;

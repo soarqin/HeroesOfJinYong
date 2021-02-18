@@ -13,14 +13,14 @@ bool Texture::loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data,
     }
     const auto *buf = data.data();
     struct Header {
-        std::uint16_t w, h, x, y;
+        std::int16_t w, h, x, y;
     };
     const auto *hdr = reinterpret_cast<const Header*>(buf);
     buf += 8;
     left -= 8;
     std::vector<std::uint8_t> bitmap;
     bitmap.resize(hdr->w * hdr->h);
-    std::uint32_t y = 0, w = hdr->w, h = hdr->h;
+    std::int32_t y = 0, w = hdr->w, h = hdr->h;
     while (left && y < h) {
         auto size = std::uint32_t(*buf++);
         if (--left < size) {
@@ -51,6 +51,10 @@ bool Texture::loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data,
     SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
     data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer), surface);
     SDL_FreeSurface(surface);
+    width_ = hdr->w;
+    height_ = hdr->h;
+    originX_ = hdr->x;
+    originY_ = hdr->y;
     return true;
 }
 

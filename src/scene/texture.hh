@@ -13,12 +13,17 @@ class Texture final {
 
 public:
     [[nodiscard]] void *data() const { return data_; }
+    [[nodiscard]] std::int32_t width() const { return width_; }
+    [[nodiscard]] std::int32_t height() const { return height_; }
+    [[nodiscard]] std::int32_t originX() const { return originX_; }
+    [[nodiscard]] std::int32_t originY() const { return originY_; }
 
 private:
     bool loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data, void *palette);
 
 private:
     void *data_ = nullptr;
+    std::int32_t width_ = 0, height_ = 0, originX_ = 0, originY_ = 0;
 };
 
 class TextureMgr final {
