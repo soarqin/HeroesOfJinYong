@@ -3,7 +3,6 @@
 #include <string>
 #include <string_view>
 #include <cstdint>
-#include <cstdio>
 
 namespace hojy::util {
 
@@ -24,9 +23,9 @@ public:
     bool open(std::string_view filename, bool readOnly = true);
     size_t read(void *buf, size_t size);
     size_t write(const void *buf, size_t size);
-    size_t size();
-    size_t pos();
-    size_t seek(std::int64_t pos, SeekDir type = Beg);
+    std::uint64_t size();
+    std::uint64_t pos();
+    std::uint64_t seek(std::int64_t pos, SeekDir type = Beg);
     bool eof();
 
 private:

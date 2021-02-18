@@ -50,7 +50,7 @@ size_t File::write(const void *buf, size_t size) {
 #define ftello64 _ftelli64
 #endif
 
-size_t File::size() {
+std::uint64_t File::size() {
     auto *f = static_cast<FILE*>(handle_);
     auto pos = ftello64(f);
     fseeko64(f, 0, SEEK_END);
@@ -59,11 +59,11 @@ size_t File::size() {
     return res;
 }
 
-size_t File::pos() {
+std::uint64_t File::pos() {
     return ftello64(static_cast<FILE*>(handle_));
 }
 
-size_t File::seek(std::int64_t pos, File::SeekDir type) {
+std::uint64_t File::seek(std::int64_t pos, File::SeekDir type) {
     auto *f = static_cast<FILE*>(handle_);
     fseeko64(f, pos, type);
     return ftello64(f);
