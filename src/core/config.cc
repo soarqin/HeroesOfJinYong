@@ -1,8 +1,8 @@
 #include "config.hh"
 
+#include "util/file.hh"
 #include "external/toml.hpp"
 
-#include <fstream>
 #include <iostream>
 
 namespace hojy::core {
@@ -12,7 +12,7 @@ Config config;
 bool Config::load(const std::string &filename) {
     toml::table tbl;
     try {
-        tbl = toml::parse_file(filename);
+        tbl = toml::parse(util::File::getFileContent(filename));
     } catch (const toml::parse_error &err) {
         std::cerr << "Parsing failed: " << err << std::endl;
         return false;

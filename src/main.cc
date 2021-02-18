@@ -11,7 +11,7 @@
 using namespace hojy;
 
 enum {
-    START = 690,
+    START = 3715,
     COUNT = 32,
 };
 

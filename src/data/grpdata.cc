@@ -1,37 +1,32 @@
 #include "grpdata.hh"
 
 #include "core/config.hh"
-
-#include <fstream>
+#include "util/file.hh"
 
 namespace hojy::data {
 
 GrpData grpData;
 
 bool GrpData::load(const std::string &name) {
-    std::ifstream ifs(core::config.dataFilePath(name + ".IDX"), std::ios::in | std::ios::binary);
-    std::ifstream ifs2(core::config.dataFilePath(name + ".GRP"), std::ios::in | std::ios::binary);
-    if (!ifs.is_open() || !ifs2.is_open()) {
+    util::File ifs, ifs2;
+    if (!ifs.open(core::config.dataFilePath(name + ".IDX")) ||
+        !ifs2.open(core::config.dataFilePath(name + ".GRP"))) {
         return false;
     }
-    ifs.seekg(0, std::ios::end);
-    size_t count = ifs.tellg() / sizeof(std::uint32_t);
-    ifs.seekg(0, std::ios::beg);
+    size_t count = ifs.size() / sizeof(std::uint32_t);
     DataSet &dset = data_[name];
     dset.resize(count);
     std::uint32_t offset = 0;
     for (size_t i = 0; i < count; ++i) {
         std::uint32_t endoffset;
-        ifs.read(reinterpret_cast<char*>(&endoffset), sizeof(endoffset));
-        ifs2.seekg(offset, std::ios::beg);
+        ifs.read(&endoffset, sizeof(endoffset));
         if (endoffset > offset) {
             dset[i].resize(endoffset - offset);
-            ifs2.read(reinterpret_cast<char*>(dset[i].data()), endoffset - offset);
+            ifs2.seek(offset);
+            ifs2.read(dset[i].data(), endoffset - offset);
         }
         offset = endoffset;
     }
-    ifs2.close();
-    ifs.close();
     return true;
 }
 
