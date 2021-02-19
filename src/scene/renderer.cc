@@ -6,13 +6,15 @@
 
 namespace hojy::scene {
 
-Renderer::Renderer(void *win) {
-    auto *renderer = SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC);
-    renderer_ = renderer;
+Renderer::Renderer(void *win): renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)) {
 }
 
 Renderer::~Renderer() {
     SDL_DestroyRenderer(static_cast<SDL_Renderer*>(renderer_));
+}
+
+void Renderer::setTargetTexture(Texture *tex) {
+    SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
 }
 
 void Renderer::renderTexture(const Texture *tex, int x, int y) {

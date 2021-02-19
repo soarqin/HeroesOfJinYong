@@ -6,6 +6,16 @@ namespace hojy::scene {
 
 TextureMgr mapTextureMgr;
 
+Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
+    auto *tex = new Texture;
+    auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
+    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
+    tex->data_ = texture;
+    tex->width_ = w;
+    tex->height_ = h;
+    return tex;
+}
+
 bool Texture::loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette) {
     size_t left = data.size();
     if (left < 8) {

@@ -12,6 +12,7 @@ public:
     Renderer(const Renderer&) = delete;
     ~Renderer();
 
+    void setTargetTexture(Texture *tex);
     void renderTexture(const Texture *tex, int x, int y);
 
     void present();

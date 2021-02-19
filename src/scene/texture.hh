@@ -14,6 +14,9 @@ class Texture final {
     friend class TextureMgr;
 
 public:
+    [[nodiscard]] static Texture *createAsTarget(Renderer *renderer, int w, int h);
+
+public:
     [[nodiscard]] void *data() const { return data_; }
     [[nodiscard]] std::int32_t width() const { return width_; }
     [[nodiscard]] std::int32_t height() const { return height_; }
@@ -21,6 +24,7 @@ public:
     [[nodiscard]] std::int32_t originY() const { return originY_; }
 
 private:
+    Texture() = default;
     bool loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette);
 
 private:

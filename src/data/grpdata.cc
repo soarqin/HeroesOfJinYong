@@ -8,9 +8,9 @@ namespace hojy::data {
 GrpData grpData;
 
 bool GrpData::load(const std::string &name) {
-    util::File ifs, ifs2;
-    if (!ifs.open(core::config.dataFilePath(name + ".IDX")) ||
-        !ifs2.open(core::config.dataFilePath(name + ".GRP"))) {
+    auto ifs = util::File::open(core::config.dataFilePath(name + ".IDX"));
+    auto ifs2 = util::File::open(core::config.dataFilePath(name + ".GRP"));
+    if (!ifs || !ifs2) {
         return false;
     }
     size_t count = ifs.size() / sizeof(std::uint32_t);

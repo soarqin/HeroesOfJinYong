@@ -8,8 +8,7 @@ namespace hojy::data {
 ColorPalette normalPalette, endPalette;
 
 void ColorPalette::load(const std::string &name) {
-    util::File ifs;
-    ifs.open(core::config.dataFilePath(name + ".COL"));
+    auto ifs = util::File::open(core::config.dataFilePath(name + ".COL"));
     std::uint8_t c[4] = {0, 0, 0, 0xFF};
     for (size_t i = 0; i < 256; ++i) {
         ifs.read(c, 3);

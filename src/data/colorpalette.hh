@@ -9,7 +9,7 @@ namespace hojy::data {
 class ColorPalette final {
 public:
     void load(const std::string &name);
-    constexpr size_t size() { return palette_.size(); }
+    [[nodiscard]] constexpr size_t size() const { return palette_.size(); }
     [[nodiscard]] const std::uint32_t *colors() const { return palette_.data(); }
 
 private:

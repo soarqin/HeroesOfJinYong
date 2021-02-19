@@ -13,7 +13,7 @@ Window::Window(int w, int h) {
 
     win_ = win;
     renderer_ = new Renderer(win_);
-    map_ = new Map(renderer_);
+    map_ = new Map(renderer_, w, h);
 }
 
 Window::~Window() {
