@@ -13,7 +13,7 @@ public:
     ~Renderer();
 
     void setTargetTexture(Texture *tex);
-    void renderTexture(const Texture *tex, int x, int y);
+    void renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin = false);
 
     void present();
 

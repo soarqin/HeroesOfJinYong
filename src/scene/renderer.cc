@@ -17,11 +17,16 @@ void Renderer::setTargetTexture(Texture *tex) {
     SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
 }
 
-void Renderer::renderTexture(const Texture *tex, int x, int y) {
+void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {
     auto w = tex->width(), h = tex->height();
     SDL_Rect src {0, 0, w, h};
-    SDL_Rect dst {x - tex->originX(), y - tex->originY(), w, h};
-    SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+    if (ignoreOrigin) {
+        SDL_Rect dst {x, y, w, h};
+        SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+    } else {
+        SDL_Rect dst{x - tex->originX(), y - tex->originY(), w, h};
+        SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
+    }
 }
 
 void Renderer::present() {

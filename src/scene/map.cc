@@ -61,7 +61,6 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
     for (int j = 0; j < mapWidth_; ++j) {
         int tx = x, ty = y;
         for (int i = 0; i < mapHeight_; ++i) {
-            tx += cellDiffX; ty += cellDiffY;
             int nx = tx / TEX_WIDTH_EACH;
             int ny = ty / TEX_WIDTH_EACH;
             int nc = nx + ny * texWCount_;
@@ -69,52 +68,51 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
             int cy = ty % TEX_WIDTH_EACH;
             bool wext = cx + cellWidth_ > TEX_WIDTH_EACH;
             bool hext = cy + cellHeight_ > TEX_WIDTH_EACH;
-            cx += cellDiffX;
-            cy += cellDiffY;
             renderer_->setTargetTexture(textures_[nc]);
             auto idx0 = earth_[pos];
-            renderer_->renderTexture(&scene::mapTextureMgr[idx0], cx, cy);
+            renderer_->renderTexture(&mapTextureMgr[idx0], cx, cy, true);
             auto idx1 = surface_[pos];
             if (idx1) {
-                renderer_->renderTexture(&scene::mapTextureMgr[idx1], cx, cy);
+                renderer_->renderTexture(&mapTextureMgr[idx1], cx, cy, true);
             }
             auto idx2 = building_[pos];
             if (idx2) {
-                renderer_->renderTexture(&scene::mapTextureMgr[idx2], cx, cy);
+                renderer_->renderTexture(&mapTextureMgr[idx2], cx, cy, true);
             }
             if (wext) {
                 int vx = cx - TEX_WIDTH_EACH;
                 renderer_->setTargetTexture(textures_[nc + 1]);
-                renderer_->renderTexture(&scene::mapTextureMgr[idx0], vx, cy);
+                renderer_->renderTexture(&mapTextureMgr[idx0], vx, cy, true);
                 if (idx1) {
-                    renderer_->renderTexture(&scene::mapTextureMgr[idx1], vx, cy);
+                    renderer_->renderTexture(&mapTextureMgr[idx1], vx, cy, true);
                 }
                 if (idx2) {
-                    renderer_->renderTexture(&scene::mapTextureMgr[idx2], vx, cy);
+                    renderer_->renderTexture(&mapTextureMgr[idx2], vx, cy, true);
                 }
                 if (hext) {
                     int vy = cy - TEX_WIDTH_EACH;
                     renderer_->setTargetTexture(textures_[nc + texWCount_ + 1]);
-                    renderer_->renderTexture(&scene::mapTextureMgr[idx0], vx, vy);
+                    renderer_->renderTexture(&mapTextureMgr[idx0], vx, vy, true);
                     if (idx1) {
-                        renderer_->renderTexture(&scene::mapTextureMgr[idx1], vx, vy);
+                        renderer_->renderTexture(&mapTextureMgr[idx1], vx, vy, true);
                     }
                     if (idx2) {
-                        renderer_->renderTexture(&scene::mapTextureMgr[idx2], vx, vy);
+                        renderer_->renderTexture(&mapTextureMgr[idx2], vx, vy, true);
                     }
                 }
             }
             if (hext) {
                 int vy = cy - TEX_WIDTH_EACH;
                 renderer_->setTargetTexture(textures_[nc + texWCount_]);
-                renderer_->renderTexture(&scene::mapTextureMgr[idx0], cx, vy);
+                renderer_->renderTexture(&mapTextureMgr[idx0], cx, vy, true);
                 if (idx1) {
-                    renderer_->renderTexture(&scene::mapTextureMgr[idx1], cx, vy);
+                    renderer_->renderTexture(&mapTextureMgr[idx1], cx, vy, true);
                 }
                 if (idx2) {
-                    renderer_->renderTexture(&scene::mapTextureMgr[idx2], cx, vy);
+                    renderer_->renderTexture(&mapTextureMgr[idx2], cx, vy, true);
                 }
             }
+            tx += cellDiffX; ty += cellDiffY;
             ++pos;
         }
         x -= cellDiffX; y += cellDiffY;
@@ -126,14 +124,15 @@ Map::~Map() {
     for (auto *tex: textures_) {
         delete tex;
     }
+    textures_.clear();
 }
 
 void Map::render() {
-    int curX = 100, curY = 120;
+    int curX = 0, curY = mapHeight_ - 1;
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
-    int x = (mapHeight_ + curX - curY + 1) * cellDiffX - int(width_ / 2);
-    int y = (curX + curY + 1) * cellDiffY - int(height_ / 2);
+    int x = (mapHeight_ + curX - curY) * cellDiffX - int(width_ / 2);
+    int y = (curX + curY + 2) * cellDiffY - int(height_ / 2);
     int cx = x / TEX_WIDTH_EACH;
     int cy = y / TEX_WIDTH_EACH;
     x %= TEX_WIDTH_EACH;
@@ -151,6 +150,7 @@ void Map::render() {
     if (hext) {
         renderer_->renderTexture(textures_[idx + texWCount_], -x, TEX_WIDTH_EACH-y);
     }
+    renderer_->renderTexture(&mapTextureMgr[2501], width_ / 2, height_ / 2);
     /*
     renderer_->renderTexture(textures_[1], 320 - TEX_WIDTH_EACH, 240 - TEX_WIDTH_EACH);
     renderer_->renderTexture(textures_[2], 320, 240 - TEX_WIDTH_EACH);
