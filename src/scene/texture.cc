@@ -6,7 +6,7 @@ namespace hojy::scene {
 
 TextureMgr mapTextureMgr;
 
-bool Texture::loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data, void *palette) {
+bool Texture::loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette) {
     size_t left = data.size();
     if (left < 8) {
         return false;
@@ -16,6 +16,9 @@ bool Texture::loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data,
         std::int16_t w, h, x, y;
     };
     const auto *hdr = reinterpret_cast<const Header*>(buf);
+    if (hdr->w == 0 && hdr->h == 0) {
+        return false;
+    }
     buf += 8;
     left -= 8;
     std::vector<std::uint8_t> bitmap;
@@ -49,8 +52,9 @@ bool Texture::loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data,
     }
     auto *surface = SDL_CreateRGBSurfaceWithFormatFrom(bitmap.data(), w, h, 8, w, SDL_PIXELFORMAT_INDEX8);
     SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
-    data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer), surface);
+    data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer->renderer_), surface);
     SDL_FreeSurface(surface);
+    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), SDL_BLENDMODE_BLEND);
     width_ = hdr->w;
     height_ = hdr->h;
     originX_ = hdr->x;
@@ -70,7 +74,7 @@ bool TextureMgr::loadFromRLE(std::int32_t id, const std::vector<std::uint8_t> &d
         return false;
     }
     textures_.emplace(id, tex);
-    return false;
+    return true;
 }
 
 const Texture &TextureMgr::operator[](std::int32_t id) const {

@@ -1,26 +1,28 @@
 #pragma once
 
+#include "map.hh"
+#include "renderer.hh"
+
 namespace hojy::scene {
-
-class Texture;
-
-struct WindowCtx;
 
 class Window final {
 public:
     Window(int w, int h);
     ~Window();
 
-    [[nodiscard]] void *renderer();
+    [[nodiscard]] Renderer *renderer() {
+        return renderer_;
+    }
 
     bool processEvents();
+    void render();
 
     void flush();
 
-    void render(const Texture *tex, int x, int y);
-
 private:
-    WindowCtx *ctx_;
+    void *win_ = nullptr;
+    Renderer *renderer_ = nullptr;
+    Map *map_ = nullptr;
 };
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <string>
 #include <string_view>
 #include <cstdint>
@@ -16,6 +17,17 @@ public:
 
 public:
     static std::string getFileContent(std::string_view filename);
+    template<typename T>
+    static bool getFileContent(std::string_view filename, std::vector<T> &data) {
+        File f;
+        if (!f.open(filename)) {
+            return false;
+        }
+        auto sz = f.size() / sizeof(T);
+        data.resize(sz);
+        f.read(data.data(), sz * sizeof(T));
+        return true;
+    }
 
 public:
     ~File();

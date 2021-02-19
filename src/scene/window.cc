@@ -1,34 +1,25 @@
 #include "window.hh"
 
-#include "texture.hh"
-
 #include <SDL.h>
 
 namespace hojy::scene {
 
-struct WindowCtx {
-    SDL_Window *win;
-    SDL_Renderer *renderer;
-};
-
-Window::Window(int w, int h): ctx_(new WindowCtx) {
+Window::Window(int w, int h) {
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         SDL_Init(SDL_INIT_VIDEO);
     }
-    ctx_->win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN);
+    auto *win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 
-    ctx_->renderer = SDL_CreateRenderer(ctx_->win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC);
+    win_ = win;
+    renderer_ = new Renderer(win_);
+    map_ = new Map(renderer_);
 }
 
 Window::~Window() {
-    SDL_DestroyRenderer(ctx_->renderer);
-    SDL_DestroyWindow(ctx_->win);
-    delete ctx_;
-}
-
-void *Window::renderer() {
-    return ctx_->renderer;
+    delete map_;
+    delete renderer_;
+    SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
 }
 
 bool Window::processEvents() {
@@ -43,14 +34,11 @@ bool Window::processEvents() {
 }
 
 void Window::flush() {
-    SDL_RenderPresent(ctx_->renderer);
+    renderer_->present();
 }
 
-void Window::render(const Texture *tex, int x, int y) {
-    auto w = tex->width(), h = tex->height();
-    SDL_Rect src {0, 0, w, h};
-    SDL_Rect dst {x - tex->originX(), y - tex->originY(), w, h};
-    SDL_RenderCopy(ctx_->renderer, static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+void Window::render() {
+    map_->doRender();
 }
 
 }

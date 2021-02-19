@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Renderer.hh"
+
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -19,7 +21,7 @@ public:
     [[nodiscard]] std::int32_t originY() const { return originY_; }
 
 private:
-    bool loadFromRLE(void *renderer, const std::vector<std::uint8_t> &data, void *palette);
+    bool loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette);
 
 private:
     void *data_ = nullptr;
@@ -28,14 +30,14 @@ private:
 
 class TextureMgr final {
 public:
-    inline void setRenderer(void *renderer) { renderer_ = renderer; }
+    inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const std::uint32_t *colors, std::size_t size);
     bool loadFromRLE(std::int32_t id, const std::vector<std::uint8_t> &data);
     const Texture &operator[](std::int32_t id) const;
 
 private:
     std::unordered_map<std::int32_t, Texture> textures_;
-    void *renderer_ = nullptr;
+    Renderer *renderer_ = nullptr;
     void *palette_ = nullptr;
 };
 

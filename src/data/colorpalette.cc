@@ -18,6 +18,7 @@ void ColorPalette::load(const std::string &name) {
         }
         palette_[i] = *reinterpret_cast<std::uint32_t*>(c);
     }
+    palette_[0] = 0;
 }
 
 }
