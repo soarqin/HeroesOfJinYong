@@ -72,6 +72,10 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &d
     return true;
 }
 
+void Texture::enableBlendMode(bool r) {
+    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+}
+
 void TextureMgr::setPalette(const std::uint32_t *colors, std::size_t size) {
     auto *palette = SDL_AllocPalette(size);
     SDL_SetPaletteColors(palette, reinterpret_cast<const SDL_Color*>(colors), 0, size);

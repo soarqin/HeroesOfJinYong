@@ -26,6 +26,24 @@ bool Window::processEvents() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
+        case SDL_KEYDOWN:
+            switch (e.key.keysym.scancode) {
+            case SDL_SCANCODE_UP:
+                map_->move(Map::DirUp);
+                break;
+            case SDL_SCANCODE_RIGHT:
+                map_->move(Map::DirRight);
+                break;
+            case SDL_SCANCODE_LEFT:
+                map_->move(Map::DirLeft);
+                break;
+            case SDL_SCANCODE_DOWN:
+                map_->move(Map::DirDown);
+                break;
+            default:
+                break;
+            }
+            break;
         case SDL_QUIT:
             return false;
         }

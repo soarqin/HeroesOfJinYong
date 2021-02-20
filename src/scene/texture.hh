@@ -23,6 +23,8 @@ public:
     [[nodiscard]] std::int32_t originX() const { return originX_; }
     [[nodiscard]] std::int32_t originY() const { return originY_; }
 
+    void enableBlendMode(bool r);
+
 private:
     Texture() = default;
     bool loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette);
