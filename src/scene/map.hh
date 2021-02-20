@@ -2,6 +2,7 @@
 
 #include "node.hh"
 
+#include <chrono>
 #include <cstdint>
 
 namespace hojy::scene {
@@ -18,6 +19,11 @@ class Map final: public Node {
         bool operator()(const BuildingTex &a, const BuildingTex &b) const {
             return a.order < b.order;
         }
+    };
+    struct CellInfo {
+        /* 0-land 1-water 2-wood */
+        std::uint8_t type;
+        bool canWalk;
     };
 
 public:
@@ -39,9 +45,17 @@ public:
     void render() override;
 
 private:
+    void updateMainCharTexture();
+    void resetTime();
+    void checkTime();
+
+private:
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
     Direction direction_ = DirUp;
-    bool moveDirty_ = false;
+    bool moveDirty_ = false, resting_ = false, onShip_ = false;
+    const Texture *mainCharTex_ = nullptr;
+    std::chrono::steady_clock::time_point nextTime_;
+    std::vector<CellInfo> cellInfo_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
     std::int32_t texWidth_ = 0, texHeight_ = 0, texWCount_ = 0, texHCount_ = 0;
     std::int32_t offsetX_ = 0, offsetY_ = 0;

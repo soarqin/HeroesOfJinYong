@@ -7,6 +7,7 @@
 #include "util/file.hh"
 
 #include <algorithm>
+#include <chrono>
 
 namespace hojy::scene {
 
@@ -50,14 +51,35 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
     util::File::getFileContent(core::config.dataFilePath("BUILDING.002"), building_);
     util::File::getFileContent(core::config.dataFilePath("BUILDX.002"), buildx_);
     util::File::getFileContent(core::config.dataFilePath("BUILDY.002"), buildy_);
-    for (auto &n: earth_) { n >>= 1; }
-    for (auto &n: surface_) { n >>= 1; }
-    for (auto &n: building_) { n >>= 1; }
     earth_.resize(size);
     surface_.resize(size);
     building_.resize(size);
     buildx_.resize(size);
     buildy_.resize(size);
+    cellInfo_.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        auto &n = earth_[i];
+        n >>= 1;
+        if (n) {
+            if (n == 419 || n >= 306 && n <= 335) {
+                cellInfo_[i].type = 1;
+            } else if (n >= 179 && n <= 181 || n >= 253 && n <= 335 || n >= 508 && n <= 511) {
+                cellInfo_[i].type = 1;
+                cellInfo_[i].canWalk = true;
+            } else if (n > 0) {
+                cellInfo_[i].canWalk = true;
+            }
+        }
+        surface_[i] >>= 1;
+        auto &n1 = building_[i];
+        n1 >>= 1;
+        if (n1 > 0) {
+            cellInfo_[i].canWalk = false;
+        }
+        if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
+            cellInfo_[i].type = 2;
+        }
+    }
 
     renderer_->unsetClipRect();
     int x = (mapHeight_ - 1) * cellDiffX;
@@ -137,6 +159,8 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
     drawingBuildingTex_[1]->enableBlendMode(true);
     currX_ = 242, currY_ = 294;
     moveDirty_ = true;
+    resetTime();
+    updateMainCharTexture();
 }
 
 Map::~Map() {
@@ -147,6 +171,7 @@ Map::~Map() {
 }
 
 void Map::render() {
+    checkTime();
     int curX = currX_, curY = currY_;
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
@@ -202,14 +227,20 @@ void Map::render() {
         renderer_->renderTexture(terrainTex_[idx + texWCount_], -x, TEX_WIDTH_EACH-y);
     }
     renderer_->renderTexture(drawingBuildingTex_[0], 0, 0);
-    renderer_->renderTexture(&mapTextureMgr[2501 + int(direction_) * 7], int(width_) / 2, int(height_) / 2);
+    renderer_->renderTexture(mainCharTex_, int(width_) / 2, int(height_) / 2);
     renderer_->renderTexture(drawingBuildingTex_[1], 0, 0);
 }
 
 void Map::setPosition(int x, int y) {
     currX_ = x;
     currY_ = y;
+    currFrame_ = 0;
+    resting_ = false;
     moveDirty_ = true;
+    auto offset = y * mapWidth_ + x;
+    onShip_ = cellInfo_[offset].type == 1;
+    resetTime();
+    updateMainCharTexture();
 }
 
 void Map::move(Map::Direction direction) {
@@ -230,12 +261,59 @@ void Map::move(Map::Direction direction) {
         break;
     }
     auto offset = y * mapWidth_ + x;
-    if (buildx_[offset] != 0 && building_[buildy_[offset] * mapWidth_ + buildx_[offset]] != 0) {
+    if (!cellInfo_[offset].canWalk || buildx_[offset] != 0 && building_[buildy_[offset] * mapWidth_ + buildx_[offset]] != 0) {
+        resetTime();
+        updateMainCharTexture();
         return;
     }
     currX_ = x;
     currY_ = y;
     moveDirty_ = true;
+    onShip_ = cellInfo_[offset].type == 1;
+    if (onShip_) {
+        currFrame_ = (currFrame_ + 1) % 4;
+    } else {
+        currFrame_ = currFrame_ % 6 + 1;
+    }
+    resetTime();
+    updateMainCharTexture();
+}
+
+void Map::updateMainCharTexture() {
+    if (onShip_) {
+        mainCharTex_ = &mapTextureMgr[3715 + int(direction_) * 4 + currFrame_];
+        return;
+    }
+    if (resting_) {
+        mainCharTex_ = &mapTextureMgr[2529 + int(direction_) * 6 + currFrame_];
+        return;
+    }
+    mainCharTex_ = &mapTextureMgr[2501 + int(direction_) * 7 + currFrame_];
+}
+
+void Map::resetTime() {
+    if (onShip_) { return; }
+    resting_ = false;
+    nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+}
+
+void Map::checkTime() {
+    if (resting_) {
+        if (std::chrono::steady_clock::now() < nextTime_) {
+            return;
+        }
+        currFrame_ = (currFrame_ + 1) % 6;
+        nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        updateMainCharTexture();
+        return;
+    }
+    if (std::chrono::steady_clock::now() < nextTime_) {
+        return;
+    }
+    currFrame_ = 0;
+    resting_ = true;
+    nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    updateMainCharTexture();
 }
 
 }
