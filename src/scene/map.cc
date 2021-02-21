@@ -14,7 +14,6 @@ namespace hojy::scene {
 enum {
     MAP_WIDTH = 480,
     MAP_HEIGHT = 480,
-    TEX_WIDTH_EACH = 4096,
 };
 
 Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(renderer, width, height) {
@@ -38,12 +37,6 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
     int cellDiffY = cellHeight_ / 2;
     texWidth_ = (mapWidth_ + mapHeight_) * cellDiffX;
     texHeight_ = (mapWidth_ + mapHeight_) * cellDiffY;
-    texWCount_ = (texWidth_ + TEX_WIDTH_EACH - 1) / TEX_WIDTH_EACH;
-    texHCount_ = (texHeight_ + TEX_WIDTH_EACH - 1) / TEX_WIDTH_EACH;
-    terrainTex_.resize(texWCount_ * texHCount_);
-    for (auto *&tex : terrainTex_) {
-        tex = Texture::createAsTarget(renderer_, TEX_WIDTH_EACH, TEX_WIDTH_EACH);
-    }
 
     auto size = mapWidth_ * mapHeight_;
     util::File::getFileContent(core::config.dataFilePath("EARTH.002"), earth_);
@@ -57,105 +50,58 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
     buildx_.resize(size);
     buildy_.resize(size);
     cellInfo_.resize(size);
-    for (size_t i = 0; i < size; ++i) {
-        auto &n = earth_[i];
-        n >>= 1;
-        if (n) {
-            if (n == 419 || n >= 306 && n <= 335) {
-                cellInfo_[i].type = 1;
-            } else if (n >= 179 && n <= 181 || n >= 253 && n <= 335 || n >= 508 && n <= 511) {
-                cellInfo_[i].type = 1;
-                cellInfo_[i].canWalk = true;
-            } else if (n > 0) {
-                cellInfo_[i].canWalk = true;
+
+    int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
+    int y = offsetY_;
+    int pos = 0;
+    for (int j = mapWidth_; j; --j) {
+        int tx = x, ty = y;
+        for (int i = mapHeight_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
+            auto &ci = cellInfo_[pos];
+            auto &n = earth_[pos];
+            ci.x = tx;
+            ci.y = ty;
+            n >>= 1;
+            if (n) {
+                if (n == 419 || n >= 306 && n <= 335) {
+                    ci.type = 1;
+                } else if (n >= 179 && n <= 181 || n >= 253 && n <= 335 || n >= 508 && n <= 511) {
+                    ci.type = 1;
+                    ci.canWalk = true;
+                } else if (n > 0) {
+                    ci.canWalk = true;
+                }
+            }
+            ci.earth = &mapTextureMgr[n];
+            auto &n0 = surface_[pos];
+            n0 >>= 1;
+            if (n0) {
+                ci.surface = &mapTextureMgr[n0];
+            } else {
+                ci.surface = nullptr;
+            }
+            auto &n1 = building_[pos];
+            n1 >>= 1;
+            if (n1 > 0) {
+                ci.canWalk = false;
+                if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
+                    ci.type = 2;
+                }
+                const auto *tex2 = &mapTextureMgr[n1];
+                auto centerX = tx - tex2->originX() + tex2->width() / 2;
+                auto centerY = ty - tex2->originY() + (tex2->height() < 36 ? tex2->height() * 4 / 5 : tex2->height() * 3 / 4);
+                buildingTex_.emplace_back(BuildingTex { centerY * texWidth_ + centerX, tx, ty, tex2 });
             }
         }
-        surface_[i] >>= 1;
-        auto &n1 = building_[i];
-        n1 >>= 1;
-        if (n1 > 0) {
-            cellInfo_[i].canWalk = false;
-        }
-        if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
-            cellInfo_[i].type = 2;
-        }
+        x -= cellDiffX; y += cellDiffY;
     }
 
-    renderer_->unsetClipRect();
-    int x = (mapHeight_ - 1) * cellDiffX;
-    int y = 0;
-    int pos = 0;
-    for (int j = 0; j < mapWidth_; ++j) {
-        int tx = x, ty = y;
-        for (int i = 0; i < mapHeight_; ++i) {
-            int nx = tx / TEX_WIDTH_EACH;
-            int ny = ty / TEX_WIDTH_EACH;
-            int nc = nx + ny * texWCount_;
-            int cx = tx % TEX_WIDTH_EACH;
-            int cy = ty % TEX_WIDTH_EACH;
-            bool wext = cx + cellWidth_ > TEX_WIDTH_EACH;
-            bool hext = cy + cellHeight_ > TEX_WIDTH_EACH;
-            renderer_->setTargetTexture(terrainTex_[nc]);
-            auto idx0 = earth_[pos];
-            const auto *tex0 = &mapTextureMgr[idx0];
-            const Texture *tex1 = nullptr;
-            renderer_->renderTexture(tex0, cx, cy, true);
-            auto idx1 = surface_[pos];
-            if (idx1) {
-                tex1 = &mapTextureMgr[idx1];
-                renderer_->renderTexture(tex1, cx, cy, true);
-            }
-            if (wext) {
-                int vx = cx - TEX_WIDTH_EACH;
-                renderer_->setTargetTexture(terrainTex_[nc + 1]);
-                renderer_->renderTexture(tex0, vx, cy, true);
-                if (idx1) {
-                    renderer_->renderTexture(tex1, vx, cy, true);
-                }
-                if (hext) {
-                    int vy = cy - TEX_WIDTH_EACH;
-                    renderer_->setTargetTexture(terrainTex_[nc + texWCount_ + 1]);
-                    renderer_->renderTexture(tex0, vx, vy, true);
-                    if (idx1) {
-                        renderer_->renderTexture(tex1, vx, vy, true);
-                    }
-                }
-            }
-            if (hext) {
-                int vy = cy - TEX_WIDTH_EACH;
-                renderer_->setTargetTexture(terrainTex_[nc + texWCount_]);
-                renderer_->renderTexture(tex0, cx, vy, true);
-                if (idx1) {
-                    renderer_->renderTexture(tex1, cx, vy, true);
-                }
-            }
-            tx += cellDiffX; ty += cellDiffY;
-            ++pos;
-        }
-        x -= cellDiffX; y += cellDiffY;
-    }
-    x = (mapHeight_ - 1) * cellDiffX + offsetX_;
-    y = offsetY_;
-    pos = 0;
-    for (int j = 0; j < mapWidth_; ++j) {
-        int tx = x, ty = y;
-        for (int i = 0; i < mapHeight_; ++i, ++pos, tx += cellDiffX, ty += cellDiffY) {
-            auto idx2 = building_[pos];
-            if (!idx2) {
-                continue;
-            }
-            const auto *tex2 = &mapTextureMgr[idx2];
-            auto centerX = tx - tex2->originX() + tex2->width() / 2;
-            auto centerY = ty - tex2->originY() + tex2->height() * 3 / 4;
-            buildingTex_.emplace_back(BuildingTex { centerY * texWidth_ + centerX, tx, ty, tex2 });
-        }
-        x -= cellDiffX; y += cellDiffY;
-    }
-    renderer_->setTargetTexture(nullptr);
     std::sort(buildingTex_.begin(), buildingTex_.end(), BuildingTexComp());
-    drawingBuildingTex_[0] = Texture::createAsTarget(renderer_, TEX_WIDTH_EACH, TEX_WIDTH_EACH);
+    drawingTerrainTex_ = Texture::createAsTarget(renderer_, 2048, 2048);
+    drawingTerrainTex_->enableBlendMode(true);
+    drawingBuildingTex_[0] = Texture::createAsTarget(renderer_, 2048, 1024);
     drawingBuildingTex_[0]->enableBlendMode(true);
-    drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, TEX_WIDTH_EACH, TEX_WIDTH_EACH);
+    drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, 2048, 1024);
     drawingBuildingTex_[1]->enableBlendMode(true);
     currX_ = 242, currY_ = 294;
     moveDirty_ = true;
@@ -164,33 +110,61 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
 }
 
 Map::~Map() {
-    for (auto *tex: terrainTex_) {
-        delete tex;
-    }
-    terrainTex_.clear();
+    delete drawingTerrainTex_;
+    delete drawingBuildingTex_[0];
+    delete drawingBuildingTex_[1];
 }
 
 void Map::render() {
     checkTime();
-    int curX = currX_, curY = currY_;
-    int cellDiffX = cellWidth_ / 2;
-    int cellDiffY = cellHeight_ / 2;
-    int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(width_ / 2);
-    int oy = (curX + curY) * cellDiffY + offsetY_ - int(height_ / 2);
-    int cx = ox / TEX_WIDTH_EACH;
-    int cy = oy / TEX_WIDTH_EACH;
-    int x = ox % TEX_WIDTH_EACH;
-    int y = oy % TEX_WIDTH_EACH;
-    auto idx = cx + cy * texWCount_;
     if (moveDirty_) {
         moveDirty_ = false;
-        int myx = int(width_) / 2 + ox, myy = int(height_) / 2 + oy;
+        int cellDiffX = cellWidth_ / 2;
+        int cellDiffY = cellHeight_ / 2;
+        int curX = currX_, curY = currY_;
+        int nx = int(width_) / 2 + cellWidth_ * 2;
+        int ny = int(height_) / 2 + cellHeight_ * 2;
+        int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
+        int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
+        int wcount = nx * 2 / cellWidth_;
+        int hcount = ny * 2 / cellDiffY;
+        int tx = int(width_) / 2 - (cx - cy) * cellDiffX;
+        int ty = int(height_) / 2 - (cx + cy) * cellDiffY;
+        cx = curX - cx; cy = curY - cy;
+        renderer_->setTargetTexture(drawingTerrainTex_);
+        renderer_->setClipRect(0, 0, 2048, 2048);
+        int delta = -mapWidth_ + 1;
+        for (int j = hcount; j; --j) {
+            int x = cx, y = cy;
+            int dx = tx;
+            int offset = y * mapWidth_ + x;
+            for (int i = wcount; i && y; --i, dx += cellWidth_, offset += delta, ++x, --y) {
+                auto &ci = cellInfo_[offset];
+                renderer_->renderTexture(ci.earth, dx, ty);
+                if (ci.surface) {
+                    renderer_->renderTexture(ci.surface, dx, ty);
+                }
+            }
+            if (j % 2) {
+                ++cx;
+                tx += cellDiffX;
+                ty += cellDiffY;
+            } else {
+                ++cy;
+                tx -= cellDiffX;
+                ty += cellDiffY;
+            }
+        }
+
+        int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(width_ / 2);
+        int oy = (curX + curY) * cellDiffY + offsetY_ - int(height_ / 2);
+        int myy = int(height_) / 2 + oy;
         int l = ox - 128, t = oy - 128, r = ox + int(width_) + 128, b = oy + int(height_) + 128;
         auto ite = std::lower_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {t * texWidth_ + l, 0, 0, nullptr}, BuildingTexComp());
         auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
         auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());
         renderer_->setTargetTexture(drawingBuildingTex_[0]);
-        renderer_->setClipRect(0, 0, TEX_WIDTH_EACH, TEX_WIDTH_EACH);
+        renderer_->setClipRect(0, 0, 2048, 1024);
         renderer_->fill(0, 0, 0, 0);
         while (ite != ite_mid) {
             if (ite->x < l || ite->x >= r) {
@@ -201,7 +175,7 @@ void Map::render() {
             ++ite;
         }
         renderer_->setTargetTexture(drawingBuildingTex_[1]);
-        renderer_->setClipRect(0, 0, TEX_WIDTH_EACH, TEX_WIDTH_EACH);
+        renderer_->setClipRect(0, 0, 2048, 1024);
         renderer_->fill(0, 0, 0, 0);
         while (ite != ite_end) {
             if (ite->x < l || ite->x >= r) {
@@ -212,23 +186,13 @@ void Map::render() {
             ++ite;
         }
         renderer_->setTargetTexture(nullptr);
+        renderer_->unsetClipRect();
     }
-    renderer_->setClipRect(0, 0, width_, height_);
-    renderer_->renderTexture(terrainTex_[idx], -x, -y);
-    bool wext = x + width_ > TEX_WIDTH_EACH;
-    bool hext = y + height_ > TEX_WIDTH_EACH;
-    if (wext) {
-        renderer_->renderTexture(terrainTex_[idx + 1], TEX_WIDTH_EACH-x, -y);
-        if (hext) {
-            renderer_->renderTexture(terrainTex_[idx + texWCount_ + 1], TEX_WIDTH_EACH-x, TEX_WIDTH_EACH-y);
-        }
-    }
-    if (hext) {
-        renderer_->renderTexture(terrainTex_[idx + texWCount_], -x, TEX_WIDTH_EACH-y);
-    }
-    renderer_->renderTexture(drawingBuildingTex_[0], 0, 0);
+    renderer_->fill(0, 0, 0, 0);
+    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_);
+    renderer_->renderTexture(drawingBuildingTex_[0], 0, 0, width_, height_);
     renderer_->renderTexture(mainCharTex_, int(width_) / 2, int(height_) / 2);
-    renderer_->renderTexture(drawingBuildingTex_[1], 0, 0);
+    renderer_->renderTexture(drawingBuildingTex_[1], 0, 0, width_, height_);
 }
 
 void Map::setPosition(int x, int y) {
@@ -294,10 +258,11 @@ void Map::updateMainCharTexture() {
 void Map::resetTime() {
     if (onShip_) { return; }
     resting_ = false;
-    nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(currFrame_ > 0 ? 2 : 5);
 }
 
 void Map::checkTime() {
+    if (onShip_) { return; }
     if (resting_) {
         if (std::chrono::steady_clock::now() < nextTime_) {
             return;
@@ -310,9 +275,14 @@ void Map::checkTime() {
     if (std::chrono::steady_clock::now() < nextTime_) {
         return;
     }
-    currFrame_ = 0;
-    resting_ = true;
-    nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    if (currFrame_ > 0) {
+        currFrame_ = 0;
+        nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    } else {
+        currFrame_ = 0;
+        resting_ = true;
+        nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    }
     updateMainCharTexture();
 }
 

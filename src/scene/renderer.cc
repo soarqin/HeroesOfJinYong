@@ -48,6 +48,17 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin
     }
 }
 
+void Renderer::renderTexture(const Texture *tex, int x, int y, int w, int h, bool ignoreOrigin) {
+    SDL_Rect src {0, 0, w, h};
+    if (ignoreOrigin) {
+        SDL_Rect dst {x, y, w, h};
+        SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+    } else {
+        SDL_Rect dst{x - tex->originX(), y - tex->originY(), w, h};
+        SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
+    }
+}
+
 void Renderer::present() {
     SDL_RenderPresent(static_cast<SDL_Renderer*>(renderer_));
 }
