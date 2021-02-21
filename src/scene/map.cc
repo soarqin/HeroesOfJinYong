@@ -32,6 +32,7 @@ Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(re
         cellHeight_ = tex.height();
         offsetX_ = tex.originX();
         offsetY_ = tex.originY();
+        deepWaterTex_ = &tex;
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
@@ -138,11 +139,15 @@ void Map::render() {
             int x = cx, y = cy;
             int dx = tx;
             int offset = y * mapWidth_ + x;
-            for (int i = wcount; i && y; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                auto &ci = cellInfo_[offset];
-                renderer_->renderTexture(ci.earth, dx, ty);
-                if (ci.surface) {
-                    renderer_->renderTexture(ci.surface, dx, ty);
+            for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
+                if (x >= 0 && y >= 0) {
+                    auto &ci = cellInfo_[offset];
+                    renderer_->renderTexture(ci.earth, dx, ty);
+                    if (ci.surface) {
+                        renderer_->renderTexture(ci.surface, dx, ty);
+                    }
+                } else {
+                    renderer_->renderTexture(deepWaterTex_, dx, ty);
                 }
             }
             if (j % 2) {

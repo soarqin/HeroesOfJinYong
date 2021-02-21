@@ -55,7 +55,7 @@ private:
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
     Direction direction_ = DirUp;
     bool moveDirty_ = false, resting_ = false, onShip_ = false;
-    const Texture *mainCharTex_ = nullptr;
+    const Texture *mainCharTex_ = nullptr, *deepWaterTex_ = nullptr;
     std::chrono::steady_clock::time_point nextTime_;
     std::vector<CellInfo> cellInfo_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
