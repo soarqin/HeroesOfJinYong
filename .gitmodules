@@ -1,0 +1,6 @@
+[submodule "deps/soxr"]
+	path = deps/soxr
+	url = https://git.code.sf.net/p/soxr/code
+[submodule "deps/libADLMIDI"]
+	path = deps/libADLMIDI
+	url = https://github.com/Wohlstand/libADLMIDI
