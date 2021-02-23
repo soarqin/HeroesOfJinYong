@@ -21,4 +21,12 @@ Mixer::Mixer() {
     sampleRate_ = obtained.freq;
 }
 
+Mixer::~Mixer() {
+    SDL_CloseAudioDevice(audioDevice_);
+}
+
+void Mixer::pause(bool on) const {
+    SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
+}
+
 }
