@@ -12,6 +12,9 @@ public:
     void pause(bool on) const;
 
 private:
+    static void callback(void *userdata, std::uint8_t * stream, int len);
+
+private:
     std::uint32_t audioDevice_ = 0;
     std::uint32_t sampleRate_ = 0;
 };

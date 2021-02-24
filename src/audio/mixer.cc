@@ -13,8 +13,8 @@ Mixer::Mixer() {
         .format = AUDIO_S16LSB,
         .channels = 2,
         .samples = 2048,
-        .callback = nullptr,
-        .userdata = nullptr,
+        .callback = callback,
+        .userdata = this,
     };
     SDL_AudioSpec obtained;
     audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
@@ -27,6 +27,10 @@ Mixer::~Mixer() {
 
 void Mixer::pause(bool on) const {
     SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
+}
+
+void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
+    auto *mixer = static_cast<Mixer*>(userdata);
 }
 
 }
