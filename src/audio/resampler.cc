@@ -1,3 +1,22 @@
+/*
+ * Heroes of Jin Yong.
+ * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
+ * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
+
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "resampler.hh"
 
 #include <soxr.h>
@@ -5,24 +24,24 @@
 
 namespace hojy::audio {
 
-void DataTypeToSize(Resampler::DataType type, size_t &size) {
+void DataTypeToSize(Mixer::DataType type, size_t &size) {
     switch (type) {
-    case Resampler::F32:
+    case Mixer::F32:
         size = 4;
         break;
-    case Resampler::F64:
+    case Mixer::F64:
         size = 8;
         break;
-    case Resampler::I32:
+    case Mixer::I32:
         size = 4;
         break;
-    case Resampler::I16:
+    case Mixer::I16:
         size = 2;
         break;
     }
 }
 
-Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, DataType typeIn, DataType typeOut) {
+Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, Mixer::DataType typeIn, Mixer::DataType typeOut) {
     auto io_spec = soxr_io_spec(soxr_datatype_t(typeIn), soxr_datatype_t(typeOut));
     auto *resampler = soxr_create(sampleRateIn, sampleRateOut, channels, nullptr, &io_spec, nullptr, nullptr);
     resampler_ = resampler;
@@ -66,8 +85,8 @@ size_t Resampler::write(const void *data, size_t size) {
     return idone;
 }
 
-size_t Resampler::readCB(void *input_fn_state, const void **data, size_t len) {
-    return 0;
+size_t Resampler::readCB(void *userdata, const void **data, size_t len) {
+    return static_cast<Resampler*>(userdata)->inputCB_(data, len);
 }
 
 }

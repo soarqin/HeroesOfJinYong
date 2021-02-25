@@ -17,10 +17,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "channelwav.hh"
 
-namespace hojy::data {
+#include <SDL.h>
 
-void loadData();
+namespace hojy::audio {
+
+ChannelWav::ChannelWav(Mixer *mixer, std::string_view filename) : Channel(mixer, filename) {
+}
+
+ChannelWav::ChannelWav(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
+
+}
 
 }

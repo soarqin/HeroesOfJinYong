@@ -19,8 +19,15 @@
 
 #pragma once
 
-namespace hojy::data {
+#include "channel.hh"
 
-void loadData();
+namespace hojy::audio {
+
+class ChannelWav: public Channel {
+public:
+    ChannelWav(Mixer *mixer, std::string_view filename);
+    ChannelWav(Mixer *mixer, const void *data, size_t size);
+
+};
 
 }

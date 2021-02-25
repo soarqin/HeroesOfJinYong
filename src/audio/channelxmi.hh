@@ -19,8 +19,13 @@
 
 #pragma once
 
-namespace hojy::data {
+#include "channel.hh"
 
-void loadData();
+namespace hojy::audio {
+
+class ChannelXmi: public Channel {
+public:
+
+};
 
 }

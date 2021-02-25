@@ -1,4 +1,25 @@
+/*
+ * Heroes of Jin Yong.
+ * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
+ * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
+
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #pragma once
+
+#include "mixer.hh"
 
 #include <util/fifobuffer.hh>
 
@@ -9,17 +30,14 @@ namespace hojy::audio {
 
 class Resampler final {
 public:
-    enum DataType {
-        F32  = 0,  F64,  I32,  I16,
-    };
-    using InputCallback = std::function<size_t (void*, size_t)>;
-    Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, DataType typeIn, DataType typeOut);
+    using InputCallback = std::function<size_t (const void**, size_t)>;
+    Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, Mixer::DataType typeIn, Mixer::DataType typeOut);
     inline void setInputCallback(InputCallback callback);
     size_t read(void *data, size_t size);
     size_t write(const void *data, size_t size);
 
 private:
-    static size_t readCB(void * input_fn_state, void const **data, size_t len);
+    static size_t readCB(void *userdata, void const **data, size_t len);
 
 private:
     void *resampler_ = nullptr;

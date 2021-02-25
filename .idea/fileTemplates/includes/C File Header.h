@@ -1,7 +1,12 @@
+#if ($HEADER_COMMENTS)
 /*
  * Heroes of Jin Yong.
  * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
+#if ($YEAR > 2021)
+ * Copyright (C) 2021-$YEAR, Soar Qin<soarchin@gmail.com>
+#else
  * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
+#end
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +21,5 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+#end
 
-#pragma once
-
-namespace hojy::data {
-
-void loadData();
-
-}

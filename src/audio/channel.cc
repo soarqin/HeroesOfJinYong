@@ -17,10 +17,34 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "channel.hh"
 
-namespace hojy::data {
+#include "resampler.hh"
 
-void loadData();
+#include <util/file.hh>
+
+namespace hojy::audio {
+
+Channel::Channel(Mixer *mixer, std::string_view filename): sampleRateOut_(mixer->sampleRate()) {
+    util::File::getFileContent(filename, data_);
+}
+
+Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()) {
+    data_.resize(size);
+    memcpy(data_.data(), data, size);
+}
+
+size_t Channel::readData(void *data, size_t size) {
+    if (resampler_) {
+        return resampler_->read(data, size);
+    }
+    return readPCMData(data, size);
+}
+
+void Channel::start() {
+    if (sampleRateIn_ != sampleRateOut_ || typeIn_ != typeOut_) {
+        resampler_ = std::make_unique<Resampler>(channels_, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
+    }
+}
 
 }

@@ -19,8 +19,40 @@
 
 #pragma once
 
-namespace hojy::data {
+#include "mixer.hh"
+#include "resampler.hh"
 
-void loadData();
+#include <string_view>
+#include <vector>
+#include <memory>
+#include <cstdint>
+
+namespace hojy::audio {
+
+class Channel {
+public:
+    Channel(Mixer *mixer, std::string_view filename);
+    Channel(Mixer *mixer, const void *data, size_t size);
+    virtual ~Channel() = default;
+
+    Channel(const Channel&) = delete;
+    Channel(Channel&&) noexcept = default;
+
+    size_t readData(void *data, size_t size);
+
+    void start();
+
+protected:
+    virtual size_t readPCMData(void *data, size_t size) { return 0; }
+
+protected:
+    std::vector<std::uint8_t> data_;
+    std::unique_ptr<Resampler> resampler_;
+
+private:
+    std::uint32_t channels_ = 0;
+    double sampleRateIn_ = 0.f, sampleRateOut_ = 0.f;
+    Mixer::DataType typeIn_ = Mixer::F32, typeOut_ = Mixer::F32;
+};
 
 }
