@@ -24,10 +24,37 @@
 namespace hojy::audio {
 
 ChannelWav::ChannelWav(Mixer *mixer, std::string_view filename) : Channel(mixer, filename) {
+    load();
 }
 
 ChannelWav::ChannelWav(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
+    load();
+}
 
+ChannelWav::~ChannelWav() {
+    if (buffer_) {
+        SDL_FreeWAV(buffer_);
+    }
+}
+
+size_t ChannelWav::readPCMData(const void **data, size_t size) {
+    if (pos_ >= length_) { return 0; }
+    if (pos_ + size > length_) {
+        size = length_ - pos_;
+    }
+    *data = buffer_ + pos_;
+    pos_ += size;
+    return size;
+}
+
+void ChannelWav::load() {
+    SDL_AudioSpec spec;
+    if (SDL_LoadWAV_RW(SDL_RWFromConstMem(data_.data(), data_.size()),
+                   1, &spec, &buffer_, &length_)) {
+        channels_ = spec.channels;
+        sampleRateIn_ = 44100.;
+        typeIn_ = Mixer::convertDataType(spec.format);
+    }
 }
 
 }

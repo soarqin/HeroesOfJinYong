@@ -19,17 +19,15 @@
 
 #include "channel.hh"
 
-#include "resampler.hh"
-
 #include <util/file.hh>
 
 namespace hojy::audio {
 
-Channel::Channel(Mixer *mixer, std::string_view filename): sampleRateOut_(mixer->sampleRate()) {
+Channel::Channel(Mixer *mixer, std::string_view filename): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()) {
     util::File::getFileContent(filename, data_);
 }
 
-Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()) {
+Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()) {
     data_.resize(size);
     memcpy(data_.data(), data, size);
 }
@@ -38,12 +36,20 @@ size_t Channel::readData(void *data, size_t size) {
     if (resampler_) {
         return resampler_->read(data, size);
     }
-    return readPCMData(data, size);
+    const void *pcmdata;
+    size_t sz = readPCMData(&pcmdata, size);
+    if (sz) {
+        memcpy(data, pcmdata, sz);
+    }
+    return sz;
 }
 
 void Channel::start() {
     if (sampleRateIn_ != sampleRateOut_ || typeIn_ != typeOut_) {
         resampler_ = std::make_unique<Resampler>(channels_, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
+        resampler_->setInputCallback([this](const void **data, size_t size)->size_t {
+            return readPCMData(data, size);
+        });
     }
 }
 

@@ -43,13 +43,13 @@ public:
     void start();
 
 protected:
-    virtual size_t readPCMData(void *data, size_t size) { return 0; }
+    virtual size_t readPCMData(const void **data, size_t size) { return 0; }
+    virtual void reset() {}
 
 protected:
     std::vector<std::uint8_t> data_;
     std::unique_ptr<Resampler> resampler_;
 
-private:
     std::uint32_t channels_ = 0;
     double sampleRateIn_ = 0.f, sampleRateOut_ = 0.f;
     Mixer::DataType typeIn_ = Mixer::F32, typeOut_ = Mixer::F32;

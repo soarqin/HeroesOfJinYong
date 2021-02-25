@@ -23,11 +23,22 @@
 
 namespace hojy::audio {
 
-class ChannelWav: public Channel {
+class ChannelWav final: public Channel {
 public:
     ChannelWav(Mixer *mixer, std::string_view filename);
     ChannelWav(Mixer *mixer, const void *data, size_t size);
+    ~ChannelWav() override;
 
+protected:
+    size_t readPCMData(const void **data, size_t size) override;
+    void reset() override { pos_ = 0; }
+
+private:
+    void load();
+
+private:
+    std::uint8_t *buffer_ = nullptr;
+    std::uint32_t length_ = 0, pos_ = 0;
 };
 
 }

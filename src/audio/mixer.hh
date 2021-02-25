@@ -19,22 +19,29 @@
 
 #pragma once
 
+#include <vector>
+#include <memory>
 #include <cstdint>
 
 namespace hojy::audio {
 
+class Channel;
+
 class Mixer final {
 public:
     enum DataType {
-        F32 = 0,  F64,  I32,  I16,
+        InvalidType = -1, F32 = 0,  F64,  I32,  I16,
     };
 
     Mixer();
     ~Mixer();
 
+    void addChannel(std::unique_ptr<Channel> &&ch);
     void pause(bool on) const;
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }
     [[nodiscard]] inline DataType dataType() const { return dataType_; }
+
+    static DataType convertDataType(std::uint16_t type);
 
 private:
     static void callback(void *userdata, std::uint8_t * stream, int len);
@@ -43,6 +50,7 @@ private:
     std::uint32_t audioDevice_ = 0;
     std::uint32_t sampleRate_ = 0;
     DataType dataType_ = F32;
+    std::vector<std::unique_ptr<Channel>> channels_;
 };
 
 }

@@ -32,7 +32,7 @@ class Resampler final {
 public:
     using InputCallback = std::function<size_t (const void**, size_t)>;
     Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, Mixer::DataType typeIn, Mixer::DataType typeOut);
-    inline void setInputCallback(InputCallback callback);
+    void setInputCallback(InputCallback callback);
     size_t read(void *data, size_t size);
     size_t write(const void *data, size_t size);
 
@@ -43,6 +43,7 @@ private:
     void *resampler_ = nullptr;
     InputCallback inputCB_;
     util::FIFOBuffer buffer_;
+    std::uint32_t channels_;
     double rate_ = 0.;
     size_t sampleSizeIn_, sampleSizeOut_ = 0;
 };

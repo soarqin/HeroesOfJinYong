@@ -19,6 +19,8 @@
 
 #include "mixer.hh"
 
+#include "channel.hh"
+
 #include <SDL.h>
 
 namespace hojy::audio {
@@ -28,8 +30,8 @@ Mixer::Mixer() {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
     SDL_AudioSpec desired = {
-        .freq = 48000,
-        .format = AUDIO_S16LSB,
+        .freq = 44100,
+        .format = AUDIO_S16,
         .channels = 2,
         .samples = 2048,
         .callback = callback,
@@ -44,12 +46,32 @@ Mixer::~Mixer() {
     SDL_CloseAudioDevice(audioDevice_);
 }
 
+void Mixer::addChannel(std::unique_ptr<Channel> &&ch) {
+    channels_.emplace_back(std::move(ch));
+}
+
 void Mixer::pause(bool on) const {
     SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
 }
 
+Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
+    switch (type) {
+    case AUDIO_F32:
+        return F32;
+    case AUDIO_S16:
+        return I16;
+    case AUDIO_S32:
+        return I32;
+    default:
+        return InvalidType;
+    }
+}
+
 void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
+    for (auto &ch: mixer->channels_) {
+        ch->readData(stream, len);
+    }
 }
 
 }

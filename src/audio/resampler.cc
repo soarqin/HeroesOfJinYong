@@ -45,24 +45,29 @@ Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleR
     auto io_spec = soxr_io_spec(soxr_datatype_t(typeIn), soxr_datatype_t(typeOut));
     auto *resampler = soxr_create(sampleRateIn, sampleRateOut, channels, nullptr, &io_spec, nullptr, nullptr);
     resampler_ = resampler;
+    channels_ = channels;
     rate_ = sampleRateOut / sampleRateIn;
     DataTypeToSize(typeIn, sampleSizeIn_);
     DataTypeToSize(typeOut, sampleSizeOut_);
+    sampleSizeIn_ *= channels;
+    sampleSizeOut_ *= channels;
     buffer_.setUnitSize(sampleSizeOut_);
 }
 
 void Resampler::setInputCallback(Resampler::InputCallback callback) {
     inputCB_ = std::move(callback);
     if (inputCB_) {
-        soxr_set_input_fn(static_cast<soxr_t>(resampler_), readCB, this, 65536);
+        soxr_set_input_fn(static_cast<soxr_t>(resampler_), readCB, this, 0);
     } else {
-        soxr_set_input_fn(static_cast<soxr_t>(resampler_), nullptr, this, 65536);
+        soxr_set_input_fn(static_cast<soxr_t>(resampler_), nullptr, this, 0);
     }
 }
 
 size_t Resampler::read(void *data, size_t size) {
     if (inputCB_) {
         return soxr_output(static_cast<soxr_t>(resampler_), data, size / sampleSizeOut_) * sampleSizeOut_;
+    } else {
+        buffer_.pop(data, size / sampleSizeOut_, 0);
     }
     return 0;
 }
@@ -86,7 +91,8 @@ size_t Resampler::write(const void *data, size_t size) {
 }
 
 size_t Resampler::readCB(void *userdata, const void **data, size_t len) {
-    return static_cast<Resampler*>(userdata)->inputCB_(data, len);
+    auto *resampler = static_cast<Resampler*>(userdata);
+    return resampler->inputCB_(data, len / resampler->sampleSizeIn_);
 }
 
 }
