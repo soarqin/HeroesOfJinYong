@@ -92,7 +92,8 @@ size_t Resampler::write(const void *data, size_t size) {
 
 size_t Resampler::readCB(void *userdata, const void **data, size_t len) {
     auto *resampler = static_cast<Resampler*>(userdata);
-    return resampler->inputCB_(data, len / resampler->sampleSizeIn_);
+    auto sampleSize = resampler->sampleSizeIn_;
+    return resampler->inputCB_(data, len * sampleSize) / sampleSize;
 }
 
 }

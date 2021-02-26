@@ -25,12 +25,17 @@
 
 namespace hojy::audio {
 
+void Mixer::ChannelInfo::reset() {
+    ch.reset();
+    volume = 0;
+}
+
 Mixer::Mixer() {
     if (!SDL_WasInit(SDL_INIT_AUDIO)) {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
     SDL_AudioSpec desired = {
-        .freq = 44100,
+        .freq = 48000,
         .format = AUDIO_S16,
         .channels = 2,
         .samples = 2048,
@@ -40,14 +45,22 @@ Mixer::Mixer() {
     SDL_AudioSpec obtained;
     audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
     sampleRate_ = obtained.freq;
+    format_ = obtained.format;
 }
 
 Mixer::~Mixer() {
     SDL_CloseAudioDevice(audioDevice_);
 }
 
-void Mixer::addChannel(std::unique_ptr<Channel> &&ch) {
-    channels_.emplace_back(std::move(ch));
+void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
+    if (channelId >= ChannelMax) {
+        return;
+    }
+    if (channelId >= channels_.size()) {
+        channels_.resize(channelId + 1);
+    }
+    channels_[channelId] = { std::unique_ptr<Channel>(ch), volume };
+    channels_.back().ch->start();
 }
 
 void Mixer::pause(bool on) const {
@@ -69,8 +82,16 @@ Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
 
 void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
-    for (auto &ch: mixer->channels_) {
-        ch->readData(stream, len);
+    memset(stream, 0, len);
+    std::vector<std::uint8_t> channelData(len);
+    for (auto &chi: mixer->channels_) {
+        if (!chi.ch) { continue; }
+        auto rsize = chi.ch->readData(channelData.data(), len);
+        if (rsize) {
+            SDL_MixAudioFormat(stream, channelData.data(), mixer->format_, rsize, chi.volume);
+        } else {
+            chi.reset();
+        }
     }
 }
 

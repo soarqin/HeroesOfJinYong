@@ -29,9 +29,10 @@ public:
     ChannelWav(Mixer *mixer, const void *data, size_t size);
     ~ChannelWav() override;
 
+    void reset() override { pos_ = 0; }
+
 protected:
     size_t readPCMData(const void **data, size_t size) override;
-    void reset() override { pos_ = 0; }
 
 private:
     void load();

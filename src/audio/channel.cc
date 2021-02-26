@@ -37,18 +37,31 @@ size_t Channel::readData(void *data, size_t size) {
         return resampler_->read(data, size);
     }
     const void *pcmdata;
-    size_t sz = readPCMData(&pcmdata, size);
-    if (sz) {
-        memcpy(data, pcmdata, sz);
+    size_t totalsz = 0;
+    for(;;) {
+        size_t sz = readPCMData(&pcmdata, size);
+        if (sz) {
+            memcpy(static_cast<uint8_t*>(data) + totalsz, pcmdata, sz);
+            totalsz += sz;
+        }
+        if (totalsz < size && repeat_) {
+            reset();
+            continue;
+        }
+        return totalsz;
     }
-    return sz;
 }
 
 void Channel::start() {
     if (sampleRateIn_ != sampleRateOut_ || typeIn_ != typeOut_) {
         resampler_ = std::make_unique<Resampler>(channels_, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
         resampler_->setInputCallback([this](const void **data, size_t size)->size_t {
-            return readPCMData(data, size);
+            auto res = readPCMData(data, size);
+            if (!res && repeat_) {
+                reset();
+                return readPCMData(data, size);
+            }
+            return res;
         });
     }
 }

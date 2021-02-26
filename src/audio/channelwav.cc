@@ -50,7 +50,7 @@ size_t ChannelWav::readPCMData(const void **data, size_t size) {
 void ChannelWav::load() {
     SDL_AudioSpec spec;
     if (SDL_LoadWAV_RW(SDL_RWFromConstMem(data_.data(), data_.size()),
-                   1, &spec, &buffer_, &length_)) {
+                       1, &spec, &buffer_, &length_)) {
         channels_ = spec.channels;
         sampleRateIn_ = 44100.;
         typeIn_ = Mixer::convertDataType(spec.format);

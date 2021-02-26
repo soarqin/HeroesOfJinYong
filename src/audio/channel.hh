@@ -38,13 +38,14 @@ public:
     Channel(const Channel&) = delete;
     Channel(Channel&&) noexcept = default;
 
+    inline void setRepeat(bool r) { repeat_ = r; }
     size_t readData(void *data, size_t size);
-
     void start();
+
+    virtual void reset() {}
 
 protected:
     virtual size_t readPCMData(const void **data, size_t size) { return 0; }
-    virtual void reset() {}
 
 protected:
     std::vector<std::uint8_t> data_;
@@ -53,6 +54,7 @@ protected:
     std::uint32_t channels_ = 0;
     double sampleRateIn_ = 0.f, sampleRateOut_ = 0.f;
     Mixer::DataType typeIn_ = Mixer::F32, typeOut_ = Mixer::F32;
+    bool repeat_ = false;
 };
 
 }

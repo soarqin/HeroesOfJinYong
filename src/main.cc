@@ -21,11 +21,10 @@
 
 #include "core/config.hh"
 #include "data/loader.hh"
-
-#include "data/grpdata.hh"
-#include "data/colorpalette.hh"
-#include "scene/texture.hh"
 #include "scene/window.hh"
+#include "audio/mixer.hh"
+#include "audio/channelwav.hh"
+#include "audio/channelmidi.hh"
 
 using namespace hojy;
 
@@ -33,6 +32,17 @@ int main() {
     core::config.load("config.toml");
     data::loadData();
     scene::Window win(640, 480);
+    audio::Mixer mixer;
+    /*
+    auto *t1 = new audio::ChannelWav(&mixer, "test.wav");
+    t1->setRepeat(true);
+    mixer.play(0, t1);
+    mixer.play(1, new audio::ChannelWav(&mixer, "test2.wav"));
+     */
+    auto *midi = new audio::ChannelMIDI(&mixer, "GAME01.XMI");
+    midi->setRepeat(true);
+    mixer.play(0, midi);
+    mixer.pause(false);
     while (win.processEvents()) {
         win.render();
         win.flush();

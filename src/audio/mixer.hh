@@ -28,29 +28,43 @@ namespace hojy::audio {
 class Channel;
 
 class Mixer final {
+    struct ChannelInfo {
+        ChannelInfo() = default;
+        ChannelInfo(const ChannelInfo&) = delete;
+        ChannelInfo(ChannelInfo&&) noexcept = default;
+        ChannelInfo& operator=(ChannelInfo&&) = default;
+        std::unique_ptr<Channel> ch;
+        int volume = 0;
+
+        void reset();
+    };
 public:
     enum DataType {
         InvalidType = -1, F32 = 0,  F64,  I32,  I16,
+    };
+    enum {
+        ChannelMax = 8,
+        VolumeMax = 128,
     };
 
     Mixer();
     ~Mixer();
 
-    void addChannel(std::unique_ptr<Channel> &&ch);
+    void play(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
     void pause(bool on) const;
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }
-    [[nodiscard]] inline DataType dataType() const { return dataType_; }
+    [[nodiscard]] inline DataType dataType() const { return convertDataType(format_); }
 
     static DataType convertDataType(std::uint16_t type);
 
 private:
-    static void callback(void *userdata, std::uint8_t * stream, int len);
+    static void callback(void *userdata, std::uint8_t *stream, int len);
 
 private:
     std::uint32_t audioDevice_ = 0;
     std::uint32_t sampleRate_ = 0;
-    DataType dataType_ = F32;
-    std::vector<std::unique_ptr<Channel>> channels_;
+    std::uint16_t format_ = 0;
+    std::vector<ChannelInfo> channels_;
 };
 
 }

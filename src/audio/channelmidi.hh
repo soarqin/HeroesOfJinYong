@@ -17,8 +17,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "channelxmi.hh"
+#pragma once
+
+#include "channel.hh"
 
 namespace hojy::audio {
+
+class ChannelMIDI final: public Channel {
+public:
+    ChannelMIDI(Mixer *mixer, std::string_view filename);
+    ChannelMIDI(Mixer *mixer, const void *data, size_t size);
+    ~ChannelMIDI() override;
+
+    void reset() override;
+
+protected:
+    size_t readPCMData(const void **data, size_t size) override;
+
+private:
+    void load();
+
+private:
+    void *midiplayer_ = nullptr;
+    std::vector<short> cache_;
+};
 
 }
