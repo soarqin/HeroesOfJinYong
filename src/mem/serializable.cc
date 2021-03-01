@@ -17,28 +17,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "serializable.hh"
 
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstdint>
+namespace hojy::mem {
 
-namespace hojy::data {
+Serializable &Serializable::operator>>(std::ostream &ostream) {
+    serialize(ostream);
+    return *this;
+}
 
-class GrpData final {
-public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
-
-public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
-
-private:
-    std::unordered_map<std::string, DataSet> data_;
-};
-
-extern GrpData grpData;
+Serializable &Serializable::operator<<(std::istream &istream) {
+    deserialize(istream);
+    return *this;
+}
 
 }

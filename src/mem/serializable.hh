@@ -19,26 +19,25 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstdint>
+#include <iostream>
 
-namespace hojy::data {
+#ifdef __GNUC__
+#define ATTR_PACKED __attribute__((packed))
+#else
+#define ATTR_PACKED
+#endif
 
-class GrpData final {
+namespace hojy::mem {
+
+class Serializable {
 public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
+    virtual ~Serializable() = default;
+    Serializable &operator>>(std::ostream&);
+    Serializable &operator<<(std::istream&);
 
-public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
-
-private:
-    std::unordered_map<std::string, DataSet> data_;
+protected:
+    virtual void serialize(std::ostream&) {}
+    virtual void deserialize(std::istream&) {}
 };
-
-extern GrpData grpData;
 
 }

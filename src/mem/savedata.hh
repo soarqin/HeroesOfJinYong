@@ -19,26 +19,18 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstdint>
+#include "BaseInfo.hh"
 
-namespace hojy::data {
+namespace hojy::mem {
 
-class GrpData final {
+class SaveData {
 public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
+    bool newGame();
+    bool load(int num);
+    bool save(int num);
 
 public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
-
-private:
-    std::unordered_map<std::string, DataSet> data_;
+    BaseInfo baseInfo;
 };
-
-extern GrpData grpData;
 
 }

@@ -17,28 +17,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "savedata.hh"
 
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstdint>
+#include <data/grpdata.hh>
 
-namespace hojy::data {
+#include <sstream>
 
-class GrpData final {
-public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
+namespace hojy::mem {
 
-public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
+bool SaveData::newGame() {
+    data::GrpData::DataSet dset;
+    data::GrpData::loadData("RANGER", dset);
+    std::istringstream iss(dset[0]);
+    return false;
+}
 
-private:
-    std::unordered_map<std::string, DataSet> data_;
-};
+bool SaveData::load(int num) {
+    return false;
+}
 
-extern GrpData grpData;
+bool SaveData::save(int num) {
+    return false;
+}
 
 }

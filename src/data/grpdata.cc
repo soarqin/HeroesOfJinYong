@@ -26,14 +26,13 @@ namespace hojy::data {
 
 GrpData grpData;
 
-bool GrpData::load(const std::string &name) {
+bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
     auto ifs = util::File::open(core::config.dataFilePath(name + ".IDX"));
     auto ifs2 = util::File::open(core::config.dataFilePath(name + ".GRP"));
     if (!ifs || !ifs2) {
         return false;
     }
     size_t count = ifs.size() / sizeof(std::uint32_t);
-    DataSet &dset = data_[name];
     dset.resize(count);
     std::uint32_t offset = 0;
     for (size_t i = 0; i < count; ++i) {
@@ -47,6 +46,16 @@ bool GrpData::load(const std::string &name) {
         offset = endoffset;
     }
     return true;
+}
+
+bool GrpData::load(const std::string &name) {
+    auto ifs = util::File::open(core::config.dataFilePath(name + ".IDX"));
+    auto ifs2 = util::File::open(core::config.dataFilePath(name + ".GRP"));
+    if (!ifs || !ifs2) {
+        return false;
+    }
+    size_t count = ifs.size() / sizeof(std::uint32_t);
+    return loadData(name, data_[name]);
 }
 
 const GrpData::DataSet &GrpData::operator[](const std::string &name) const {

@@ -19,26 +19,34 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <vector>
-#include <string>
+#include "serializable.hh"
+
 #include <cstdint>
 
-namespace hojy::data {
+namespace hojy::mem {
 
-class GrpData final {
-public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
+#pragma pack(push, 1)
+struct BaseData {
+    struct ItemInfo {
+        std::int16_t id, count;
+    };
+    std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
+    std::int16_t members[6];
+    ItemInfo items[200];
+} ATTR_PACKED;
+#pragma pack(pop)
 
+class BaseInfo: public Serializable {
 public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
+    inline BaseData *operator->() { return &data_; }
+    inline const BaseData *operator->() const { return &data_; }
+
+protected:
+    void serialize(std::ostream &ostm) override;
+    void deserialize(std::istream &istm) override;
 
 private:
-    std::unordered_map<std::string, DataSet> data_;
+    BaseData data_;
 };
-
-extern GrpData grpData;
 
 }

@@ -39,7 +39,7 @@ int main() {
     mixer.play(0, t1);
     mixer.play(1, new audio::ChannelWav(&mixer, "test2.wav"));
      */
-    auto *midi = new audio::ChannelMIDI(&mixer, "GAME01.XMI");
+    auto *midi = new audio::ChannelMIDI(&mixer, "data/GAME01.XMI");
     midi->setRepeat(true);
     mixer.play(0, midi);
     mixer.pause(false);

@@ -17,28 +17,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "baseinfo.hh"
 
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstdint>
+namespace hojy::mem {
 
-namespace hojy::data {
+void BaseInfo::serialize(std::ostream &ostm) {
+    ostm.write(reinterpret_cast<const char*>(&data_), sizeof(data_));
+}
 
-class GrpData final {
-public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
-
-public:
-    static bool loadData(const std::string &name, DataSet &dset);
-    bool load(const std::string &name);
-    const DataSet &operator[](const std::string &name) const;
-
-private:
-    std::unordered_map<std::string, DataSet> data_;
-};
-
-extern GrpData grpData;
+void BaseInfo::deserialize(std::istream &istm) {
+    istm.read(reinterpret_cast<char*>(&data_), sizeof(data_));
+}
 
 }
