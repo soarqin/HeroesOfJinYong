@@ -21,15 +21,18 @@
 
 #include <data/grpdata.hh>
 
-#include <sstream>
+#include <iostream>
 
 namespace hojy::mem {
 
 bool SaveData::newGame() {
     data::GrpData::DataSet dset;
     data::GrpData::loadData("RANGER", dset);
-    std::istringstream iss(dset[0]);
-    return false;
+    if (dset.size() < 6) {
+        return false;
+    }
+    baseInfo << dset[0];
+    return true;
 }
 
 bool SaveData::load(int num) {

@@ -19,15 +19,29 @@
 
 #include "serializable.hh"
 
+#include <streambuf>
+#include <sstream>
+
 namespace hojy::mem {
 
-Serializable &Serializable::operator>>(std::ostream &ostream) {
-    serialize(ostream);
+struct MemBuf: std::streambuf {
+    MemBuf(char* p, size_t size) {
+        setg(p, p, p + size);
+    }
+};
+
+Serializable &Serializable::operator>>(std::vector<std::uint8_t> &data) {
+    std::ostringstream stm;
+    serialize(stm);
+    auto str = stm.str();
+    data.assign(str.begin(), str.end());
     return *this;
 }
 
-Serializable &Serializable::operator<<(std::istream &istream) {
-    deserialize(istream);
+Serializable &Serializable::operator<<(std::vector<std::uint8_t> &data) {
+    MemBuf buf(reinterpret_cast<char*>(data.data()), data.size());
+    std::istream istm(&buf);
+    deserialize(istm);
     return *this;
 }
 

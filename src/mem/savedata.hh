@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "BaseInfo.hh"
+#include "baseinfo.hh"
 
 namespace hojy::mem {
 

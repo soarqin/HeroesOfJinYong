@@ -21,6 +21,7 @@
 
 #include "core/config.hh"
 #include "data/loader.hh"
+#include "mem/savedata.hh"
 #include "scene/window.hh"
 #include "audio/mixer.hh"
 #include "audio/channelwav.hh"
@@ -31,6 +32,8 @@ using namespace hojy;
 int main() {
     core::config.load("config.toml");
     data::loadData();
+    mem::SaveData sdata;
+    sdata.newGame();
     scene::Window win(1024, 768);
     audio::Mixer mixer;
     mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME01.XMI"));

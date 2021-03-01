@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <vector>
 #include <iostream>
 
 #ifdef __GNUC__
@@ -32,8 +33,8 @@ namespace hojy::mem {
 class Serializable {
 public:
     virtual ~Serializable() = default;
-    Serializable &operator>>(std::ostream&);
-    Serializable &operator<<(std::istream&);
+    Serializable &operator>>(std::vector<std::uint8_t>&);
+    Serializable &operator<<(std::vector<std::uint8_t>&);
 
 protected:
     virtual void serialize(std::ostream&) {}
