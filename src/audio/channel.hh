@@ -38,10 +38,10 @@ public:
     Channel(const Channel&) = delete;
     Channel(Channel&&) noexcept = default;
 
-    inline void setRepeat(bool r) { repeat_ = r; }
     size_t readData(void *data, size_t size);
     void start();
 
+    virtual void setRepeat(bool r) { repeat_ = r; }
     virtual void reset() {}
 
 protected:

@@ -38,11 +38,38 @@ ChannelWav::~ChannelWav() {
 }
 
 size_t ChannelWav::readPCMData(const void **data, size_t size) {
+    if (repeat_) {
+        if (!length_) { return 0; }
+        if (pos_ + size <= length_) {
+            *data = buffer_ + pos_;
+            pos_ = (pos_ + size) % length_;
+            return size;
+        }
+        if (cache_.size() < size) {
+            cache_.resize(size);
+        }
+        auto *writedata = cache_.data();
+        *data = writedata;
+        auto left = size;
+        while (left) {
+            if (pos_ + left >= length_) {
+                auto readsz = length_ - pos_;
+                memcpy(writedata, buffer_ + pos_, readsz);
+                left -= readsz;
+                reset();
+            } else {
+                memcpy(writedata, buffer_ + pos_, left);
+                pos_ += left;
+                left = 0;
+            }
+        }
+        return size;
+    }
     if (pos_ >= length_) { return 0; }
+    *data = buffer_ + pos_;
     if (pos_ + size > length_) {
         size = length_ - pos_;
     }
-    *data = buffer_ + pos_;
     pos_ += size;
     return size;
 }

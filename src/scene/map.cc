@@ -142,8 +142,8 @@ void Map::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
-        int nx = int(width_) / 2 + cellWidth_ * 2;
-        int ny = int(height_) / 2 + cellHeight_ * 2;
+        int nx = int(width_) / 2 + cellWidth_;
+        int ny = int(height_) / 2 + cellHeight_;
         int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
@@ -183,7 +183,7 @@ void Map::render() {
         int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(width_ / 2);
         int oy = (curX + curY) * cellDiffY + offsetY_ - int(height_ / 2);
         int myy = int(height_) / 2 + oy;
-        int l = ox - 128, t = oy - 128, r = ox + int(width_) + 128, b = oy + int(height_) + 128;
+        int l = ox - cellWidth_ * 2, t = oy - cellHeight_ * 2, r = ox + int(width_) + cellWidth_ * 2, b = oy + int(height_) + cellHeight_ * 6;
         auto ite = std::lower_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {t * texWidth_ + l, 0, 0, nullptr}, BuildingTexComp());
         auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
         auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());

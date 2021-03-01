@@ -31,17 +31,9 @@ using namespace hojy;
 int main() {
     core::config.load("config.toml");
     data::loadData();
-    scene::Window win(640, 480);
+    scene::Window win(1024, 768);
     audio::Mixer mixer;
-    /*
-    auto *t1 = new audio::ChannelWav(&mixer, "test.wav");
-    t1->setRepeat(true);
-    mixer.play(0, t1);
-    mixer.play(1, new audio::ChannelWav(&mixer, "test2.wav"));
-     */
-    auto *midi = new audio::ChannelMIDI(&mixer, "data/GAME01.XMI");
-    midi->setRepeat(true);
-    mixer.play(0, midi);
+    mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME01.XMI"));
     mixer.pause(false);
     while (win.processEvents()) {
         win.render();

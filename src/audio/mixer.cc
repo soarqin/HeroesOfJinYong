@@ -59,8 +59,19 @@ void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, doubl
     if (channelId >= channels_.size()) {
         channels_.resize(channelId + 1);
     }
-    channels_[channelId] = { std::unique_ptr<Channel>(ch), volume };
-    channels_.back().ch->start();
+    if (ch) {
+        channels_[channelId] = {std::unique_ptr<Channel>(ch), volume};
+        channels_.back().ch->start();
+    } else {
+        channels_[channelId] = {nullptr, VolumeMax};
+    }
+}
+
+void Mixer::repeatPlay(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
+    if (ch) {
+        ch->setRepeat(true);
+    }
+    play(channelId, ch, volume, fadeIn, fadeOut);
 }
 
 void Mixer::pause(bool on) const {

@@ -51,6 +51,7 @@ public:
     ~Mixer();
 
     void play(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
+    void repeatPlay(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
     void pause(bool on) const;
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }
     [[nodiscard]] inline DataType dataType() const { return convertDataType(format_); }

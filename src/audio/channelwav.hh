@@ -38,6 +38,7 @@ private:
     void load();
 
 private:
+    std::vector<std::uint8_t> cache_;
     std::uint8_t *buffer_ = nullptr;
     std::uint32_t length_ = 0, pos_ = 0;
 };

@@ -51,12 +51,13 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
     if (res < 0) {
         return 0;
     }
-    if (res == 0 && adl_atEnd(static_cast<ADL_MIDIPlayer*>(midiplayer_)) && repeat_) {
+    if (res < size && adl_atEnd(static_cast<ADL_MIDIPlayer*>(midiplayer_)) && repeat_) {
         reset();
-        res = adl_play(static_cast<ADL_MIDIPlayer*>(midiplayer_), count, cache_.data());
-        if (res < 0) {
-            return 0;
+        auto res2 = adl_play(static_cast<ADL_MIDIPlayer*>(midiplayer_), count - res / sizeof(short), cache_.data() + res / sizeof(short));
+        if (res2 < 0) {
+            return res;
         }
+        res += res2;
     }
     *data = cache_.data();
     return res * sizeof(short);
@@ -67,6 +68,7 @@ void ChannelMIDI::load() {
     if (!midiplayer_) {
         return;
     }
+    // adl_setLoopEnabled(static_cast<ADL_MIDIPlayer*>(midiplayer_), 1);
     if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
         return;
     }
