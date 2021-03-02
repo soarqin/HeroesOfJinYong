@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 #include <iostream>
 
@@ -33,12 +34,59 @@ namespace hojy::mem {
 class Serializable {
 public:
     virtual ~Serializable() = default;
-    Serializable &operator>>(std::vector<std::uint8_t>&);
-    Serializable &operator<<(std::vector<std::uint8_t>&);
+    void serialize(std::string&);
+    void deserialize(const std::string&);
+    virtual Serializable &operator>>(std::ostream &ostm) { return *this; }
+    virtual Serializable &operator<<(std::istream &istm) { return *this; }
+};
 
-protected:
-    virtual void serialize(std::ostream&) {}
-    virtual void deserialize(std::istream&) {}
+template<typename T>
+class SerializableStruct: public Serializable {
+public:
+    T *operator->() { return &data_; }
+    const T *operator->() const { return &data_; }
+
+    Serializable &operator>>(std::ostream &ostm) override {
+        ostm.write(reinterpret_cast<const char*>(&data_), sizeof(data_));
+        return *this;
+    }
+    Serializable &operator<<(std::istream &istm) override {
+        istm.read(reinterpret_cast<char*>(&data_), sizeof(data_));
+        return *this;
+    }
+
+private:
+    T data_;
+};
+
+template<typename T>
+class SerializableStructVec: public Serializable {
+public:
+    T *operator[](size_t index) { return index < data_.size() ? &data_[index] : nullptr; }
+    const T *operator[](size_t index) const { return index < data_.size() ? &data_[index] : nullptr; }
+    [[nodiscard]] size_t size() const { return data_.size(); }
+
+    Serializable &operator>>(std::ostream &ostm) override {
+        for (auto &data: data_) {
+            ostm.write(reinterpret_cast<const char *>(&data), sizeof(data));
+        }
+        return *this;
+    }
+
+    Serializable &operator<<(std::istream &istm) override {
+        data_.clear();
+        while (!istm.eof()) {
+            T data;
+            istm.read(reinterpret_cast<char *>(&data), sizeof(data));
+            if (!istm.fail()) {
+                data_.emplace_back(data);
+            }
+        }
+        return *this;
+    }
+
+private:
+    std::vector<T> data_;
 };
 
 }

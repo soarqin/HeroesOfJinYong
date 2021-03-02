@@ -17,8 +17,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
-
 #include "core/config.hh"
 #include "data/loader.hh"
 #include "mem/savedata.hh"

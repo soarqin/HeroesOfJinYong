@@ -25,6 +25,10 @@
 
 namespace hojy::mem {
 
+enum {
+    BagItemCount = 200,
+};
+
 #pragma pack(push, 1)
 struct BaseData {
     struct ItemInfo {
@@ -32,21 +36,10 @@ struct BaseData {
     };
     std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
     std::int16_t members[6];
-    ItemInfo items[200];
+    ItemInfo items[BagItemCount];
 } ATTR_PACKED;
 #pragma pack(pop)
 
-class BaseInfo: public Serializable {
-public:
-    inline BaseData *operator->() { return &data_; }
-    inline const BaseData *operator->() const { return &data_; }
-
-protected:
-    void serialize(std::ostream &ostm) override;
-    void deserialize(std::istream &istm) override;
-
-private:
-    BaseData data_;
-};
+using BaseInfo = SerializableStruct<BaseData>;
 
 }

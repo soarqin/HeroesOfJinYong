@@ -21,26 +21,77 @@
 
 #include <data/grpdata.hh>
 
-#include <iostream>
-
 namespace hojy::mem {
 
-bool SaveData::newGame() {
-    data::GrpData::DataSet dset;
-    data::GrpData::loadData("RANGER", dset);
-    if (dset.size() < 6) {
-        return false;
+static void buildSaveFilename(int num, std::string &rangerFile, std::string &sinFile, std::string &defFile) {
+    if (num == 0) {
+        rangerFile = "RANGER";
+        sinFile = "ALLSIN";
+        defFile = "ALLDEF";
+    } else {
+        rangerFile = "R" + std::to_string(num);
+        sinFile = "S" + std::to_string(num);
+        defFile = "D" + std::to_string(num);
     }
-    baseInfo << dset[0];
-    return true;
+}
+
+bool SaveData::newGame() {
+    return load(0);
 }
 
 bool SaveData::load(int num) {
-    return false;
+    std::string rangerFile, sinFile, defFile;
+    buildSaveFilename(num, rangerFile, sinFile, defFile);
+    data::GrpData::DataSet rangerData, sinData, defData;
+    if (!data::GrpData::loadData(rangerFile, rangerData)) {
+        return false;
+    }
+    if (rangerData.size() < 6) {
+        return false;
+    }
+    baseInfo.deserialize(rangerData[0]);
+    charInfo.deserialize(rangerData[1]);
+    itemInfo.deserialize(rangerData[2]);
+    subMapInfo.deserialize(rangerData[3]);
+    skillInfo.deserialize(rangerData[4]);
+    shopInfo.deserialize(rangerData[5]);
+    if (!data::GrpData::loadData(sinFile, sinData)) {
+        return false;
+    }
+    size_t sz = sinData.size();
+    if (sz < subMapInfo.size()) {
+        return false;
+    }
+    subMapLayerInfo.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        subMapLayerInfo[i].deserialize(sinData[i]);
+    }
+    if (!data::GrpData::loadData(defFile, defData)) {
+        return false;
+    }
+    sz = defData.size();
+    if (sz < subMapInfo.size()) {
+        return false;
+    }
+    subMapEventInfo.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        subMapEventInfo[i].deserialize(defData[i]);
+    }
+    return true;
 }
 
 bool SaveData::save(int num) {
-    return false;
+    std::string rangerFile, sinFile, defFile;
+    buildSaveFilename(num, rangerFile, sinFile, defFile);
+    data::GrpData::DataSet rangerData, sinData, defData;
+    rangerData.resize(6);
+    baseInfo.serialize(rangerData[0]);
+    charInfo.serialize(rangerData[1]);
+    itemInfo.serialize(rangerData[2]);
+    subMapInfo.serialize(rangerData[3]);
+    skillInfo.serialize(rangerData[4]);
+    shopInfo.serialize(rangerData[5]);
+    return data::GrpData::saveData(rangerFile, rangerData);
 }
 
 }

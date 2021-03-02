@@ -20,6 +20,11 @@
 #pragma once
 
 #include "baseinfo.hh"
+#include "character.hh"
+#include "iteminfo.hh"
+#include "submap.hh"
+#include "skillinfo.hh"
+#include "shopinfo.hh"
 
 namespace hojy::mem {
 
@@ -31,6 +36,13 @@ public:
 
 public:
     BaseInfo baseInfo;
+    Character charInfo;
+    ItemInfo itemInfo;
+    SubMapInfo subMapInfo;
+    std::vector<SubMapLayerInfo> subMapLayerInfo;
+    std::vector<SubMapEventInfo> subMapEventInfo;
+    SkillInfo skillInfo;
+    ShopInfo shopInfo;
 };
 
 }

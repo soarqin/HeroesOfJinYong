@@ -48,13 +48,22 @@ bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
     return true;
 }
 
-bool GrpData::load(const std::string &name) {
-    auto ifs = util::File::open(core::config.dataFilePath(name + ".IDX"));
-    auto ifs2 = util::File::open(core::config.dataFilePath(name + ".GRP"));
+bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset) {
+    auto ifs = util::File::create(core::config.dataFilePath(name + ".IDX"));
+    auto ifs2 = util::File::create(core::config.dataFilePath(name + ".GRP"));
     if (!ifs || !ifs2) {
         return false;
     }
-    size_t count = ifs.size() / sizeof(std::uint32_t);
+    std::uint32_t offset = 0;
+    for (auto &d: dset) {
+        offset += d.size();
+        ifs2.write(d.data(), d.size());
+        ifs.write(&offset, sizeof(std::uint32_t));
+    }
+    return true;
+}
+
+bool GrpData::load(const std::string &name) {
     return loadData(name, data_[name]);
 }
 

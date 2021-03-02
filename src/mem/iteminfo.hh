@@ -24,33 +24,27 @@
 namespace hojy::mem {
 
 enum {
-    CharFrameCount = 15,
-    LearnSkillCount = 10,
-    CarryItemCount = 4,
+    MakeItemCount = 5,
 };
 
 #pragma pack(push, 1)
-struct CharacterData {
+struct ItemData {
     std::int16_t id;
-    std::int16_t headId, incLife, padding;
-    char name[10], nick[10];
-    std::int16_t sex;
-    std::int16_t level;
-    std::uint16_t exp;
-    std::int16_t hp, maxHp, hurt, poisoned, stamina;
-    std::uint16_t expForMakeItem;
-    std::int16_t equip0, equip1;
-    std::int16_t frame[CharFrameCount];
-    std::int16_t mpType, mp, maxMp;
-    std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, hiddenWeapon;
-    std::int16_t knowledge, integrity, poisonAmp, doubleAttack, fame, potential;
-    std::int16_t trainingItem;
-    std::uint16_t expForItem;
-    std::int16_t skillId[LearnSkillCount], skillLevel[LearnSkillCount];
-    std::int16_t item[CarryItemCount], itemCount[CarryItemCount];
+    char name[20], name2[20];
+    char desc[30];
+    std::int16_t skillId, hiddenWeaponEffectId, user, equipType, showDesc;
+    std::int16_t itemType;    //0Special 1Equip 2Skill 3Heal 4Attack
+    std::int16_t padding[3];
+    std::int16_t addHp, addMaxHp, addPoisoned, addStamina, changeMpType, addMp, addMaxMp;
+    std::int16_t addAttack, addSpeed, addDefence, addMedic, addPoison, addDepoison, addAntipoison;
+    std::int16_t addFist, addSword, addBlade, addSpecial, addHiddenWeapon, addKnowledge, addMoral, addDoubleAttack, addPoisonAmp;
+    std::int16_t charOnly, reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
+    std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
+    std::int16_t reqExp, reqExpForMakeItem, reqMaterial;
+    std::int16_t madeItem[MakeItemCount], madeItemCount[MakeItemCount];
 } ATTR_PACKED;
 #pragma pack(pop)
 
-using Character = SerializableStructVec<CharacterData>;
+using ItemInfo = SerializableStructVec<ItemData>;
 
 }

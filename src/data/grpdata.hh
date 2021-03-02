@@ -28,10 +28,11 @@ namespace hojy::data {
 
 class GrpData final {
 public:
-    using DataSet = std::vector<std::vector<std::uint8_t>>;
+    using DataSet = std::vector<std::string>;
 
 public:
     static bool loadData(const std::string &name, DataSet &dset);
+    static bool saveData(const std::string &name, const DataSet &dset);
     bool load(const std::string &name);
     const DataSet &operator[](const std::string &name) const;
 

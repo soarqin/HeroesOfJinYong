@@ -25,24 +25,23 @@
 namespace hojy::mem {
 
 struct MemBuf: std::streambuf {
-    MemBuf(char* p, size_t size) {
-        setg(p, p, p + size);
+    MemBuf(const char *p, size_t size) {
+        auto *ptr = const_cast<char*>(p);
+        setg(ptr, ptr, ptr + size);
     }
 };
 
-Serializable &Serializable::operator>>(std::vector<std::uint8_t> &data) {
+
+void Serializable::serialize(std::string &data) {
     std::ostringstream stm;
-    serialize(stm);
-    auto str = stm.str();
-    data.assign(str.begin(), str.end());
-    return *this;
+    *this >> stm;
+    data = std::move(stm.str());
 }
 
-Serializable &Serializable::operator<<(std::vector<std::uint8_t> &data) {
-    MemBuf buf(reinterpret_cast<char*>(data.data()), data.size());
+void Serializable::deserialize(const std::string &data) {
+    MemBuf buf(data.data(), data.size());
     std::istream istm(&buf);
-    deserialize(istm);
-    return *this;
+    *this << istm;
 }
 
 }

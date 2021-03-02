@@ -35,12 +35,12 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     return tex;
 }
 
-bool Texture::loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette) {
+bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *palette) {
     size_t left = data.size();
     if (left < 8) {
         return false;
     }
-    const auto *buf = data.data();
+    const auto *buf = reinterpret_cast<const uint8_t*>(data.data());
     struct Header {
         std::int16_t w, h, x, y;
     };
@@ -101,7 +101,7 @@ void TextureMgr::setPalette(const std::uint32_t *colors, std::size_t size) {
     palette_ = palette;
 }
 
-bool TextureMgr::loadFromRLE(std::int32_t id, const std::vector<std::uint8_t> &data) {
+bool TextureMgr::loadFromRLE(std::int32_t id, const std::string &data) {
     Texture tex;
     if (!tex.loadFromRLE(renderer_, data, palette_)) {
         return false;

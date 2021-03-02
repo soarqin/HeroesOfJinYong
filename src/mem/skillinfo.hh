@@ -17,7 +17,31 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "character.hh"
+#pragma once
+
+#include "serializable.hh"
 
 namespace hojy::mem {
+
+enum {
+    SkillCheckCount = 10,
+};
+
+#pragma pack(push, 1)
+struct SkillData {
+    std::int16_t id;
+    char name[10];
+    std::int16_t padding[5];
+    std::int16_t soundId;
+    std::int16_t skillType;    //1Fist 2Sowrd 3Blade 4Special
+    std::int16_t effectId;
+    std::int16_t damageType;        //0Normal 1Drain MP
+    std::int16_t attackAreaType;    //0single 1line 2cross 3area
+    std::int16_t reqMp, addPoison;
+    std::int16_t attack[SkillCheckCount], selDistance[SkillCheckCount], attackDistance[SkillCheckCount], addMp[SkillCheckCount], drainMp[SkillCheckCount];
+} ATTR_PACKED;
+#pragma pack(pop)
+
+using SkillInfo = SerializableStructVec<SkillData>;
+
 }

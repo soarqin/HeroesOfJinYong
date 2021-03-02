@@ -24,33 +24,39 @@
 namespace hojy::mem {
 
 enum {
-    CharFrameCount = 15,
-    LearnSkillCount = 10,
-    CarryItemCount = 4,
+    SubMapWidth = 64,
+    SubMapHeight = 64,
+    SubMapLayerCount = 6,
+    SubMapEventCount = 200,
 };
 
 #pragma pack(push, 1)
-struct CharacterData {
+struct SubMapData {
     std::int16_t id;
-    std::int16_t headId, incLife, padding;
-    char name[10], nick[10];
-    std::int16_t sex;
-    std::int16_t level;
-    std::uint16_t exp;
-    std::int16_t hp, maxHp, hurt, poisoned, stamina;
-    std::uint16_t expForMakeItem;
-    std::int16_t equip0, equip1;
-    std::int16_t frame[CharFrameCount];
-    std::int16_t mpType, mp, maxMp;
-    std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, hiddenWeapon;
-    std::int16_t knowledge, integrity, poisonAmp, doubleAttack, fame, potential;
-    std::int16_t trainingItem;
-    std::uint16_t expForItem;
-    std::int16_t skillId[LearnSkillCount], skillLevel[LearnSkillCount];
-    std::int16_t item[CarryItemCount], itemCount[CarryItemCount];
+    char name[10];
+    std::int16_t exitMusic, enterMusic;
+    std::int16_t jumpSubMap, enterCondition;
+    std::int16_t mainEnterX1, mainEnterY1, mainEnterX2, mainEnterY2;
+    std::int16_t enterX, enterY;
+    std::int16_t exitX[3], exitY[3];
+    std::int16_t jumpX, jumpY, jumpReturnX, jumpReturnY;
 } ATTR_PACKED;
+
+struct SubMapEvent {
+    std::int16_t blocked, index, event1, event2, event3, currTex, endTex, begText, texDelay, x, y;
+};
+
+struct SubMapLayerData {
+    std::int16_t data[SubMapLayerCount][SubMapWidth * SubMapHeight];
+};
+
+struct SubMapEventData {
+    SubMapEvent events[SubMapEventCount];
+};
 #pragma pack(pop)
 
-using Character = SerializableStructVec<CharacterData>;
+using SubMapInfo = SerializableStructVec<SubMapData>;
+using SubMapLayerInfo = SerializableStruct<SubMapLayerData>;
+using SubMapEventInfo = SerializableStruct<SubMapEventData>;
 
 }

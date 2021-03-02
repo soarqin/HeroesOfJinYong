@@ -46,7 +46,7 @@ public:
 
 private:
     Texture() = default;
-    bool loadFromRLE(Renderer *renderer, const std::vector<std::uint8_t> &data, void *palette);
+    bool loadFromRLE(Renderer *renderer, const std::string &data, void *palette);
 
 private:
     void *data_ = nullptr;
@@ -57,7 +57,7 @@ class TextureMgr final {
 public:
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const std::uint32_t *colors, std::size_t size);
-    bool loadFromRLE(std::int32_t id, const std::vector<std::uint8_t> &data);
+    bool loadFromRLE(std::int32_t id, const std::string &data);
     const Texture &operator[](std::int32_t id) const;
 
 private:

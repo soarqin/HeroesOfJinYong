@@ -17,16 +17,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "baseinfo.hh"
+#pragma once
+
+#include "serializable.hh"
 
 namespace hojy::mem {
 
-void BaseInfo::serialize(std::ostream &ostm) {
-    ostm.write(reinterpret_cast<const char*>(&data_), sizeof(data_));
-}
+enum {
+    ShopItemCount = 5,
+};
 
-void BaseInfo::deserialize(std::istream &istm) {
-    istm.read(reinterpret_cast<char*>(&data_), sizeof(data_));
-}
+#pragma pack(push, 1)
+struct ShopData {
+    std::int16_t id[ShopItemCount], total[ShopItemCount], price[ShopItemCount];
+} ATTR_PACKED;
+#pragma pack(pop)
+
+using ShopInfo = SerializableStructVec<ShopData>;
 
 }
