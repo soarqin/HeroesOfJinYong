@@ -19,6 +19,8 @@
 
 #include "window.hh"
 
+#include "globalmap.hh"
+
 #include <SDL.h>
 
 namespace hojy::scene {
@@ -32,7 +34,7 @@ Window::Window(int w, int h) {
 
     win_ = win;
     renderer_ = new Renderer(win_);
-    map_ = new Map(renderer_, w, h);
+    map_ = new GlobalMap(renderer_, w, h);
 }
 
 Window::~Window() {

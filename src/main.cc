@@ -34,7 +34,7 @@ int main() {
     sdata.newGame();
     scene::Window win(1024, 768);
     audio::Mixer mixer;
-    mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME01.XMI"));
+    mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME02.XMI"));
     mixer.pause(false);
     while (win.processEvents()) {
         win.render();
