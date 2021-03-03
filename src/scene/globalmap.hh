@@ -23,7 +23,7 @@
 
 namespace hojy::scene {
 
-class GlobalMap: public Map {
+class GlobalMap final: public Map {
     struct BuildingTex {
         std::int32_t order;
         std::int32_t x, y;
@@ -36,7 +36,6 @@ class GlobalMap: public Map {
     };
     struct CellInfo {
         const Texture *earth, *surface;
-        std::int32_t x, y;
         bool canWalk;
         /* 0-land 1-water 2-wood */
         std::uint8_t type;

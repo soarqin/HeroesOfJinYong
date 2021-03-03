@@ -20,6 +20,7 @@
 #pragma once
 
 #include "node.hh"
+#include "texture.hh"
 
 #include <chrono>
 #include <cstdint>
@@ -52,9 +53,10 @@ protected:
     virtual void updateMainCharTexture() {}
     virtual void resetTime();
     virtual void checkTime();
-    virtual void renderChar();
+    void renderChar(int deltaY = 0);
 
 protected:
+    TextureMgr textureMgr;
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
     Direction direction_ = DirUp;
     bool moveDirty_ = false, resting_ = false;

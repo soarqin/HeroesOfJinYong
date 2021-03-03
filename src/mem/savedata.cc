@@ -23,6 +23,8 @@
 
 namespace hojy::mem {
 
+SaveData currSave;
+
 static void buildSaveFilename(int num, std::string &rangerFile, std::string &sinFile, std::string &defFile) {
     if (num == 0) {
         rangerFile = "RANGER";

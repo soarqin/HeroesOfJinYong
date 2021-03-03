@@ -26,9 +26,9 @@ namespace hojy::data {
 
 GrpData grpData;
 
-bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
-    auto ifs = util::File::open(core::config.dataFilePath(name + ".IDX"));
-    auto ifs2 = util::File::open(core::config.dataFilePath(name + ".GRP"));
+bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset) {
+    auto ifs = util::File::open(core::config.dataFilePath(idx));
+    auto ifs2 = util::File::open(core::config.dataFilePath(grp));
     if (!ifs || !ifs2) {
         return false;
     }
@@ -48,6 +48,10 @@ bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
     return true;
 }
 
+bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
+    return loadData(name + ".IDX", name + ".GRP", dset);
+}
+
 bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset) {
     auto ifs = util::File::create(core::config.dataFilePath(name + ".IDX"));
     auto ifs2 = util::File::create(core::config.dataFilePath(name + ".GRP"));
@@ -63,8 +67,27 @@ bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset) {
     return true;
 }
 
-bool GrpData::load(const std::string &name) {
-    return loadData(name, data_[name]);
+const GrpData::DataSet &GrpData::lazyLoad(const std::string &idx, const std::string &grp) {
+    auto pos = grp.find('.');
+    std::string grpName;
+    if (pos != std::string::npos) {
+        grpName = grp.substr(0, pos);
+    } else {
+        grpName = grp;
+    }
+    auto &res = data_[grpName];
+    if (res.empty()) {
+        loadData(idx, grp, res);
+    }
+    return res;
+}
+
+const GrpData::DataSet &GrpData::lazyLoad(const std::string &name) {
+    auto &res = data_[name];
+    if (res.empty()) {
+        loadData(name, res);
+    }
+    return res;
 }
 
 const GrpData::DataSet &GrpData::operator[](const std::string &name) const {

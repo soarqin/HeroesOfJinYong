@@ -17,27 +17,33 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "core/config.hh"
-#include "data/loader.hh"
-#include "mem/savedata.hh"
-#include "scene/window.hh"
-#include "audio/mixer.hh"
-#include "audio/channelwav.hh"
-#include "audio/channelmidi.hh"
+#pragma once
 
-using namespace hojy;
+#include "map.hh"
 
-int main() {
-    core::config.load("config.toml");
-    data::loadData();
-    mem::currSave.newGame();
-    scene::Window win(1024, 768);
-    audio::Mixer mixer;
-    mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME02.XMI"));
-    mixer.pause(false);
-    while (win.processEvents()) {
-        win.render();
-        win.flush();
-    }
-    return 0;
+namespace hojy::scene {
+
+class SubMap final: public Map {
+    struct CellInfo {
+        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
+        int buildingDeltaY = 0, decorationDeltaY = 0;
+        bool isWater;
+    };
+public:
+    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, std::int16_t id);
+    ~SubMap() override;
+
+    void render() override;
+
+protected:
+    bool tryMove(int x, int y) override;
+    void updateMainCharTexture() override;
+
+private:
+    std::int16_t subMapId_;
+    std::int16_t charHeight_ = 0;
+    std::vector<CellInfo> cellInfo_;
+    Texture *drawingTerrainTex2_ = nullptr;
+};
+
 }

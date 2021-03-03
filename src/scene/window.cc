@@ -20,6 +20,7 @@
 #include "window.hh"
 
 #include "globalmap.hh"
+#include "submap.hh"
 
 #include <SDL.h>
 
@@ -34,7 +35,7 @@ Window::Window(int w, int h) {
 
     win_ = win;
     renderer_ = new Renderer(win_);
-    map_ = new GlobalMap(renderer_, w, h);
+    map_ = new SubMap(renderer_, w, h, 70);
 }
 
 Window::~Window() {

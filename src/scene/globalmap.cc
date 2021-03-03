@@ -29,25 +29,25 @@
 namespace hojy::scene {
 
 enum {
-    GLOBALMAP_WIDTH = 480,
-    GLOBALMAP_HEIGHT = 480,
+    GlobalMapWidth = 480,
+    GlobalMapHeight = 480,
 };
 
 GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height): Map(renderer, width, height) {
-    mapWidth_ = GLOBALMAP_WIDTH;
-    mapHeight_ = GLOBALMAP_HEIGHT;
-    auto &mmapData = data::grpData["MMAP"];
+    mapWidth_ = GlobalMapWidth;
+    mapHeight_ = GlobalMapHeight;
+    auto &mmapData = data::grpData.lazyLoad("MMAP");
     auto sz = mmapData.size();
     for (size_t i = 0; i < sz; ++i) {
-        mapTextureMgr.loadFromRLE(i, mmapData[i]);
+        textureMgr.loadFromRLE(i, mmapData[i]);
     }
     {
-        auto &tex = mapTextureMgr[0];
-        cellWidth_ = tex.width();
-        cellHeight_ = tex.height();
-        offsetX_ = tex.originX();
-        offsetY_ = tex.originY();
-        deepWaterTex_ = &tex;
+        auto *tex = textureMgr[0];
+        cellWidth_ = tex->width();
+        cellHeight_ = tex->height();
+        offsetX_ = tex->originX();
+        offsetY_ = tex->originY();
+        deepWaterTex_ = tex;
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
@@ -70,13 +70,11 @@ GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t heig
     int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
     int y = offsetY_;
     int pos = 0;
-    for (int j = mapWidth_; j; --j) {
+    for (int j = mapHeight_; j; --j) {
         int tx = x, ty = y;
-        for (int i = mapHeight_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
+        for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
             auto &ci = cellInfo_[pos];
             auto &n = earth_[pos];
-            ci.x = tx;
-            ci.y = ty;
             n >>= 1;
             if (n) {
                 if (n == 419 || n >= 306 && n <= 335) {
@@ -88,11 +86,11 @@ GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t heig
                     ci.canWalk = true;
                 }
             }
-            ci.earth = &mapTextureMgr[n];
+            ci.earth = textureMgr[n];
             auto &n0 = surface_[pos];
             n0 >>= 1;
             if (n0) {
-                ci.surface = &mapTextureMgr[n0];
+                ci.surface = textureMgr[n0];
             } else {
                 ci.surface = nullptr;
             }
@@ -103,10 +101,13 @@ GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t heig
                 if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
                     ci.type = 2;
                 }
-                const auto *tex2 = &mapTextureMgr[n1];
-                auto centerX = tx - tex2->originX() + tex2->width() / 2;
-                auto centerY = ty - tex2->originY() + (tex2->height() < 36 ? tex2->height() * 4 / 5 : tex2->height() * 3 / 4);
-                buildingTex_.emplace_back(BuildingTex { centerY * texWidth_ + centerX, tx, ty, tex2 });
+                const auto *tex2 = textureMgr[n1];
+                if (tex2) {
+                    auto centerX = tx - tex2->originX() + tex2->width() / 2;
+                    auto centerY =
+                        ty - tex2->originY() + (tex2->height() < 36 ? tex2->height() * 4 / 5 : tex2->height() * 3 / 4);
+                    buildingTex_.emplace_back(BuildingTex{centerY * texWidth_ + centerX, tx, ty, tex2});
+                }
             }
         }
         x -= cellDiffX; y += cellDiffY;
@@ -145,12 +146,16 @@ void GlobalMap::render() {
         cx = curX - cx; cy = curY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
+        renderer_->fill(0, 0, 0, 0);
         int delta = -mapWidth_ + 1;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
+                if (x < 0 || x >= GlobalMapWidth || y < 0 || y >= GlobalMapHeight) {
+                    continue;
+                }
                 if (x >= 0 && y >= 0) {
                     auto &ci = cellInfo_[offset];
                     renderer_->renderTexture(ci.earth, dx, ty);
@@ -211,28 +216,6 @@ void GlobalMap::render() {
     renderer_->renderTexture(drawingBuildingTex_[1], 0, 0, width_, height_);
 }
 
-void GlobalMap::updateMainCharTexture() {
-    if (onShip_) {
-        mainCharTex_ = &mapTextureMgr[3715 + int(direction_) * 4 + currFrame_];
-        return;
-    }
-    if (resting_) {
-        mainCharTex_ = &mapTextureMgr[2529 + int(direction_) * 6 + currFrame_];
-        return;
-    }
-    mainCharTex_ = &mapTextureMgr[2501 + int(direction_) * 7 + currFrame_];
-}
-
-void GlobalMap::resetTime() {
-    if (onShip_) { return; }
-    Map::resetTime();
-}
-
-void GlobalMap::checkTime() {
-    if (onShip_) { return; }
-    Map::checkTime();
-}
-
 bool GlobalMap::tryMove(int x, int y) {
     auto offset = y * mapWidth_ + x;
     if (!cellInfo_[offset].canWalk || buildx_[offset] != 0 && building_[buildy_[offset] * mapWidth_ + buildx_[offset]] != 0) {
@@ -248,6 +231,28 @@ bool GlobalMap::tryMove(int x, int y) {
         currFrame_ = currFrame_ % 6 + 1;
     }
     return true;
+}
+
+void GlobalMap::updateMainCharTexture() {
+    if (onShip_) {
+        mainCharTex_ = textureMgr[3715 + int(direction_) * 4 + currFrame_];
+        return;
+    }
+    if (resting_) {
+        mainCharTex_ = textureMgr[2529 + int(direction_) * 6 + currFrame_];
+        return;
+    }
+    mainCharTex_ = textureMgr[2501 + int(direction_) * 7 + currFrame_];
+}
+
+void GlobalMap::resetTime() {
+    if (onShip_) { return; }
+    Map::resetTime();
+}
+
+void GlobalMap::checkTime() {
+    if (onShip_) { return; }
+    Map::checkTime();
 }
 
 }

@@ -45,4 +45,6 @@ public:
     ShopInfo shopInfo;
 };
 
+extern SaveData currSave;
+
 }

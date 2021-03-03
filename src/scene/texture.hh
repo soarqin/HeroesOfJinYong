@@ -36,6 +36,10 @@ public:
     [[nodiscard]] static Texture *createAsTarget(Renderer *renderer, int w, int h);
 
 public:
+    ~Texture();
+    Texture(const Texture &tex) = delete;
+    Texture(Texture &&other) noexcept;
+
     [[nodiscard]] void *data() const { return data_; }
     [[nodiscard]] std::int32_t width() const { return width_; }
     [[nodiscard]] std::int32_t height() const { return height_; }
@@ -58,14 +62,13 @@ public:
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const std::uint32_t *colors, std::size_t size);
     bool loadFromRLE(std::int32_t id, const std::string &data);
-    const Texture &operator[](std::int32_t id) const;
+    const Texture *operator[](std::int32_t id) const;
+    void clear() { textures_.clear(); }
 
 private:
     std::unordered_map<std::int32_t, Texture> textures_;
     Renderer *renderer_ = nullptr;
     void *palette_ = nullptr;
 };
-
-extern TextureMgr mapTextureMgr;
 
 }

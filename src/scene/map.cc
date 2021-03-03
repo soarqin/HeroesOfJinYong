@@ -19,15 +19,16 @@
 
 #include "map.hh"
 
-#include "texture.hh"
 #include "data/colorpalette.hh"
+
 #include <chrono>
 
 namespace hojy::scene {
 
 Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(renderer, width, height) {
-    mapTextureMgr.setRenderer(renderer_);
-    mapTextureMgr.setPalette(data::normalPalette.colors(), data::normalPalette.size());
+    textureMgr.clear();
+    textureMgr.setRenderer(renderer_);
+    textureMgr.setPalette(data::normalPalette.colors(), data::normalPalette.size());
     drawingTerrainTex_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex_->enableBlendMode(true);
     moveDirty_ = true;
@@ -47,7 +48,6 @@ void Map::setPosition(int x, int y) {
     currFrame_ = 0;
     resting_ = false;
     moveDirty_ = true;
-    auto offset = y * mapWidth_ + x;
     tryMove(x, y);
     resetTime();
     updateMainCharTexture();
@@ -106,8 +106,8 @@ void Map::checkTime() {
     updateMainCharTexture();
 }
 
-void Map::renderChar() {
-    renderer_->renderTexture(mainCharTex_, int(width_) / 2, int(height_) / 2);
+void Map::renderChar(int deltaY) {
+    renderer_->renderTexture(mainCharTex_, int(width_) / 2, int(height_) / 2 - deltaY);
 }
 
 }

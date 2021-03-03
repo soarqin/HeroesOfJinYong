@@ -23,8 +23,6 @@
 
 namespace hojy::scene {
 
-TextureMgr mapTextureMgr;
-
 Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
@@ -33,6 +31,16 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     tex->width_ = w;
     tex->height_ = h;
     return tex;
+}
+
+Texture::~Texture() {
+    if (data_) {
+        SDL_DestroyTexture(static_cast<SDL_Texture *>(data_));
+    }
+}
+
+Texture::Texture(Texture &&other) noexcept: data_(other.data_), width_(other.width_), height_(other.height_), originX_(other.originX_), originY_(other.originY_) {
+    other.data_ = nullptr;
 }
 
 bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *palette) {
@@ -106,17 +114,16 @@ bool TextureMgr::loadFromRLE(std::int32_t id, const std::string &data) {
     if (!tex.loadFromRLE(renderer_, data, palette_)) {
         return false;
     }
-    textures_.emplace(id, tex);
+    textures_.emplace(id, std::move(tex));
     return true;
 }
 
-const Texture &TextureMgr::operator[](std::int32_t id) const {
+const Texture *TextureMgr::operator[](std::int32_t id) const {
     auto ite = textures_.find(id);
     if (ite == textures_.end()) {
-        static const Texture empty;
-        return empty;
+        return nullptr;
     }
-    return ite->second;
+    return &ite->second;
 }
 
 }
