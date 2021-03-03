@@ -30,18 +30,29 @@ class SubMap final: public Map {
         bool isWater;
     };
 public:
-    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, std::int16_t id);
+    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id);
     ~SubMap() override;
 
     void render() override;
+    void handleKeyInput(Key key) override;
 
 protected:
     bool tryMove(int x, int y) override;
     void updateMainCharTexture() override;
+    void doInteract();
+
+private:
+    void doTalk(std::int16_t talkId, std::int16_t portrait, std::int16_t position);
+    void addItem(std::int16_t itemId, std::int16_t itemCount);
+    void modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
+                     std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
+                     std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
+                     std::int16_t y);
 
 private:
     std::int16_t subMapId_;
     std::int16_t charHeight_ = 0;
+    std::int16_t evt_ = -1;
     std::vector<CellInfo> cellInfo_;
     Texture *drawingTerrainTex2_ = nullptr;
 };

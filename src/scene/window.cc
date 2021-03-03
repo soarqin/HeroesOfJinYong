@@ -32,10 +32,11 @@ Window::Window(int w, int h) {
     }
     auto *win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     win_ = win;
     renderer_ = new Renderer(win_);
-    map_ = new SubMap(renderer_, w, h, 70);
+    map_ = new SubMap(renderer_, w, h, 1.5f, 70);
+    topNode_ = map_;
 }
 
 Window::~Window() {
@@ -51,16 +52,22 @@ bool Window::processEvents() {
         case SDL_KEYDOWN:
             switch (e.key.keysym.scancode) {
             case SDL_SCANCODE_UP:
-                map_->move(Map::DirUp);
+                topNode_->handleKeyInput(Node::KeyUp);
                 break;
             case SDL_SCANCODE_RIGHT:
-                map_->move(Map::DirRight);
+                topNode_->handleKeyInput(Node::KeyRight);
                 break;
             case SDL_SCANCODE_LEFT:
-                map_->move(Map::DirLeft);
+                topNode_->handleKeyInput(Node::KeyLeft);
                 break;
             case SDL_SCANCODE_DOWN:
-                map_->move(Map::DirDown);
+                topNode_->handleKeyInput(Node::KeyDown);
+                break;
+            case SDL_SCANCODE_RETURN: case SDL_SCANCODE_SPACE:
+                topNode_->handleKeyInput(Node::KeyOK);
+                break;
+            case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE: case SDL_SCANCODE_BACKSPACE:
+                topNode_->handleKeyInput(Node::KeyCancel);
                 break;
             default:
                 break;

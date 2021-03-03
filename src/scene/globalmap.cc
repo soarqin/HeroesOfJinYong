@@ -19,7 +19,6 @@
 
 #include "globalmap.hh"
 
-#include "texture.hh"
 #include "data/grpdata.hh"
 #include "util/file.hh"
 #include "core/config.hh"
@@ -33,10 +32,10 @@ enum {
     GlobalMapHeight = 480,
 };
 
-GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height): Map(renderer, width, height) {
+GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale): Map(renderer, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
-    auto &mmapData = data::grpData.lazyLoad("MMAP");
+    auto &mmapData = data::gGrpData.lazyLoad("MMAP");
     auto sz = mmapData.size();
     for (size_t i = 0; i < sz; ++i) {
         textureMgr.loadFromRLE(i, mmapData[i]);
@@ -130,19 +129,19 @@ GlobalMap::~GlobalMap() {
 
 void GlobalMap::render() {
     Map::render();
-    if (moveDirty_) {
-        moveDirty_ = false;
+    if (drawDirty_) {
+        drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
-        int nx = int(width_) / 2 + cellWidth_;
-        int ny = int(height_) / 2 + cellHeight_;
+        int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
+        int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
         int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
-        int hcount = ny * 2 / cellDiffY;
-        int tx = int(width_) / 2 - (cx - cy) * cellDiffX;
-        int ty = int(height_) / 2 - (cx + cy) * cellDiffY;
+        int hcount = (ny * 2 + int(2 * cellHeight_ * scale_)) / cellDiffY;
+        int tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
+        int ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
@@ -177,10 +176,10 @@ void GlobalMap::render() {
             }
         }
 
-        int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(width_ / 2);
-        int oy = (curX + curY) * cellDiffY + offsetY_ - int(height_ / 2);
-        int myy = int(height_) / 2 + oy;
-        int l = ox - cellWidth_ * 2, t = oy - cellHeight_ * 2, r = ox + int(width_) + cellWidth_ * 2, b = oy + int(height_) + cellHeight_ * 6;
+        int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(auxWidth_ / 2);
+        int oy = (curX + curY) * cellDiffY + offsetY_ - int(auxHeight_ / 2);
+        int myy = int(auxHeight_) / 2 + oy;
+        int l = ox - cellWidth_ * 2, t = oy - cellHeight_ * 2, r = ox + int(auxWidth_) + cellWidth_ * 2, b = oy + int(auxHeight_) + cellHeight_ * 6;
         auto ite = std::lower_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {t * texWidth_ + l, 0, 0, nullptr}, BuildingTexComp());
         auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
         auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());
@@ -210,10 +209,10 @@ void GlobalMap::render() {
         renderer_->unsetClipRect();
     }
     renderer_->fill(0, 0, 0, 0);
-    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_);
-    renderer_->renderTexture(drawingBuildingTex_[0], 0, 0, width_, height_);
+    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingBuildingTex_[0], 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
-    renderer_->renderTexture(drawingBuildingTex_[1], 0, 0, width_, height_);
+    renderer_->renderTexture(drawingBuildingTex_[1], 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
 bool GlobalMap::tryMove(int x, int y) {
@@ -223,7 +222,7 @@ bool GlobalMap::tryMove(int x, int y) {
     }
     currX_ = x;
     currY_ = y;
-    moveDirty_ = true;
+    drawDirty_ = true;
     onShip_ = cellInfo_[offset].type == 1;
     if (onShip_) {
         currFrame_ = (currFrame_ + 1) % 4;

@@ -42,6 +42,7 @@ private:
     void *win_ = nullptr;
     Renderer *renderer_ = nullptr;
     Map *map_ = nullptr;
+    Node *topNode_ = nullptr;
 };
 
 }

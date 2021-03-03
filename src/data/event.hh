@@ -19,22 +19,25 @@
 
 #pragma once
 
-#include <array>
+#include <vector>
 #include <string>
 #include <cstdint>
 
 namespace hojy::data {
 
-class ColorPalette final {
+class Event {
 public:
-    void load(const std::string &name);
-    [[nodiscard]] constexpr size_t size() const { return palette_.size(); }
-    [[nodiscard]] const std::uint32_t *colors() const { return palette_.data(); }
+    void loadEvent(const std::string &name);
+    void loadTalk(const std::string &name);
+
+    [[nodiscard]] const std::vector<std::int16_t> &event(size_t index) const;
+    [[nodiscard]] const std::string &talk(size_t index) const;
 
 private:
-    std::array<std::uint32_t, 256> palette_;
+    std::vector<std::vector<std::int16_t>> events_;
+    std::vector<std::string> talks_;
 };
 
-extern ColorPalette gNormalPalette, gEndPalette;
+extern Event gEvent;
 
 }

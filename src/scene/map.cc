@@ -25,13 +25,15 @@
 
 namespace hojy::scene {
 
-Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height): Node(renderer, width, height) {
+Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale): Node(renderer, width, height), scale_(scale) {
+    auxWidth_ = std::uint32_t(width_ / scale + 0.5);
+    auxHeight_ = std::uint32_t(height_ / scale + 0.5);
     textureMgr.clear();
     textureMgr.setRenderer(renderer_);
-    textureMgr.setPalette(data::normalPalette.colors(), data::normalPalette.size());
+    textureMgr.setPalette(data::gNormalPalette.colors(), data::gNormalPalette.size());
     drawingTerrainTex_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex_->enableBlendMode(true);
-    moveDirty_ = true;
+    drawDirty_ = true;
 }
 
 Map::~Map() {
@@ -42,12 +44,32 @@ void Map::render() {
     checkTime();
 }
 
+void Map::handleKeyInput(Node::Key key) {
+    switch (key) {
+    case KeyUp:
+        move(Map::DirUp);
+        break;
+    case KeyRight:
+        move(Map::DirRight);
+        break;
+    case KeyLeft:
+        move(Map::DirLeft);
+        break;
+    case KeyDown:
+        move(Map::DirDown);
+        break;
+    default:
+        Node::handleKeyInput(key);
+        break;
+    }
+}
+
 void Map::setPosition(int x, int y) {
     currX_ = x;
     currY_ = y;
     currFrame_ = 0;
     resting_ = false;
-    moveDirty_ = true;
+    drawDirty_ = true;
     tryMove(x, y);
     resetTime();
     updateMainCharTexture();
@@ -107,7 +129,26 @@ void Map::checkTime() {
 }
 
 void Map::renderChar(int deltaY) {
-    renderer_->renderTexture(mainCharTex_, int(width_) / 2, int(height_) / 2 - deltaY);
+    renderer_->renderTexture(mainCharTex_, float(int(width_) / 2), float(int(height_) / 2 - deltaY), scale_);
+}
+
+void Map::getFaceOffset(int &x, int &y) {
+    x = currX_;
+    y = currY_;
+    switch (direction_) {
+    case DirUp:
+        y -= 1;
+        break;
+    case DirDown:
+        y += 1;
+        break;
+    case DirLeft:
+        x -= 1;
+        break;
+    case DirRight:
+        x += 1;
+        break;
+    }
 }
 
 }

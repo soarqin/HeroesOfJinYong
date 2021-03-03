@@ -23,17 +23,6 @@
 
 namespace hojy::util {
 
-std::string File::getFileContent(std::string_view filename) {
-    std::string res;
-    File f = File::open(filename);
-    if (f) {
-        auto sz = f.size();
-        res.resize(sz);
-        f.read(res.data(), sz);
-    }
-    return res;
-}
-
 File File::create(std::string_view filename) {
     FILE *f = fopen(filename.data(), "wb");
     File file;
@@ -45,6 +34,19 @@ File File::open(std::string_view filename, bool readOnly) {
     FILE *f = fopen(filename.data(), readOnly ? "rb" : "r+b");
     File file;
     file.handle_ = f;
+    return file;
+}
+
+File File::open(const std::vector<std::string> &filename, bool readOnly) {
+    File file;
+    for (auto &fn: filename) {
+        FILE *f = fopen(fn.data(), readOnly ? "rb" : "r+b");
+        if (!f) {
+            continue;
+        }
+        file.handle_ = f;
+        break;
+    }
     return file;
 }
 

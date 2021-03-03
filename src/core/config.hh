@@ -20,6 +20,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace hojy::core {
 
@@ -27,10 +28,11 @@ class Config {
 public:
     bool load(const std::string &filename);
 
-    inline std::string dataFilePath(const std::string &filename) const { return dataPath_ + filename; }
+    [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
+    [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
 
 private:
-    std::string dataPath_;
+    std::vector<std::string> dataPath_;
 };
 
 extern Config config;

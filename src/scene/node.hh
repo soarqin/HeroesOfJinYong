@@ -29,6 +29,15 @@ namespace hojy::scene {
 class Node {
     friend class Window;
 public:
+    enum Key {
+        KeyUp,
+        KeyDown,
+        KeyLeft,
+        KeyRight,
+        KeyOK,
+        KeyCancel,
+    };
+public:
     Node(Node *parent, std::uint32_t width, std::uint32_t height): parent_(parent), renderer_(parent->renderer_), width_(width), height_(height){}
     Node(Renderer *renderer, std::uint32_t width, std::uint32_t height): parent_(nullptr), renderer_(renderer), width_(width), height_(height) {}
     Node(const Node&) = delete;
@@ -36,6 +45,7 @@ public:
     void remove(Node *child);
 
     virtual void render() = 0;
+    virtual void handleKeyInput(Key key) {}
 
 protected:
     void doRender();

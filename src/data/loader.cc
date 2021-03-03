@@ -20,11 +20,14 @@
 #include "loader.hh"
 
 #include "colorpalette.hh"
+#include "event.hh"
 
 namespace hojy::data {
 
 void loadData() {
-    normalPalette.load("MMAP");
+    gNormalPalette.load("MMAP");
+    gEvent.loadEvent("KDEF");
+    gEvent.loadTalk("TALK");
 }
 
 }

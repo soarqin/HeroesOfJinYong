@@ -39,7 +39,7 @@ public:
     };
 
 public:
-    Map(Renderer *renderer, std::uint32_t width, std::uint32_t height);
+    Map(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale);
     Map(const Map&) = delete;
     virtual ~Map();
 
@@ -47,6 +47,7 @@ public:
     void move(Direction direction);
 
     void render() override;
+    void handleKeyInput(Key key) override;
 
 protected:
     virtual bool tryMove(int x, int y) { return false; }
@@ -54,12 +55,15 @@ protected:
     virtual void resetTime();
     virtual void checkTime();
     void renderChar(int deltaY = 0);
+    void getFaceOffset(int &x, int &y);
 
 protected:
     TextureMgr textureMgr;
+    float scale_ = 1.f;
+    std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
     Direction direction_ = DirUp;
-    bool moveDirty_ = false, resting_ = false;
+    bool drawDirty_ = false, resting_ = false;
     const Texture *mainCharTex_ = nullptr;
     std::chrono::steady_clock::time_point nextTime_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;

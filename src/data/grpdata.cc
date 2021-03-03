@@ -24,7 +24,7 @@
 
 namespace hojy::data {
 
-GrpData grpData;
+GrpData gGrpData;
 
 bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset) {
     auto ifs = util::File::open(core::config.dataFilePath(idx));
@@ -53,8 +53,8 @@ bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
 }
 
 bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset) {
-    auto ifs = util::File::create(core::config.dataFilePath(name + ".IDX"));
-    auto ifs2 = util::File::create(core::config.dataFilePath(name + ".GRP"));
+    auto ifs = util::File::create(core::config.dataFilePathFirst(name + ".IDX"));
+    auto ifs2 = util::File::create(core::config.dataFilePathFirst(name + ".GRP"));
     if (!ifs || !ifs2) {
         return false;
     }

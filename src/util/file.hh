@@ -35,9 +35,19 @@ public:
     };
 
 public:
-    [[nodiscard]] static std::string getFileContent(std::string_view filename);
-    template<typename T>
-    static bool getFileContent(std::string_view filename, std::vector<T> &data) {
+    template<typename FT>
+    [[nodiscard]] static std::string getFileContent(const FT &filename) {
+        std::string res;
+        File f = File::open(filename);
+        if (f) {
+            auto sz = f.size();
+            res.resize(sz);
+            f.read(res.data(), sz);
+        }
+        return res;
+    }
+    template<typename FT, typename T>
+    static bool getFileContent(const FT &filename, std::vector<T> &data) {
         auto f = File::open(filename);
         if (!f) {
             return false;
@@ -50,6 +60,7 @@ public:
 
     [[nodiscard]] static File create(std::string_view filename);
     [[nodiscard]] static File open(std::string_view filename, bool readOnly = true);
+    [[nodiscard]] static File open(const std::vector<std::string> &filename, bool readOnly = true);
 
 public:
     File() = default;

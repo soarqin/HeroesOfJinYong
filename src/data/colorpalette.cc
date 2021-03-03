@@ -24,7 +24,7 @@
 
 namespace hojy::data {
 
-ColorPalette normalPalette, endPalette;
+ColorPalette gNormalPalette, gEndPalette;
 
 void ColorPalette::load(const std::string &name) {
     auto ifs = util::File::open(core::config.dataFilePath(name + ".COL"));

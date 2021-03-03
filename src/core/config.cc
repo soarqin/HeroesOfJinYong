@@ -36,9 +36,37 @@ bool Config::load(const std::string &filename) {
         std::cerr << "Parsing failed: " << err << std::endl;
         return false;
     }
-    dataPath_ = tbl["main"]["data_path"].value_or<std::string>(".");
-    if (!dataPath_.empty()) { dataPath_ += '/'; }
+    auto main = tbl["main"];
+    if (main) {
+        auto dpath = main["data_path"];
+        if (dpath.is_string()) {
+            dataPath_.resize(1);
+            dataPath_[0] = dpath.value_or<std::string>(".");
+        } else if (dpath.is_array()) {
+            for (auto &p: *dpath.as_array()) {
+                dataPath_.emplace_back(p.value_or<std::string>("."));
+            }
+        }
+        for (auto &path: dataPath_) {
+            if (!path.empty() && path.back() != '/') { path += '/'; }
+        }
+    }
     return true;
+}
+
+std::string Config::dataFilePathFirst(const std::string &filename) const {
+    if (dataPath_.empty()) {
+        return filename;
+    }
+    return dataPath_[0] + filename;
+}
+
+std::vector<std::string> Config::dataFilePath(const std::string &filename) const {
+    std::vector<std::string> res;
+    for (auto &d: dataPath_) {
+        res.emplace_back(d + filename);
+    }
+    return res;
 }
 
 }

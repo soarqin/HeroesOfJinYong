@@ -67,13 +67,36 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin
     }
 }
 
-void Renderer::renderTexture(const Texture *tex, int x, int y, int w, int h, bool ignoreOrigin) {
+void Renderer::renderTexture(const Texture *tex, float x, float y, float scale, bool ignoreOrigin) {
+    auto w = tex->width(), h = tex->height();
     SDL_Rect src {0, 0, w, h};
     if (ignoreOrigin) {
-        SDL_Rect dst {x, y, w, h};
+        SDL_FRect dst {x, y, float(w) * scale, float(h) * scale};
+        SDL_RenderCopyF(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+    } else {
+        SDL_FRect dst{x - float(tex->originX()) * scale, y - float(tex->originY()) * scale, float(w) * scale, float(h) * scale};
+        SDL_RenderCopyF(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
+    }
+}
+
+void Renderer::renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin) {
+    SDL_Rect src {x, y, w, h};
+    if (ignoreOrigin) {
+        SDL_Rect dst {destx, desty, w, h};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
     } else {
-        SDL_Rect dst{x - tex->originX(), y - tex->originY(), w, h};
+        SDL_Rect dst{destx - tex->originX(), desty - tex->originY(), w, h};
+        SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
+    }
+}
+
+void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin) {
+    SDL_Rect src {x, y, w, h};
+    if (ignoreOrigin) {
+        SDL_Rect dst {destx, desty, destw, desth};
+        SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+    } else {
+        SDL_Rect dst{destx - tex->originX(), desty - tex->originY(), destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
     }
 }

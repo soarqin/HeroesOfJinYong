@@ -42,6 +42,6 @@ private:
     std::unordered_map<std::string, DataSet> data_;
 };
 
-extern GrpData grpData;
+extern GrpData gGrpData;
 
 }

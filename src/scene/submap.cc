@@ -19,13 +19,38 @@
 
 #include "submap.hh"
 
-#include "texture.hh"
 #include "data/grpdata.hh"
+#include "data/event.hh"
 #include "mem/savedata.hh"
+
+#include <functional>
+
+template <class R, class... Args>
+constexpr auto argCounter(std::function<R(Args...)>) {
+    return sizeof...(Args);
+}
+
+template <class P, class R, class... Args>
+constexpr auto argCounter(R(P::*)(Args...)) {
+    return sizeof...(Args);
+}
+
+template <class R, class... Args>
+constexpr auto argCounter(R(Args...)) {
+    return sizeof...(Args);
+}
+
+template <class P, class R, class M, class... Args>
+struct returnTypeMatches {};
+
+template <class P, class R, class M, class... Args>
+struct returnTypeMatches<R(P::*)(Args...), P, M> {
+    static constexpr bool value = std::is_same<R, M>::value;
+};
 
 namespace hojy::scene {
 
-SubMap::SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, std::int16_t id): Map(renderer, width, height), subMapId_(id) {
+SubMap::SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id): Map(renderer, width, height, scale), subMapId_(id) {
     drawingTerrainTex2_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex2_->enableBlendMode(true);
 
@@ -34,7 +59,7 @@ SubMap::SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, st
     char idxstr[8], grpstr[8];
     snprintf(idxstr, 8, "SDX%03d", id);
     snprintf(grpstr, 8, "SMP%03d", id);
-    auto &submapData = data::grpData.lazyLoad(idxstr, grpstr);
+    auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
     auto sz = submapData.size();
     for (size_t i = 0; i < sz; ++i) {
         textureMgr.loadFromRLE(i, submapData[i]);
@@ -100,25 +125,29 @@ SubMap::~SubMap() {
 void SubMap::render() {
     Map::render();
 
-    if (moveDirty_) {
-        moveDirty_ = false;
+    if (drawDirty_) {
+        drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
-        int nx = int(width_) / 2 + cellWidth_;
-        int ny = int(height_) / 2 + cellHeight_;
+        int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
+        int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
         int wcount = nx * 2 / cellWidth_;
-        int hcount = ny * 2 / cellDiffY;
+        int hcount = (ny * 2 + int(2 * cellHeight_ * scale_)) / cellDiffY;
         int cx, cy, tx, ty;
         int delta = -mapWidth_ + 1;
 
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
         renderer_->fill(0, 0, 0, 0);
+
+/* NOTE: Do we really need to do this?
+ *       Earth with height > 0 should not stack with =0 ones
+ *       So I just comment it out
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
-        tx = int(width_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(height_) / 2 - (cx + cy) * cellDiffY;
+        tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
+        ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
@@ -144,11 +173,11 @@ void SubMap::render() {
                 ty += cellDiffY;
             }
         }
-
+ */
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
-        tx = int(width_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(height_) / 2 - (cx + cy) * cellDiffY;
+        tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
+        ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
@@ -160,9 +189,9 @@ void SubMap::render() {
                 }
                 auto &ci = cellInfo_[offset];
                 auto h = ci.buildingDeltaY;
-                if (h > 0) {
+                /* if (h > 0) {  NOTE: commented out, see notes above */
                     renderer_->renderTexture(ci.earth, dx, ty);
-                }
+                /* } */
                 if (ci.building) {
                     renderer_->renderTexture(ci.building, dx, ty - h);
                 }
@@ -194,9 +223,20 @@ void SubMap::render() {
     }
 
     renderer_->fill(0, 0, 0, 0);
-    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_);
+    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar(charHeight_);
-    renderer_->renderTexture(drawingTerrainTex2_, 0, 0, width_, height_);
+    renderer_->renderTexture(drawingTerrainTex2_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+}
+
+void SubMap::handleKeyInput(Key key) {
+    switch (key) {
+    case KeyOK:
+        doInteract();
+        break;
+    default:
+        Map::handleKeyInput(key);
+        break;
+    }
 }
 
 bool SubMap::tryMove(int x, int y) {
@@ -214,7 +254,7 @@ bool SubMap::tryMove(int x, int y) {
 
     currX_ = x;
     currY_ = y;
-    moveDirty_ = true;
+    drawDirty_ = true;
     currFrame_ = currFrame_ % 6 + 1;
     return true;
 }
@@ -225,6 +265,102 @@ void SubMap::updateMainCharTexture() {
         return;
     }
     mainCharTex_ = textureMgr[2501 + int(direction_) * 7 + currFrame_];
+}
+
+template<class F, class P, size_t ...I>
+typename std::enable_if<returnTypeMatches<F, P, void>::value, void>::type
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, std::index_sequence<I...>) {
+    (p->*f)(evlist[I + index]...);
+    index += sizeof...(I);
+}
+
+template<class F, class P, size_t ...I>
+typename std::enable_if<returnTypeMatches<F, P, bool>::value, void>::type
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, std::index_sequence<I...>) {
+    if ((p->*f)(evlist[I + index]...)) {
+        index += sizeof...(I);
+        index += evlist[index] + 2;
+    } else {
+        index += sizeof...(I);
+        index += evlist[index + 1] + 2;
+    }
+}
+
+void SubMap::doInteract() {
+    int x, y;
+    getFaceOffset(x, y);
+
+    auto &layers = mem::currSave.subMapLayerInfo[subMapId_]->data;
+    auto &events = mem::currSave.subMapEventInfo[subMapId_]->events;
+    auto ev = layers[3][y * mapWidth_ + x];
+
+#define OpRun(O, F)                                                    \
+    case O: \
+        runFunc(&SubMap::F, this, evlist, index, std::make_index_sequence<argCounter(&SubMap::F)>()); \
+        break
+    if (ev >= 0) {
+        auto evt = events[ev].event1;
+        if (evt > 0) {
+            evt_ = ev;
+            const auto &evlist = data::gEvent.event(evt);
+            auto evsz = evlist.size();
+            size_t index = 0;
+            while (index < evsz) {
+                auto op = evlist[index++];
+                if (op == -1) { break; }
+                switch (op) {
+                OpRun(1, doTalk);
+                OpRun(2, addItem);
+                OpRun(3, modifyEvent);
+                default:
+                    break;
+                }
+            }
+            evt_ = -1;
+        }
+    }
+}
+
+void SubMap::doTalk(std::int16_t talkId, std::int16_t portrait, std::int16_t position) {
+}
+
+void SubMap::addItem(std::int16_t itemId, std::int16_t itemCount) {
+
+}
+
+void SubMap::modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
+                         std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
+                         std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
+                         std::int16_t y) {
+    if (subMapId < 0) { subMapId = subMapId_; }
+    if (eventId < 0) { eventId = evt_; }
+    auto &ev = mem::currSave.subMapEventInfo[subMapId]->events[eventId];
+    if (blocked > -2) { ev.blocked = blocked; }
+    if (index > -2) { ev.index = index; }
+    if (event1 > -2) { ev.event1 = event1; }
+    if (event2 > -2) { ev.event2 = event2; }
+    if (event3 > -2) { ev.event3 = event3; }
+    if (endTex > -2) { ev.endTex = endTex; }
+    if (begTex > -2) { ev.begTex = begTex; }
+    if (texDelay > -2) { ev.texDelay = texDelay; }
+    bool needTransport = false;
+    if (x < 0) { x = ev.x; }
+    if (y < 0) { y = ev.y; }
+    if (x != ev.x || y != ev.y) {
+        auto &layer = mem::currSave.subMapLayerInfo[subMapId]->data[3];
+        layer[ev.y * mapWidth_ + ev.x] = -1;
+        layer[y * mapWidth_ + x] = eventId;
+        ev.x = x; ev.y = y;
+    }
+    if (currTex > -2) {
+        ev.currTex = currTex;
+        auto &ci = cellInfo_[y * mapWidth_ + x];
+        auto texId = currTex >> 1;
+        if (texId) {
+            ci.event = textureMgr[texId];
+        }
+        drawDirty_ = true;
+    }
 }
 
 }
