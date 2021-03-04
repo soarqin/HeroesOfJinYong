@@ -67,19 +67,18 @@ public:
     void charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b);
 
     inline int fontSize() const { return fontSize_; }
+    void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
     void render(std::wstring_view str, int x, int y, int maxw);
 
 private:
     void newRectPack();
-
-protected:
+    const FontData *makeCache(std::uint16_t ch);
     inline const FontData *getCache(std::uint16_t ch) {
         auto ite = fontCache_.find(ch);
         if (ite != fontCache_.end()) return &ite->second;
         return makeCache(ch);
     }
-    const FontData *makeCache(std::uint16_t ch);
 
 protected:
     int fontSize_ = 16;
@@ -89,6 +88,8 @@ protected:
 
 private:
     void *renderer_;
+
+    std::uint8_t r_ = 255, g_ = 255, b_ = 255;
     std::vector<void*> textures_;
 
     std::vector<rect_pack_data*> rectpackData_;

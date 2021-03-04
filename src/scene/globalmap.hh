@@ -41,7 +41,7 @@ class GlobalMap final: public MapWithEvent {
         std::uint8_t type;
     };
 public:
-    GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale);
+    GlobalMap(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~GlobalMap() override;
 
     void render() override;

@@ -19,9 +19,14 @@
 
 #include "texture.hh"
 
+#include "renderer.hh"
+#include "data/colorpalette.hh"
+
 #include <SDL.h>
 
 namespace hojy::scene {
+
+TextureMgr gHeadTextureMgr;
 
 Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     auto *tex = new Texture;
@@ -41,6 +46,16 @@ Texture::~Texture() {
 
 Texture::Texture(Texture &&other) noexcept: data_(other.data_), width_(other.width_), height_(other.height_), originX_(other.originX_), originY_(other.originY_) {
     other.data_ = nullptr;
+}
+
+Texture &Texture::operator=(Texture &&other) noexcept {
+    data_ = other.data_;
+    width_ = other.width_;
+    height_ = other.height_;
+    originX_ = other.originX_;
+    originY_ = other.originY_;
+    other.data_ = nullptr;
+    return *this;
 }
 
 bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *palette) {
@@ -103,27 +118,29 @@ void Texture::enableBlendMode(bool r) {
     SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
 }
 
-void TextureMgr::setPalette(const std::uint32_t *colors, std::size_t size) {
-    auto *palette = SDL_AllocPalette(size);
-    SDL_SetPaletteColors(palette, reinterpret_cast<const SDL_Color*>(colors), 0, size);
+void TextureMgr::setPalette(const data::ColorPalette &col) {
+    auto sz = col.size();
+    auto *palette = SDL_AllocPalette(sz);
+    SDL_SetPaletteColors(palette, reinterpret_cast<const SDL_Color*>(col.colors()), 0, sz);
     palette_ = palette;
 }
 
-bool TextureMgr::loadFromRLE(std::int32_t id, const std::string &data) {
-    Texture tex;
-    if (!tex.loadFromRLE(renderer_, data, palette_)) {
-        return false;
+bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
+    auto sz = data.size();
+    textures_.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        Texture tex;
+        if (!tex.loadFromRLE(renderer_, data[i], palette_)) {
+            continue;
+        }
+        textures_[i] = std::move(tex);
     }
-    textures_.emplace(id, std::move(tex));
     return true;
 }
 
 const Texture *TextureMgr::operator[](std::int32_t id) const {
-    auto ite = textures_.find(id);
-    if (ite == textures_.end()) {
-        return nullptr;
-    }
-    return &ite->second;
+    if (id >= textures_.size()) { return nullptr; }
+    return &textures_[id];
 }
 
 }

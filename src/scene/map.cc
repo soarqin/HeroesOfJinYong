@@ -25,12 +25,12 @@
 
 namespace hojy::scene {
 
-Map::Map(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id): Node(renderer, width, height), subMapId_(id), scale_(scale) {
+Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id): Node(renderer, x, y, width, height), subMapId_(id), scale_(scale) {
     auxWidth_ = std::uint32_t(width_ / scale + 0.5);
     auxHeight_ = std::uint32_t(height_ / scale + 0.5);
     textureMgr.clear();
     textureMgr.setRenderer(renderer_);
-    textureMgr.setPalette(data::gNormalPalette.colors(), data::gNormalPalette.size());
+    textureMgr.setPalette(data::gNormalPalette);
     drawingTerrainTex_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex_->enableBlendMode(true);
     drawDirty_ = true;
@@ -129,7 +129,7 @@ void Map::checkTime() {
 }
 
 void Map::renderChar(int deltaY) {
-    renderer_->renderTexture(mainCharTex_, float(int(width_) / 2), float(int(height_) / 2 - deltaY), scale_);
+    renderer_->renderTexture(mainCharTex_, float(x_ + int(width_) / 2), float(y_ + int(height_) / 2 - deltaY), scale_);
 }
 
 void Map::getFaceOffset(int &x, int &y) {

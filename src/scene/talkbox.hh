@@ -19,44 +19,27 @@
 
 #pragma once
 
-#include "renderer.hh"
+#include "node.hh"
 
 #include <vector>
+#include <string>
+#include <cstdint>
 
 namespace hojy::scene {
 
-class Node {
-    friend class Window;
+class TalkBox: public Node {
 public:
-    enum Key {
-        KeyUp,
-        KeyDown,
-        KeyLeft,
-        KeyRight,
-        KeyOK,
-        KeyCancel,
-    };
-public:
-    Node(Node *parent, int x, int y, int width, int height): parent_(parent), renderer_(parent->renderer_), x_(x), y_(y), width_(width), height_(height){}
-    Node(Renderer *renderer, int x, int y, int width, int height): parent_(nullptr), renderer_(renderer), x_(x), y_(y), width_(width), height_(height) {}
-    Node(const Node&) = delete;
-    void add(Node *child);
-    void remove(Node *child);
+    using Node::Node;
 
-    virtual void render() = 0;
-    virtual void handleKeyInput(Key key) {}
+    void popup(const std::string &text, std::int16_t headId, std::int16_t position);
+    void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
 
-protected:
-    void doRender();
+    void render() override;
 
-protected:
-    Node *parent_;
-    Renderer *renderer_;
-
-    int x_, y_, width_, height_;
-    bool visible_ = true;
-
-    std::vector<Node*> children_;
+private:
+    std::vector<std::wstring> text_;
+    const Texture *headTex_ = nullptr;
+    std::int16_t position_ = 0;
 };
 
 }

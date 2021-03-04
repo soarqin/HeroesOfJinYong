@@ -25,7 +25,7 @@
 
 namespace hojy::scene {
 
-SubMap::SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id): MapWithEvent(renderer, width, height, scale, id) {
+SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float scale, std::int16_t id): MapWithEvent(renderer, ix, iy, width, height, scale, id) {
     drawingTerrainTex2_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex2_->enableBlendMode(true);
 
@@ -35,10 +35,7 @@ SubMap::SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, fl
     snprintf(idxstr, 8, "SDX%03d", id);
     snprintf(grpstr, 8, "SMP%03d", id);
     auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
-    auto sz = submapData.size();
-    for (size_t i = 0; i < sz; ++i) {
-        textureMgr.loadFromRLE(i, submapData[i]);
-    }
+    textureMgr.loadFromRLE(submapData);
 
     {
         auto *tex = textureMgr[0];
@@ -198,9 +195,9 @@ void SubMap::render() {
     }
 
     renderer_->fill(0, 0, 0, 0);
-    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar(charHeight_);
-    renderer_->renderTexture(drawingTerrainTex2_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
 void SubMap::handleKeyInput(Key key) {

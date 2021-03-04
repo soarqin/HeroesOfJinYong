@@ -19,15 +19,18 @@
 
 #pragma once
 
-#include "Renderer.hh"
-
 #include <vector>
-#include <unordered_map>
 #include <string>
 
 #include <cstdint>
 
+namespace hojy::data {
+class ColorPalette;
+}
+
 namespace hojy::scene {
+
+class Renderer;
 
 class Texture final {
     friend class TextureMgr;
@@ -36,9 +39,11 @@ public:
     [[nodiscard]] static Texture *createAsTarget(Renderer *renderer, int w, int h);
 
 public:
+    Texture() = default;
     ~Texture();
     Texture(const Texture &tex) = delete;
     Texture(Texture &&other) noexcept;
+    Texture& operator=(Texture &&other) noexcept;
 
     [[nodiscard]] void *data() const { return data_; }
     [[nodiscard]] std::int32_t width() const { return width_; }
@@ -49,7 +54,6 @@ public:
     void enableBlendMode(bool r);
 
 private:
-    Texture() = default;
     bool loadFromRLE(Renderer *renderer, const std::string &data, void *palette);
 
 private:
@@ -60,15 +64,17 @@ private:
 class TextureMgr final {
 public:
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
-    void setPalette(const std::uint32_t *colors, std::size_t size);
-    bool loadFromRLE(std::int32_t id, const std::string &data);
+    void setPalette(const data::ColorPalette &col);
+    bool loadFromRLE(const std::vector<std::string> &data);
     const Texture *operator[](std::int32_t id) const;
     void clear() { textures_.clear(); }
 
 private:
-    std::unordered_map<std::int32_t, Texture> textures_;
+    std::vector<Texture> textures_;
     Renderer *renderer_ = nullptr;
     void *palette_ = nullptr;
 };
+
+extern TextureMgr gHeadTextureMgr;
 
 }

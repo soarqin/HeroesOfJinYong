@@ -129,6 +129,40 @@ void TTF::charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, s
     b = fd->iy0 + fd->h;
 }
 
+void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    r_ = r; g_ = g; b_ = b;
+    for (auto *tex: textures_) {
+        SDL_SetTextureColorMod(static_cast<SDL_Texture*>(tex), r_, g_, b_);
+    }
+}
+
+void TTF::render(std::wstring_view str, int x, int y, int maxw) {
+    auto *renderer = static_cast<SDL_Renderer*>(renderer_);
+    for (auto ch: str) {
+        const FontData *fd;
+        auto ite = fontCache_.find(ch);
+        if (ite == fontCache_.end()) {
+            fd = makeCache(ch);
+            if (!fd) {
+                continue;
+            }
+        } else {
+            fd = &ite->second;
+            if (fd->advW == 0) continue;
+        }
+        SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
+        SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
+        SDL_RenderCopy(renderer, static_cast<SDL_Texture*>(textures_[fd->rpidx]), &srcrc, &dstrc);
+        x += fd->advW;
+    }
+}
+
+void TTF::newRectPack() {
+    auto *rpd = new rect_pack_data;
+    stbrp_init_target(&rpd->context, TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH, rpd->nodes, TTF_RECTPACK_WIDTH);
+    rectpackData_.push_back(rpd);
+}
+
 const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
     FontInfo *fi = nullptr;
 #ifndef USE_FREETYPE
@@ -181,7 +215,7 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
     /* Get last rect pack bitmap */
     auto rpidx = rectpackData_.size() - 1;
     auto *rpd = rectpackData_[rpidx];
-    stbrp_rect rc = {0, static_cast<std::uint16_t>((fd->w + 3u) & ~3u), fd->h};
+    stbrp_rect rc = {0, std::uint16_t((fd->w + 3u) & ~3u), fd->h};
     if (!stbrp_pack_rects(&rpd->context, &rc, 1)) {
         /* No space to hold the bitmap,
          * create a new bitmap */
@@ -215,10 +249,11 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
     auto *tex = static_cast<SDL_Texture*>(textures_[rpidx]);
     if (tex == nullptr) {
         tex = SDL_CreateTexture(static_cast<SDL_Renderer*>(renderer_),
-                                SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET,
+                                SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
                                 TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH);
         SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
         textures_[rpidx] = tex;
+        SDL_SetTextureColorMod(tex, r_, g_, b_);
     }
     std::uint32_t pixels[64 * 64];
     auto sz = dstPitch * fd->h;
@@ -228,33 +263,6 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
     SDL_Rect updaterc{rc.x, rc.y, rc.w, rc.h};
     SDL_UpdateTexture(tex, &updaterc, pixels, dstPitch * 4);
     return fd;
-}
-
-void TTF::render(std::wstring_view str, int x, int y, int maxw) {
-    auto *renderer = static_cast<SDL_Renderer*>(renderer_);
-    for (auto ch: str) {
-        const FontData *fd;
-        auto ite = fontCache_.find(ch);
-        if (ite == fontCache_.end()) {
-            fd = makeCache(ch);
-            if (!fd) {
-                continue;
-            }
-        } else {
-            fd = &ite->second;
-            if (fd->advW == 0) continue;
-        }
-        SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
-        SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
-        SDL_RenderCopy(renderer, static_cast<SDL_Texture*>(textures_[fd->rpidx]), &srcrc, &dstrc);
-        x += fd->advW;
-    }
-}
-
-void TTF::newRectPack() {
-    auto *rpd = new rect_pack_data;
-    stbrp_init_target(&rpd->context, TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH, rpd->nodes, TTF_RECTPACK_WIDTH);
-    rectpackData_.push_back(rpd);
 }
 
 }

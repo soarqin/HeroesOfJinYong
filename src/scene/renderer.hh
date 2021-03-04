@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "ttf.hh"
+
 #include <cstdint>
 
 namespace hojy::scene {
@@ -49,6 +51,7 @@ public:
 
 private:
     void *renderer_ = nullptr;
+    TTF *ttf_ = nullptr;
 };
 
 }

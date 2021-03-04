@@ -31,7 +31,7 @@ protected:
     void doInteract();
 
 private:
-    void doTalk(std::int16_t talkId, std::int16_t portrait, std::int16_t position);
+    void doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position);
     void addItem(std::int16_t itemId, std::int16_t itemCount);
     void modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
                      std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,

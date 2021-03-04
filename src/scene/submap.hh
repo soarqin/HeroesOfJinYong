@@ -30,7 +30,7 @@ class SubMap final: public MapWithEvent {
         bool isWater;
     };
 public:
-    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id);
+    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id);
     ~SubMap() override;
 
     void render() override;

@@ -21,7 +21,9 @@
 
 #include "map.hh"
 #include "renderer.hh"
-#include "ttf.hh"
+
+#include <string>
+#include <cstdint>
 
 namespace hojy::scene {
 
@@ -36,15 +38,18 @@ public:
 
     bool processEvents();
     void render();
-
     void flush();
 
+    void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
+
 private:
+    int width_, height_;
     void *win_ = nullptr;
     Renderer *renderer_ = nullptr;
     Map *map_ = nullptr;
     Node *topNode_ = nullptr;
-    TTF *ttf_;
 };
+
+extern Window *gWindow;
 
 }

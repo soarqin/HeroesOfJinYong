@@ -32,14 +32,11 @@ enum {
     GlobalMapHeight = 480,
 };
 
-GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale): MapWithEvent(renderer, width, height, scale) {
+GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     auto &mmapData = data::gGrpData.lazyLoad("MMAP");
-    auto sz = mmapData.size();
-    for (size_t i = 0; i < sz; ++i) {
-        textureMgr.loadFromRLE(i, mmapData[i]);
-    }
+    textureMgr.loadFromRLE(mmapData);
     {
         auto *tex = textureMgr[0];
         cellWidth_ = tex->width();
@@ -209,10 +206,10 @@ void GlobalMap::render() {
         renderer_->unsetClipRect();
     }
     renderer_->fill(0, 0, 0, 0);
-    renderer_->renderTexture(drawingTerrainTex_, 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
-    renderer_->renderTexture(drawingBuildingTex_[0], 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingBuildingTex_[0], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
-    renderer_->renderTexture(drawingBuildingTex_[1], 0, 0, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingBuildingTex_[1], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
 bool GlobalMap::tryMove(int x, int y) {

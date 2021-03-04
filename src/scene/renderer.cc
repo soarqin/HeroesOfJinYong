@@ -25,10 +25,16 @@
 
 namespace hojy::scene {
 
-Renderer::Renderer(void *win): renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)) {
+Renderer::Renderer(void *win):
+    renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
+    ttf_(new TTF(renderer_)) {
+    ttf_->init(20);
+    ttf_->add("mono.ttf");
+    ttf_->add("cjk.ttf");
 }
 
 Renderer::~Renderer() {
+    delete ttf_;
     SDL_DestroyRenderer(static_cast<SDL_Renderer*>(renderer_));
 }
 

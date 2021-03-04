@@ -39,7 +39,7 @@ public:
     };
 
 public:
-    Map(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id = -1);
+    Map(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id = -1);
     Map(const Map&) = delete;
     virtual ~Map();
 

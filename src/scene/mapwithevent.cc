@@ -19,9 +19,9 @@
 
 #include "mapwithevent.hh"
 
+#include "window.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
-#include "mem/bag.hh"
 #include "util/conv.hh"
 #include "util/random.hh"
 
@@ -118,10 +118,11 @@ void MapWithEvent::doInteract() {
 #undef OpRun
 }
 
-void MapWithEvent::doTalk(std::int16_t talkId, std::int16_t portrait, std::int16_t position) {
+void MapWithEvent::doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position) {
     (void)this; /* avoid Clang-Tidy warning: Method can be made static */
     const auto &str = data::gEvent.talk(talkId);
     auto wstr = util::big5Conv.toUnicode(str);
+    gWindow->runTalk(wstr, headId, position);
 }
 
 void MapWithEvent::addItem(std::int16_t itemId, std::int16_t itemCount) {
