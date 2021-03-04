@@ -23,7 +23,7 @@
 
 namespace hojy::audio {
 
-ChannelMIDI::ChannelMIDI(Mixer *mixer, std::string_view filename) : Channel(mixer, filename) {
+ChannelMIDI::ChannelMIDI(Mixer *mixer, const std::string &filename) : Channel(mixer, filename) {
     load();
 }
 

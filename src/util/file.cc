@@ -23,14 +23,14 @@
 
 namespace hojy::util {
 
-File File::create(std::string_view filename) {
+File File::create(const std::string &filename) {
     FILE *f = fopen(filename.data(), "wb");
     File file;
     file.handle_ = f;
     return file;
 }
 
-File File::open(std::string_view filename, bool readOnly) {
+File File::open(const std::string &filename, bool readOnly) {
     FILE *f = fopen(filename.data(), readOnly ? "rb" : "r+b");
     File file;
     file.handle_ = f;

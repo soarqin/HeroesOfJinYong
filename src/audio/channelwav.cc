@@ -23,7 +23,7 @@
 
 namespace hojy::audio {
 
-ChannelWav::ChannelWav(Mixer *mixer, std::string_view filename) : Channel(mixer, filename) {
+ChannelWav::ChannelWav(Mixer *mixer, const std::string &filename) : Channel(mixer, filename) {
     load();
 }
 

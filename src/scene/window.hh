@@ -21,6 +21,7 @@
 
 #include "map.hh"
 #include "renderer.hh"
+#include "ttf.hh"
 
 namespace hojy::scene {
 
@@ -43,6 +44,7 @@ private:
     Renderer *renderer_ = nullptr;
     Map *map_ = nullptr;
     Node *topNode_ = nullptr;
+    TTF *ttf_;
 };
 
 }

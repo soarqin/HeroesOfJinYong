@@ -37,9 +37,14 @@ Window::Window(int w, int h) {
     renderer_ = new Renderer(win_);
     map_ = new SubMap(renderer_, w, h, 1.5f, 70);
     topNode_ = map_;
+    ttf_ = new TTF(renderer_->get());
+    ttf_->init(16);
+    ttf_->add("mono.ttf");
+    ttf_->add("cjk.ttf");
 }
 
 Window::~Window() {
+    delete ttf_;
     delete map_;
     delete renderer_;
     SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
@@ -86,6 +91,7 @@ void Window::flush() {
 
 void Window::render() {
     map_->doRender();
+    ttf_->render(L"ABC测试", 5, 5, 100);
 }
 
 }

@@ -32,7 +32,7 @@ enum {
     GlobalMapHeight = 480,
 };
 
-GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale): Map(renderer, width, height, scale) {
+GlobalMap::GlobalMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale): MapWithEvent(renderer, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     auto &mmapData = data::gGrpData.lazyLoad("MMAP");

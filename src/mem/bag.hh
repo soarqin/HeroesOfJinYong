@@ -19,32 +19,32 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
+#include <map>
+#include <cstdint>
 
-namespace hojy::scene {
+namespace hojy::mem {
 
-class SubMap final: public MapWithEvent {
-    struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
-        bool isWater;
-    };
+enum {
+    BagItemCount = 200,
+};
+
+class Bag {
 public:
-    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id);
-    ~SubMap() override;
-
-    void render() override;
-    void handleKeyInput(Key key) override;
-
-protected:
-    bool tryMove(int x, int y) override;
-    void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, std::int16_t tex) override;
+    void syncFromSave();
+    void syncToSave();
+    void add(std::int16_t id, std::int16_t count);
+    bool remove(std::int16_t id, std::int16_t count);
+    [[nodiscard]] inline std::int16_t operator[](std::int16_t id) const {
+        auto ite = items_.find(id);
+        if (ite == items_.end()) return 0;
+        return ite->second;
+    }
 
 private:
-    std::int16_t charHeight_ = 0;
-    std::vector<CellInfo> cellInfo_;
-    Texture *drawingTerrainTex2_ = nullptr;
+    std::map<int16_t, int16_t> items_;
+    bool dirty_ = false;
 };
+
+extern Bag gBag;
 
 }

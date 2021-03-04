@@ -30,7 +30,7 @@ using namespace hojy;
 int main() {
     core::config.load("config.toml");
     data::loadData();
-    mem::currSave.newGame();
+    mem::gSaveData.newGame();
     scene::Window win(1024, 768);
     audio::Mixer mixer;
     mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME02.XMI"));

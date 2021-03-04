@@ -19,32 +19,28 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
+#include "map.hh"
 
 namespace hojy::scene {
 
-class SubMap final: public MapWithEvent {
-    struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
-        bool isWater;
-    };
+class MapWithEvent: public Map {
 public:
-    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id);
-    ~SubMap() override;
-
-    void render() override;
-    void handleKeyInput(Key key) override;
+    using Map::Map;
 
 protected:
-    bool tryMove(int x, int y) override;
-    void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, std::int16_t tex) override;
+    void doInteract();
 
 private:
-    std::int16_t charHeight_ = 0;
-    std::vector<CellInfo> cellInfo_;
-    Texture *drawingTerrainTex2_ = nullptr;
+    void doTalk(std::int16_t talkId, std::int16_t portrait, std::int16_t position);
+    void addItem(std::int16_t itemId, std::int16_t itemCount);
+    void modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
+                     std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
+                     std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
+                     std::int16_t y);
+    void tutorialTalk();
+
+protected:
+    std::int16_t currEventId_ = -1;
 };
 
 }

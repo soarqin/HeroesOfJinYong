@@ -17,30 +17,30 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "random.hh"
 
-#include "channel.hh"
+namespace hojy::util {
 
-namespace hojy::audio {
+Random gRandom;
 
-class ChannelWav final: public Channel {
-public:
-    ChannelWav(Mixer *mixer, const std::string &filename);
-    ChannelWav(Mixer *mixer, const void *data, size_t size);
-    ~ChannelWav() override;
+Random::Random(): rand_(std::random_device()()), dist_(0., 1.) {
 
-    void reset() override { pos_ = 0; }
+}
 
-protected:
-    size_t readPCMData(const void **data, size_t size) override;
+Random::IntType Random::operator()() {
+    return rand_();
+}
 
-private:
-    void load();
+Random::IntType Random::operator()(Random::IntType modulo) {
+    return rand_() % modulo;
+}
 
-private:
-    std::vector<std::uint8_t> cache_;
-    std::uint8_t *buffer_ = nullptr;
-    std::uint32_t length_ = 0, pos_ = 0;
-};
+Random::IntType Random::operator()(Random::IntType min, Random::IntType max) {
+    return rand_() % (max - min + 1) + min;
+}
+
+Random::RealType Random::getReal() {
+    return dist_(rand_);
+}
 
 }

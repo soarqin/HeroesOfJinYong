@@ -19,32 +19,28 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
+#include <random>
 
-namespace hojy::scene {
+#include <cstdint>
 
-class SubMap final: public MapWithEvent {
-    struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
-        bool isWater;
-    };
+namespace hojy::util {
+
+class Random {
 public:
-    SubMap(Renderer *renderer, std::uint32_t width, std::uint32_t height, float scale, std::int16_t id);
-    ~SubMap() override;
+    using IntType = std::mt19937_64::result_type;
+    using RealType = std::uniform_real_distribution<>::result_type;
 
-    void render() override;
-    void handleKeyInput(Key key) override;
-
-protected:
-    bool tryMove(int x, int y) override;
-    void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, std::int16_t tex) override;
+    Random();
+    IntType operator()();
+    IntType operator()(IntType modulo);
+    IntType operator()(IntType min, IntType max);
+    RealType getReal();
 
 private:
-    std::int16_t charHeight_ = 0;
-    std::vector<CellInfo> cellInfo_;
-    Texture *drawingTerrainTex2_ = nullptr;
+    std::mt19937_64 rand_;
+    std::uniform_real_distribution<> dist_;
 };
+
+extern Random gRandom;
 
 }

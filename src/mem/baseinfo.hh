@@ -21,13 +21,11 @@
 
 #include "serializable.hh"
 
+#include "bag.hh"
+
 #include <cstdint>
 
 namespace hojy::mem {
-
-enum {
-    BagItemCount = 200,
-};
 
 #pragma pack(push, 1)
 struct BaseData {

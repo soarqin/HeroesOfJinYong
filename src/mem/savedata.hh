@@ -45,6 +45,6 @@ public:
     ShopInfo shopInfo;
 };
 
-extern SaveData currSave;
+extern SaveData gSaveData;
 
 }

@@ -45,6 +45,8 @@ public:
 
     void present();
 
+    [[nodiscard]] void *get() { return renderer_; }
+
 private:
     void *renderer_ = nullptr;
 };

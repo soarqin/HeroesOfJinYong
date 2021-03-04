@@ -19,11 +19,11 @@
 
 #pragma once
 
-#include "map.hh"
+#include "mapwithevent.hh"
 
 namespace hojy::scene {
 
-class GlobalMap final: public Map {
+class GlobalMap final: public MapWithEvent {
     struct BuildingTex {
         std::int32_t order;
         std::int32_t x, y;

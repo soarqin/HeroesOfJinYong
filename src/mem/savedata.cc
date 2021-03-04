@@ -23,7 +23,7 @@
 
 namespace hojy::mem {
 
-SaveData currSave;
+SaveData gSaveData;
 
 static void buildSaveFilename(int num, std::string &rangerFile, std::string &sinFile, std::string &defFile) {
     if (num == 0) {
@@ -79,10 +79,12 @@ bool SaveData::load(int num) {
     for (size_t i = 0; i < sz; ++i) {
         subMapEventInfo[i].deserialize(defData[i]);
     }
+    gBag.syncFromSave();
     return true;
 }
 
 bool SaveData::save(int num) {
+    gBag.syncToSave();
     std::string rangerFile, sinFile, defFile;
     buildSaveFilename(num, rangerFile, sinFile, defFile);
     data::GrpData::DataSet data;

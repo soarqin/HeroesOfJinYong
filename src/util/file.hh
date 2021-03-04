@@ -21,7 +21,6 @@
 
 #include <vector>
 #include <string>
-#include <string_view>
 #include <cstdint>
 
 namespace hojy::util {
@@ -58,8 +57,8 @@ public:
         return true;
     }
 
-    [[nodiscard]] static File create(std::string_view filename);
-    [[nodiscard]] static File open(std::string_view filename, bool readOnly = true);
+    [[nodiscard]] static File create(const std::string &filename);
+    [[nodiscard]] static File open(const std::string &filename, bool readOnly = true);
     [[nodiscard]] static File open(const std::vector<std::string> &filename, bool readOnly = true);
 
 public:

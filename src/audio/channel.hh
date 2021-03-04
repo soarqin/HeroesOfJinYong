@@ -22,7 +22,7 @@
 #include "mixer.hh"
 #include "resampler.hh"
 
-#include <string_view>
+#include <string>
 #include <vector>
 #include <memory>
 #include <cstdint>
@@ -31,7 +31,7 @@ namespace hojy::audio {
 
 class Channel {
 public:
-    Channel(Mixer *mixer, std::string_view filename);
+    Channel(Mixer *mixer, const std::string &filename);
     Channel(Mixer *mixer, const void *data, size_t size);
     virtual ~Channel() = default;
 
