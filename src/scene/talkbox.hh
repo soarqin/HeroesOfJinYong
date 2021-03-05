@@ -39,8 +39,9 @@ public:
 private:
     std::vector<std::wstring> text_;
     const Texture *headTex_ = nullptr;
-    std::int16_t position_ = 0;
-    size_t index_ = 0, dispLines_ = 0;
+    int index_ = 0, dispLines_ = 0, rowHeight_ = 0;
+    int headX_ = 0, headY_ = 0, headW_ = 0, headH_ = 0;
+    int textX_ = 0, textY_ = 0, textW_ = 0, textH_ = 0;
 };
 
 }

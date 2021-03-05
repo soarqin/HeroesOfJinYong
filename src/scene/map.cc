@@ -25,7 +25,7 @@
 
 namespace hojy::scene {
 
-Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id): Node(renderer, x, y, width, height), subMapId_(id), scale_(scale) {
+Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height), scale_(scale), drawDirty_(true) {
     auxWidth_ = std::uint32_t(width_ / scale + 0.5);
     auxHeight_ = std::uint32_t(height_ / scale + 0.5);
     textureMgr.clear();

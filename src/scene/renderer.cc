@@ -21,15 +21,19 @@
 
 #include "texture.hh"
 
-#include <SDL.h>
+#include <SDL2_gfxPrimitives.h>
 
 namespace hojy::scene {
 
-Renderer::Renderer(void *win):
+Renderer::Renderer(void *win, int w, int h):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
     ttf_(new TTF(renderer_)) {
     SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
-    ttf_->init(20);
+    if (w * 3 > h * 4) {
+        ttf_->init(h / 64 * 2);
+    } else {
+        ttf_->init(w * 3 / 4 / 64 * 2);
+    }
     ttf_->add("mono.ttf");
     ttf_->add("cjk.ttf");
 }
@@ -63,6 +67,10 @@ void Renderer::fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t
     SDL_SetRenderDrawColor(ren, r, g, b, a);
     SDL_Rect rc {x, y, w, h};
     SDL_RenderFillRect(ren, &rc);
+}
+
+void Renderer::fillRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    roundedBoxRGBA(static_cast<SDL_Renderer*>(renderer_), x, y, x + w - 1, y + h - 1, rad, r, g, b, a);
 }
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {

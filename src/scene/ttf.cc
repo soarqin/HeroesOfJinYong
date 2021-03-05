@@ -131,9 +131,6 @@ void TTF::charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, s
 
 void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     r_ = r; g_ = g; b_ = b;
-    for (auto *tex: textures_) {
-        SDL_SetTextureColorMod(static_cast<SDL_Texture*>(tex), r_, g_, b_);
-    }
 }
 
 void TTF::render(std::wstring_view str, int x, int y, int maxw) {
@@ -151,8 +148,13 @@ void TTF::render(std::wstring_view str, int x, int y, int maxw) {
             if (fd->advW == 0) continue;
         }
         SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
-        SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
-        SDL_RenderCopy(renderer, static_cast<SDL_Texture*>(textures_[fd->rpidx]), &srcrc, &dstrc);
+        SDL_Rect dstrc = {x + fd->ix0 + 2, y + fd->iy0 + 2, fd->w, fd->h};
+        auto *tex = static_cast<SDL_Texture*>(textures_[fd->rpidx]);
+        SDL_SetTextureColorMod(tex, 0, 0, 0);
+        SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+        dstrc.x -= 2; dstrc.y -= 2;
+        SDL_SetTextureColorMod(tex, r_, g_, b_);
+        SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
         x += fd->advW;
     }
 }
@@ -253,7 +255,6 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
                                 TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH);
         SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
         textures_[rpidx] = tex;
-        SDL_SetTextureColorMod(tex, r_, g_, b_);
     }
     std::uint32_t pixels[64 * 64];
     auto sz = dstPitch * fd->h;

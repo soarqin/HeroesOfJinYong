@@ -19,7 +19,9 @@
 
 #include "globalmap.hh"
 
+#include "window.hh"
 #include "data/grpdata.hh"
+#include "mem/savedata.hh"
 #include "util/file.hh"
 #include "core/config.hh"
 
@@ -33,6 +35,16 @@ enum {
 };
 
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
+    auto subMapSz = mem::gSaveData.subMapInfo.size();
+    for (size_t i = 0; i < subMapSz; ++i) {
+        const auto &smi = mem::gSaveData.subMapInfo[i];
+        auto x = smi->globalEnterX1;
+        auto y = smi->globalEnterY1;
+        subMapEntries_[std::make_pair(x, y)] = i;
+        x = smi->globalEnterX2;
+        y = smi->globalEnterY2;
+        subMapEntries_[std::make_pair(x, y)] = i;
+    }
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     auto &mmapData = data::gGrpData.lazyLoad("MMAP");
@@ -114,7 +126,6 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     drawingBuildingTex_[0]->enableBlendMode(true);
     drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, 2048, 1024);
     drawingBuildingTex_[1]->enableBlendMode(true);
-    currX_ = 242, currY_ = 294;
     resetTime();
     updateMainCharTexture();
 }
@@ -213,6 +224,11 @@ void GlobalMap::render() {
 }
 
 bool GlobalMap::tryMove(int x, int y) {
+    auto ite = subMapEntries_.find(std::make_pair(std::int16_t(x), std::int16_t(y)));
+    if (ite != subMapEntries_.end()) {
+        gWindow->enterSubMap(ite->second, int(direction_));
+        return true;
+    }
     auto offset = y * mapWidth_ + x;
     if (!cellInfo_[offset].canWalk || buildx_[offset] != 0 && building_[buildy_[offset] * mapWidth_ + buildx_[offset]] != 0) {
         return true;

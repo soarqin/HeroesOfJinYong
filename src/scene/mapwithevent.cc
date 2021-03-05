@@ -115,18 +115,37 @@ void MapWithEvent::doInteract() {
     getFaceOffset(x, y);
 
     auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;
-    auto &events = mem::gSaveData.subMapEventInfo[subMapId_]->events;
     auto eventId = layers[3][y * mapWidth_ + x];
-
     if (eventId < 0) { return; }
+
+    auto &events = mem::gSaveData.subMapEventInfo[subMapId_]->events;
     auto evt = events[eventId].event1;
     if (evt <= 0) { return; }
+
     currEventId_ = eventId;
     currEventList_ = &data::gEvent.event(evt);
     currEventSize_ = currEventList_->size();
     currEventIndex_ = 0;
 
+    resetTime();
+    updateMainCharTexture();
+
     continueEvents();
+}
+
+void MapWithEvent::onMove() {
+    auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;
+    auto eventId = layers[3][currY_ * mapWidth_ + currX_];
+    if (eventId < 0) { return; }
+
+    auto &events = mem::gSaveData.subMapEventInfo[subMapId_]->events;
+    auto evt = events[eventId].event3;
+    if (evt <= 0) { return; }
+
+    currEventId_ = eventId;
+    currEventList_ = &data::gEvent.event(evt);
+    currEventSize_ = currEventList_->size();
+    currEventIndex_ = 0;
 }
 
 void MapWithEvent::doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position) {

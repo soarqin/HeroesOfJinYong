@@ -36,7 +36,7 @@ struct SubMapData {
     char name[10];
     std::int16_t exitMusic, enterMusic;
     std::int16_t jumpSubMap, enterCondition;
-    std::int16_t mainEnterX1, mainEnterY1, mainEnterX2, mainEnterY2;
+    std::int16_t globalEnterX1, globalEnterY1, globalEnterX2, globalEnterY2;
     std::int16_t enterX, enterY;
     std::int16_t exitX[3], exitY[3];
     std::int16_t jumpX, jumpY, jumpReturnX, jumpReturnY;

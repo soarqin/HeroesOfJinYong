@@ -34,6 +34,10 @@ typedef struct FT_FaceRec_    *FT_Face;
 
 namespace hojy::scene {
 
+enum {
+    TextLineSpacing = 5,
+};
+
 struct rect_pack_data;
 
 class TTF {

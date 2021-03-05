@@ -25,6 +25,7 @@
 namespace hojy::scene {
 
 void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t position) {
+    text_.clear();
     size_t idx = 0;
     std::wstring line;
     std::vector<std::wstring> lines;
@@ -57,8 +58,15 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
             ++idx;
         }
     }
+
+    headTex_ = (position != 2 && position != 3 && headId >= 0) ? gHeadTextureMgr[headId] : nullptr;
+    if (headTex_) {
+        headW_ = headTex_->width() * 2 + SubWindowBorder * 2;
+        headH_ = headTex_->height() * 2 + SubWindowBorder * 2;
+    }
+
     auto *ttf = renderer_->ttf();
-    size_t widthMax = width_ - 100;
+    size_t widthMax = width_ - headW_ - 10 - SubWindowBorder * 2;
     for (auto &l: lines) {
         size_t len = l.length();
         if (!len) {
@@ -90,26 +98,55 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
             text_.emplace_back(l.substr(idx));
         }
     }
-    headTex_ = headId >= 0 ? gHeadTextureMgr[headId] : nullptr;
-    position_ = position;
-
     index_ = 0;
-    dispLines_ = (height_ - 10 + 3) / (ttf->fontSize() + 3);
+    dispLines_ = (height_ / 3 - SubWindowBorder * 2 + TextLineSpacing) / (ttf->fontSize() + TextLineSpacing);
+    if (dispLines_ > text_.size()) { dispLines_ = text_.size(); }
+
+    rowHeight_ = ttf->fontSize() + TextLineSpacing;
+    if (headTex_) {
+        textW_ = width_ - headW_ - 10;
+    } else {
+        textW_ = width_;
+    }
+    textH_ = rowHeight_ * dispLines_ + SubWindowBorder * 2 + TextLineSpacing;
+    if (position % 2) {
+        if (headTex_) {
+            headY_ = y_ + height_ - headH_;
+        }
+        textY_ = y_ + height_ - textH_;
+    } else {
+        if (headTex_) {
+            headY_ = y_;
+        }
+        textY_ = y_;
+    }
+    if (position == 1 || position == 4) {
+        if (headTex_) {
+            headX_ = x_ + width_ - headW_;
+        }
+        textX_ = x_;
+    } else {
+        if (headTex_) {
+            headX_ = x_;
+            textX_ = headW_ + 10 + x_;
+        } else {
+            textX_ = x_;
+        }
+    }
 }
 
 void TalkBox::render() {
     if (headTex_) {
-        renderer_->fillRect(x_, y_, headTex_->width() * 2 + 10, headTex_->height() * 2 + 10, 192, 192, 192, 96);
-        renderer_->renderTexture(headTex_, float(x_ + 5), float(y_ + 5), 2., true);
+        renderer_->fillRoundedRect(headX_, headY_, headW_, headH_, RoundedRectRad, 192, 192, 192, 96);
+        renderer_->renderTexture(headTex_, float(headX_ + SubWindowBorder), float(headY_ + SubWindowBorder), 2., true);
     }
 
     auto *ttf = renderer_->ttf();
     size_t sz = text_.size();
-    int y = 5 + y_;
-    int rowsize = ttf->fontSize() + 3;
-    int x = 100 + x_;
-    renderer_->fillRect(95 + x_, y_, width_ - 95, rowsize * dispLines_ + 10 + 3, 192, 192, 192, 96);
-    for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowsize) {
+    int x = SubWindowBorder + textX_;
+    int y = SubWindowBorder + textY_;
+    renderer_->fillRoundedRect(textX_, textY_, textW_, textH_, RoundedRectRad, 192, 192, 192, 96);
+    for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight_) {
         ttf->render(text_[idx], x, y, 0);
     }
 }

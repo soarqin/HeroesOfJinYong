@@ -19,13 +19,18 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
+#include "submap.hh"
 #include "renderer.hh"
 
 #include <string>
 #include <cstdint>
 
 namespace hojy::scene {
+
+enum {
+    SubWindowBorder = 10,
+    RoundedRectRad = 5,
+};
 
 class Window final {
 public:
@@ -36,10 +41,15 @@ public:
         return renderer_;
     }
 
+    [[nodiscard]] int width() const { return width_; }
+    [[nodiscard]] int height() const { return height_; }
+
     bool processEvents();
     void render();
     void flush();
 
+    void exitToGlobalMap(int direction);
+    void enterSubMap(std::int16_t subMapId, int direction);
     void closePopup();
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
 
@@ -49,6 +59,10 @@ private:
     Renderer *renderer_ = nullptr;
     MapWithEvent *map_ = nullptr;
     Node *popup_ = nullptr;
+
+    MapWithEvent *globalMap_ = nullptr;
+    SubMap *subMap_ = nullptr;
+    Node *talkBox_ = nullptr;
 };
 
 extern Window *gWindow;

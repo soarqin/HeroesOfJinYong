@@ -138,6 +138,22 @@ bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
     return true;
 }
 
+bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
+    auto sz = data.size();
+    textures_.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        if (textures_[i].data()) {
+            continue;
+        }
+        Texture tex;
+        if (!tex.loadFromRLE(renderer_, data[i], palette_)) {
+            continue;
+        }
+        textures_[i] = std::move(tex);
+    }
+    return true;
+}
+
 const Texture *TextureMgr::operator[](std::int32_t id) const {
     if (id >= textures_.size()) { return nullptr; }
     return &textures_[id];

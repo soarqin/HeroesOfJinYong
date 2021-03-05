@@ -66,6 +66,7 @@ public:
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const data::ColorPalette &col);
     bool loadFromRLE(const std::vector<std::string> &data);
+    bool mergeFromRLE(const std::vector<std::string> &data);
     const Texture *operator[](std::int32_t id) const;
     void clear() { textures_.clear(); }
 

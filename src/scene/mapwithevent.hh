@@ -31,6 +31,9 @@ public:
 
 protected:
     void doInteract();
+    void onMove();
+
+    virtual void setCellTexture(int x, int y, std::int16_t tex) {}
 
 private:
     void doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position);
@@ -46,6 +49,8 @@ protected:
     std::int16_t currEventId_ = -1;
     size_t currEventIndex_ = 0, currEventSize_ = 0;
     const std::vector<std::int16_t> *currEventList_ = nullptr;
+
+    std::int16_t subMapId_ = -1;
 };
 
 }

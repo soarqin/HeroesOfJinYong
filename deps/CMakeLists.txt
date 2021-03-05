@@ -43,3 +43,5 @@ set(MESSAGE_QUIET OFF)
 if(DEPS_BUILD_SHARED)
     set_target_properties(ADLMIDI_shared PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 endif()
+
+add_subdirectory(SDL2_gfx)

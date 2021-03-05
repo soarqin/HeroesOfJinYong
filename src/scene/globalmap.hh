@@ -21,6 +21,8 @@
 
 #include "mapwithevent.hh"
 
+#include <map>
+
 namespace hojy::scene {
 
 class GlobalMap final: public MapWithEvent {
@@ -59,6 +61,7 @@ private:
     std::vector<CellInfo> cellInfo_;
     std::vector<BuildingTex> buildingTex_;
     Texture *drawingBuildingTex_[2] = {nullptr, nullptr};
+    std::map<std::pair<std::int16_t, std::int16_t>, std::int16_t> subMapEntries_;
 };
 
 }

@@ -39,10 +39,11 @@ public:
     };
 
 public:
-    Map(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id = -1);
+    Map(Renderer *renderer, int x, int y, int width, int height, float scale);
     Map(const Map&) = delete;
-    virtual ~Map();
+    ~Map() override;
 
+    inline void setDirection(Direction dir) { direction_ = dir; }
     void setPosition(int x, int y);
     void move(Direction direction);
 
@@ -54,13 +55,11 @@ protected:
     virtual void updateMainCharTexture() {}
     virtual void resetTime();
     virtual void checkTime();
-    virtual void setCellTexture(int x, int y, std::int16_t tex) {}
     void renderChar(int deltaY = 0);
     void getFaceOffset(int &x, int &y);
 
 protected:
     TextureMgr textureMgr;
-    std::int16_t subMapId_;
     float scale_ = 1.f;
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;

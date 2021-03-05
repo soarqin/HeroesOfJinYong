@@ -31,7 +31,7 @@ class Renderer final {
     friend class Texture;
 
 public:
-    explicit Renderer(void *win);
+    explicit Renderer(void *win, int w, int h);
     Renderer(const Renderer&) = delete;
     ~Renderer();
 
@@ -40,6 +40,7 @@ public:
     void unsetClipRect();
     void fill(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    void fillRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, float x, float y, float scale, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin = false);

@@ -21,6 +21,8 @@
 
 #include "mapwithevent.hh"
 
+#include <set>
+
 namespace hojy::scene {
 
 class SubMap final: public MapWithEvent {
@@ -30,8 +32,11 @@ class SubMap final: public MapWithEvent {
         bool isWater;
     };
 public:
-    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale, std::int16_t id);
+    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~SubMap() override;
+
+    bool load(std::int16_t subMapId);
+    void setDefaultPosition();
 
     void render() override;
     void handleKeyInput(Key key) override;
@@ -45,6 +50,7 @@ private:
     std::int16_t charHeight_ = 0;
     std::vector<CellInfo> cellInfo_;
     Texture *drawingTerrainTex2_ = nullptr;
+    std::set<int16_t> subMapLoaded_;
 };
 
 }

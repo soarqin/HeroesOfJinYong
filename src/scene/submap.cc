@@ -19,24 +19,35 @@
 
 #include "submap.hh"
 
+#include "window.hh"
 #include "data/grpdata.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
 
 namespace hojy::scene {
 
-SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float scale, std::int16_t id): MapWithEvent(renderer, ix, iy, width, height, scale, id) {
+SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
     drawingTerrainTex2_ = Texture::createAsTarget(renderer_, 2048, 2048);
     drawingTerrainTex2_->enableBlendMode(true);
+}
 
-    mapWidth_ = mem::SubMapWidth;
-    mapHeight_ = mem::SubMapHeight;
-    char idxstr[8], grpstr[8];
-    snprintf(idxstr, 8, "SDX%03d", id);
-    snprintf(grpstr, 8, "SMP%03d", id);
-    auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
-    textureMgr.loadFromRLE(submapData);
+SubMap::~SubMap() {
+    delete drawingTerrainTex2_;
+}
 
+bool SubMap::load(std::int16_t subMapId) {
+    if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
+        mapWidth_ = mem::SubMapWidth;
+        mapHeight_ = mem::SubMapHeight;
+        char idxstr[8], grpstr[8];
+        snprintf(idxstr, 8, "SDX%03d", subMapId);
+        snprintf(grpstr, 8, "SMP%03d", subMapId);
+        auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
+        if (submapData.empty() || !textureMgr.mergeFromRLE(submapData)) {
+            return false;
+        }
+        subMapLoaded_.insert(subMapId);
+    }
     {
         auto *tex = textureMgr[0];
         cellWidth_ = tex->width();
@@ -50,10 +61,11 @@ SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float 
     texHeight_ = (mapWidth_ + mapHeight_) * cellDiffY;
 
     auto size = mapWidth_ * mapHeight_;
+    cellInfo_.clear();
     cellInfo_.resize(size);
 
-    auto &layers = mem::gSaveData.subMapLayerInfo[id]->data;
-    auto &events = mem::gSaveData.subMapEventInfo[id]->events;
+    auto &layers = mem::gSaveData.subMapLayerInfo[subMapId]->data;
+    auto &events = mem::gSaveData.subMapEventInfo[subMapId]->events;
     int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
     int y = offsetY_;
     int pos = 0;
@@ -88,10 +100,13 @@ SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float 
     currX_ = 19, currY_ = 20;
     resetTime();
     updateMainCharTexture();
+    subMapId_ = subMapId;
+    return true;
 }
 
-SubMap::~SubMap() {
-    delete drawingTerrainTex2_;
+void SubMap::setDefaultPosition() {
+    const auto &smi = mem::gSaveData.subMapInfo[subMapId_];
+    setPosition(smi->enterX, smi->enterY);
 }
 
 void SubMap::render() {
@@ -223,11 +238,18 @@ bool SubMap::tryMove(int x, int y) {
     if (ev >= 0 && events[ev].blocked) {
         return true;
     }
-
     currX_ = x;
     currY_ = y;
     drawDirty_ = true;
     currFrame_ = currFrame_ % 6 + 1;
+    const auto &subMapInfo = mem::gSaveData.subMapInfo[subMapId_];
+    for (int i = 0; i < 3; ++i) {
+        if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
+            gWindow->exitToGlobalMap(int(direction_));
+            return true;
+        }
+    }
+    /* onMove(); */
     return true;
 }
 

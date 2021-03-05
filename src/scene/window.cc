@@ -25,6 +25,7 @@
 
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
+#include "mem/savedata.hh"
 
 #include <SDL.h>
 
@@ -45,8 +46,12 @@ Window::Window(int w, int h): width_(w), height_(h) {
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     win_ = win;
-    renderer_ = new Renderer(win_);
-    map_ = new SubMap(renderer_, 0, 0, w, h, 2.f, 70);
+    renderer_ = new Renderer(win_, w, h);
+    globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, 2.f);
+    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
+    subMap_ = new SubMap(renderer_, 0, 0, w, h, 2.f);
+    subMap_->load(70);
+    map_ = subMap_;
     gHeadTextureMgr.setPalette(data::gNormalPalette);
     gHeadTextureMgr.setRenderer(renderer_);
     data::GrpData::DataSet dset;
@@ -57,7 +62,9 @@ Window::Window(int w, int h): width_(w), height_(h) {
 }
 
 Window::~Window() {
-    delete map_;
+    delete talkBox_;
+    delete globalMap_;
+    delete subMap_;
     delete renderer_;
     SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
 }
@@ -112,17 +119,30 @@ void Window::render() {
     }
 }
 
+void Window::exitToGlobalMap(int direction) {
+    globalMap_->setDirection(Map::Direction(direction));
+    map_ = globalMap_;
+}
+
+void Window::enterSubMap(std::int16_t subMapId, int direction) {
+    subMap_->load(subMapId);
+    subMap_->setDirection(Map::Direction(direction));
+    subMap_->setDefaultPosition();
+    map_ = subMap_;
+}
+
 void Window::closePopup() {
     if (!popup_) { return; }
-    delete popup_;
     popup_ = nullptr;
     map_->continueEvents();
 }
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
-    auto *talkBox = new TalkBox(renderer_, 50, 50, width_ - 100, 120);
-    talkBox->popup(text, headId, position);
-    popup_ = talkBox;
+    if (!talkBox_) {
+        talkBox_ = new TalkBox(renderer_, 50, 50, width_ - 100, height_ - 100);
+    }
+    dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
+    popup_ = talkBox_;
 }
 
 }
