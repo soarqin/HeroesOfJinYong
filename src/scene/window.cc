@@ -46,7 +46,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     win_ = win;
     renderer_ = new Renderer(win_);
-    map_ = new SubMap(renderer_, 0, 0, w, h, 1.5f, 70);
+    map_ = new SubMap(renderer_, 0, 0, w, h, 2.f, 70);
     gHeadTextureMgr.setPalette(data::gNormalPalette);
     gHeadTextureMgr.setRenderer(renderer_);
     data::GrpData::DataSet dset;
@@ -67,25 +67,25 @@ bool Window::processEvents() {
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
         case SDL_KEYDOWN: {
-            auto *node = topNode_ ? topNode_ : map_;
+            auto *node = popup_ ? popup_ : map_;
             switch (e.key.keysym.scancode) {
             case SDL_SCANCODE_UP:
-                node->handleKeyInput(Node::KeyUp);
+                node->doHandleKeyInput(Node::KeyUp);
                 break;
             case SDL_SCANCODE_RIGHT:
-                node->handleKeyInput(Node::KeyRight);
+                node->doHandleKeyInput(Node::KeyRight);
                 break;
             case SDL_SCANCODE_LEFT:
-                node->handleKeyInput(Node::KeyLeft);
+                node->doHandleKeyInput(Node::KeyLeft);
                 break;
             case SDL_SCANCODE_DOWN:
-                node->handleKeyInput(Node::KeyDown);
+                node->doHandleKeyInput(Node::KeyDown);
                 break;
             case SDL_SCANCODE_RETURN: case SDL_SCANCODE_SPACE:
-                node->handleKeyInput(Node::KeyOK);
+                node->doHandleKeyInput(Node::KeyOK);
                 break;
             case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE: case SDL_SCANCODE_BACKSPACE:
-                node->handleKeyInput(Node::KeyCancel);
+                node->doHandleKeyInput(Node::KeyCancel);
                 break;
             default:
                 break;
@@ -104,16 +104,25 @@ void Window::flush() {
 }
 
 void Window::render() {
-    map_->doRender();
-    if (topNode_) {
-        topNode_->doRender();
+    if (map_) {
+        map_->doRender();
+    }
+    if (popup_) {
+        popup_->doRender();
     }
 }
 
+void Window::closePopup() {
+    if (!popup_) { return; }
+    delete popup_;
+    popup_ = nullptr;
+    map_->continueEvents();
+}
+
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
-    auto *talkBox = new TalkBox(renderer_, 50, 50, width_ - 100, 200);
+    auto *talkBox = new TalkBox(renderer_, 50, 50, width_ - 100, 120);
     talkBox->popup(text, headId, position);
-    topNode_ = talkBox;
+    popup_ = talkBox;
 }
 
 }

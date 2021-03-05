@@ -36,18 +36,17 @@ public:
     ~Renderer();
 
     void setTargetTexture(Texture *tex);
-    void enableBlendMode(bool r);
-    void setClipRect(int l, int r, int w, int h);
+    void setClipRect(int x, int y, int w, int h);
     void unsetClipRect();
     void fill(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    void fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, float x, float y, float scale, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin = false);
 
     void present();
-
-    [[nodiscard]] void *get() { return renderer_; }
+    [[nodiscard]] inline TTF *ttf() { return ttf_; }
 
 private:
     void *renderer_ = nullptr;

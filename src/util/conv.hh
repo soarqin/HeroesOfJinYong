@@ -20,6 +20,8 @@
 #pragma once
 
 #include <vector>
+#include <map>
+#include <unordered_map>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -36,14 +38,29 @@ protected:
     void postInit();
 
 protected:
-    std::vector<std::pair<std::uint16_t, std::uint16_t>> table_, tableRev_;
+    std::vector<std::pair<std::uint32_t, uint32_t>> table_, tableRev_;
 };
 
-class Big5Conv: public Conv {
+class Big5Conv final: public Conv {
 public:
     Big5Conv();
 };
 
+class Trad2SimpConv final {
+    struct CNode {
+        std::vector<uint32_t> word;
+        std::map<uint32_t, CNode> nodes;
+    };
+public:
+    Trad2SimpConv();
+    std::wstring convert(const std::wstring &str);
+
+private:
+    std::unordered_map<std::uint32_t, std::uint32_t> charTable_;
+    CNode root_;
+};
+
 extern Big5Conv big5Conv;
+extern Trad2SimpConv trad2SimpConv;
 
 }

@@ -27,6 +27,8 @@ class MapWithEvent: public Map {
 public:
     using Map::Map;
 
+    void continueEvents();
+
 protected:
     void doInteract();
 
@@ -40,7 +42,10 @@ private:
     void tutorialTalk();
 
 protected:
+    bool currEventPaused_ = false;
     std::int16_t currEventId_ = -1;
+    size_t currEventIndex_ = 0, currEventSize_ = 0;
+    const std::vector<std::int16_t> *currEventList_ = nullptr;
 };
 
 }

@@ -20,6 +20,7 @@
 #include "event.hh"
 
 #include "grpdata.hh"
+#include "util/conv.hh"
 
 namespace hojy::data {
 
@@ -37,11 +38,16 @@ void Event::loadEvent(const std::string &name) {
 }
 
 void Event::loadTalk(const std::string &name) {
-    if (!GrpData::loadData(name, talks_)) { return; }
-    for (auto &t: talks_) {
+    std::vector<std::string> talks;
+    if (!GrpData::loadData(name, talks)) { return; }
+    auto sz = talks.size();
+    talks_.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        auto &t = talks[i];
         for (auto &c: t) {
             if (c) { c = ~c; }
         }
+        talks_[i] = /*util::trad2SimpConv.convert*/(util::big5Conv.toUnicode(t.c_str()));
     }
 }
 
@@ -53,11 +59,11 @@ const std::vector<std::int16_t> &Event::event(size_t index) const {
     return empty;
 }
 
-const std::string &Event::talk(size_t index) const {
+const std::wstring &Event::talk(size_t index) const {
     if (index < talks_.size()) {
         return talks_[index];
     }
-    static std::string empty;
+    static std::wstring empty;
     return empty;
 }
 

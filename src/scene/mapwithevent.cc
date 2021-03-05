@@ -22,7 +22,6 @@
 #include "window.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
-#include "util/conv.hh"
 #include "util/random.hh"
 
 #include <functional>
@@ -81,6 +80,36 @@ runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, std::
     }
 }
 
+void MapWithEvent::continueEvents() {
+    if (!currEventList_) { return; }
+    currEventPaused_ = false;
+
+#define OpRun(O, F)                                                    \
+    case O: \
+        runFunc(&MapWithEvent::F, this, evlist, currEventIndex_, std::make_index_sequence<argCounter(&MapWithEvent::F)>()); \
+        break
+
+    const auto &evlist = *currEventList_;
+    while (!currEventPaused_ && currEventIndex_ < currEventSize_) {
+        auto op = evlist[currEventIndex_++];
+        if (op == -1) { break; }
+        switch (op) {
+        OpRun(1, doTalk);
+        OpRun(2, addItem);
+        OpRun(3, modifyEvent);
+        OpRun(51, tutorialTalk);
+        default:
+            break;
+        }
+    }
+    if (currEventIndex_ >= currEventSize_) {
+        currEventId_ = -1;
+        currEventIndex_ = currEventSize_ = 0;
+        currEventList_ = nullptr;
+    }
+#undef OpRun
+}
+
 void MapWithEvent::doInteract() {
     int x, y;
     getFaceOffset(x, y);
@@ -93,36 +122,17 @@ void MapWithEvent::doInteract() {
     auto evt = events[eventId].event1;
     if (evt <= 0) { return; }
     currEventId_ = eventId;
+    currEventList_ = &data::gEvent.event(evt);
+    currEventSize_ = currEventList_->size();
+    currEventIndex_ = 0;
 
-#define OpRun(O, F)                                                    \
-    case O: \
-        runFunc(&MapWithEvent::F, this, evlist, index, std::make_index_sequence<argCounter(&MapWithEvent::F)>()); \
-        break
-
-    const auto &evlist = data::gEvent.event(evt);
-    auto evsz = evlist.size();
-    size_t index = 0;
-    while (index < evsz) {
-        auto op = evlist[index++];
-        if (op == -1) { break; }
-        switch (op) {
-        OpRun(1, doTalk);
-        OpRun(2, addItem);
-        OpRun(3, modifyEvent);
-        OpRun(51, tutorialTalk);
-        default:
-            break;
-        }
-    }
-    currEventId_ = -1;
-#undef OpRun
+    continueEvents();
 }
 
 void MapWithEvent::doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position) {
     (void)this; /* avoid Clang-Tidy warning: Method can be made static */
-    const auto &str = data::gEvent.talk(talkId);
-    auto wstr = util::big5Conv.toUnicode(str);
-    gWindow->runTalk(wstr, headId, position);
+    gWindow->runTalk(data::gEvent.talk(talkId), headId, position);
+    currEventPaused_ = true;
 }
 
 void MapWithEvent::addItem(std::int16_t itemId, std::int16_t itemCount) {

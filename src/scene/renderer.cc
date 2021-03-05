@@ -28,6 +28,7 @@ namespace hojy::scene {
 Renderer::Renderer(void *win):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
     ttf_(new TTF(renderer_)) {
+    SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
     ttf_->init(20);
     ttf_->add("mono.ttf");
     ttf_->add("cjk.ttf");
@@ -42,12 +43,8 @@ void Renderer::setTargetTexture(Texture *tex) {
     SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
 }
 
-void Renderer::enableBlendMode(bool r) {
-    SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
-}
-
-void Renderer::setClipRect(int l, int r, int w, int h) {
-    SDL_Rect rc {l, r, w, h};
+void Renderer::setClipRect(int x, int y, int w, int h) {
+    SDL_Rect rc {x, y, w, h};
     SDL_RenderSetClipRect(static_cast<SDL_Renderer*>(renderer_), &rc);
 }
 
@@ -59,6 +56,13 @@ void Renderer::fill(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t
     auto *ren = static_cast<SDL_Renderer*>(renderer_);
     SDL_SetRenderDrawColor(ren, r, g, b, a);
     SDL_RenderClear(ren);
+}
+
+void Renderer::fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    auto *ren = static_cast<SDL_Renderer*>(renderer_);
+    SDL_SetRenderDrawColor(ren, r, g, b, a);
+    SDL_Rect rc {x, y, w, h};
+    SDL_RenderFillRect(ren, &rc);
 }
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {

@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "map.hh"
+#include "mapwithevent.hh"
 #include "renderer.hh"
 
 #include <string>
@@ -40,14 +40,15 @@ public:
     void render();
     void flush();
 
+    void closePopup();
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
 
 private:
     int width_, height_;
     void *win_ = nullptr;
     Renderer *renderer_ = nullptr;
-    Map *map_ = nullptr;
-    Node *topNode_ = nullptr;
+    MapWithEvent *map_ = nullptr;
+    Node *popup_ = nullptr;
 };
 
 extern Window *gWindow;

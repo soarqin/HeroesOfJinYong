@@ -31,11 +31,11 @@ public:
     void loadTalk(const std::string &name);
 
     [[nodiscard]] const std::vector<std::int16_t> &event(size_t index) const;
-    [[nodiscard]] const std::string &talk(size_t index) const;
+    [[nodiscard]] const std::wstring &talk(size_t index) const;
 
 private:
     std::vector<std::vector<std::int16_t>> events_;
-    std::vector<std::string> talks_;
+    std::vector<std::wstring> talks_;
 };
 
 extern Event gEvent;

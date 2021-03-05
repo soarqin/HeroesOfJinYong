@@ -23,6 +23,13 @@
 
 namespace hojy::scene {
 
+Node::~Node() {
+    for (auto *n: children_) {
+        delete n;
+    }
+    children_.clear();
+}
+
 void Node::add(Node *child) {
     children_.push_back(child);
 }
@@ -36,6 +43,14 @@ void Node::doRender() {
     for (auto *node : children_) {
         node->doRender();
     }
+}
+
+void Node::doHandleKeyInput(Node::Key key) {
+    if (children_.empty()) {
+        handleKeyInput(key);
+        return;
+    }
+    children_.back()->handleKeyInput(key);
 }
 
 }

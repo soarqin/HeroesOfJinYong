@@ -24,6 +24,7 @@
 namespace hojy::util {
 
 Big5Conv big5Conv;
+Trad2SimpConv trad2SimpConv;
 
 std::wstring Conv::toUnicode(std::string_view str) {
     size_t len = str.length();
@@ -41,8 +42,8 @@ std::wstring Conv::toUnicode(std::string_view str) {
         if (cstr + 1 >= cstrEnd) {
             break;
         }
-        std::uint16_t charcode = (std::uint16_t(c) << 8) | std::uint8_t(*(cstr + 1));
-        auto ite = std::lower_bound(table_.begin(), table_.end(), std::make_pair(charcode, std::uint16_t(0)));
+        std::uint32_t charcode = (std::uint16_t(c) << 8) | std::uint8_t(*(cstr + 1));
+        auto ite = std::lower_bound(table_.begin(), table_.end(), std::make_pair(charcode, std::uint32_t(0)));
         if (ite == table_.end() || ite->first != charcode) {
             result.append(L"  ");
         } else {
@@ -60,13 +61,13 @@ std::string Conv::fromUnicode(std::wstring_view wstr) {
     std::string result;
     result.reserve(len * 2);
     while (cstr < cstrEnd) {
-        auto c = std::uint16_t(*cstr);
+        auto c = std::uint32_t(*cstr);
         if (c < 0x80) {
             result += char(c);
             ++cstr;
             continue;
         }
-        auto ite = std::lower_bound(tableRev_.begin(), tableRev_.end(), std::make_pair(c, std::uint16_t(0)));
+        auto ite = std::lower_bound(tableRev_.begin(), tableRev_.end(), std::make_pair(c, std::uint32_t(0)));
         if (ite == tableRev_.end() || ite->first != c) {
             result.append("  ");
         } else {
@@ -93,6 +94,55 @@ Big5Conv::Big5Conv() {
     table_ =
 #include "big5table.inl"
     postInit();
+}
+
+Trad2SimpConv::Trad2SimpConv() {
+    charTable_ = {
+#include "tschars.inl"
+    };
+    std::vector<std::pair<std::vector<uint32_t>, std::vector<uint32_t>>> wordTable = {
+#include "tswords.inl"
+    };
+    for (auto &p: wordTable) {
+        auto *node = &root_;
+        for (auto c: p.first) {
+            node = &node->nodes[c];
+        }
+        node->word = std::move(p.second);
+    }
+}
+
+std::wstring Trad2SimpConv::convert(const std::wstring &str) {
+    std::wstring res;
+    size_t sz = str.size();
+    res.reserve(sz);
+    for (size_t i = 0; i < sz;) {
+        {
+            auto *node = &root_;
+            size_t j = i;
+            bool notfound = false;
+            while (j < sz) {
+                auto c = str[j++];
+                auto ite = node->nodes.find(c);
+                if (ite == node->nodes.end()) {
+                    notfound = true;
+                    break;
+                }
+                node = &ite->second;
+            }
+            if (!notfound) {
+                res.insert(res.end(), node->word.begin(), node->word.end());
+                i = j;
+                continue;
+            }
+        }
+        auto c = str[i];
+        auto ite = charTable_.find(c);
+        if (ite == charTable_.end()) res += c;
+        else res += wchar_t(ite->second);
+        ++i;
+    }
+    return res;
 }
 
 }

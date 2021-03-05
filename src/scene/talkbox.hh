@@ -31,15 +31,16 @@ class TalkBox: public Node {
 public:
     using Node::Node;
 
-    void popup(const std::string &text, std::int16_t headId, std::int16_t position);
     void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
 
     void render() override;
+    void handleKeyInput(Key key) override;
 
 private:
     std::vector<std::wstring> text_;
     const Texture *headTex_ = nullptr;
     std::int16_t position_ = 0;
+    size_t index_ = 0, dispLines_ = 0;
 };
 
 }
