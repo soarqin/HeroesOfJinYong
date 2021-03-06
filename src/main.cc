@@ -19,22 +19,15 @@
 
 #include "core/config.hh"
 #include "data/loader.hh"
-#include "mem/savedata.hh"
 #include "scene/window.hh"
-#include "audio/mixer.hh"
-#include "audio/channelwav.hh"
-#include "audio/channelmidi.hh"
 
 using namespace hojy;
 
 int main() {
     core::config.load("config.toml");
     data::loadData();
-    mem::gSaveData.newGame();
     scene::Window win(1024, 768);
-    audio::Mixer mixer;
-    mixer.repeatPlay(0, new audio::ChannelMIDI(&mixer, "data/GAME02.XMI"));
-    mixer.pause(false);
+    // win.newGame();
     while (win.processEvents()) {
         win.render();
         win.flush();

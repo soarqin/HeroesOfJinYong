@@ -114,7 +114,7 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw
         SDL_Rect dst {destx, desty, destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
     } else {
-        SDL_Rect dst{destx - tex->originX(), desty - tex->originY(), destw, desth};
+        SDL_Rect dst{destx - tex->originX() * destw / w, desty - tex->originY() * desth / h, destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
     }
 }

@@ -25,12 +25,18 @@
 
 namespace hojy::audio {
 
+Mixer gMixer;
+
 void Mixer::ChannelInfo::reset() {
     ch.reset();
     volume = 0;
 }
 
-Mixer::Mixer() {
+Mixer::~Mixer() {
+    SDL_CloseAudioDevice(audioDevice_);
+}
+
+void Mixer::init(int channels) {
     if (!SDL_WasInit(SDL_INIT_AUDIO)) {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
@@ -46,22 +52,21 @@ Mixer::Mixer() {
     audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
     sampleRate_ = obtained.freq;
     format_ = obtained.format;
-}
-
-Mixer::~Mixer() {
-    SDL_CloseAudioDevice(audioDevice_);
+    channels_.resize(channels);
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
-    if (channelId >= ChannelMax) {
+    if (channelId >= channels_.size()) {
         return;
     }
-    if (channelId >= channels_.size()) {
-        channels_.resize(channelId + 1);
-    }
+    std::scoped_lock lk(playMutex_);
     if (ch) {
+        if (!ch->ok()) {
+            delete ch;
+            return;
+        }
         channels_[channelId] = {std::unique_ptr<Channel>(ch), volume};
-        channels_.back().ch->start();
+        channels_[channelId].ch->start();
     } else {
         channels_[channelId] = {nullptr, VolumeMax};
     }
@@ -95,6 +100,7 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
     memset(stream, 0, len);
     std::vector<std::uint8_t> channelData(len);
+    std::scoped_lock lk(mixer->playMutex_);
     for (auto &chi: mixer->channels_) {
         if (!chi.ch) { continue; }
         auto rsize = chi.ch->readData(channelData.data(), len);

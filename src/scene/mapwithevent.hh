@@ -27,30 +27,43 @@ class MapWithEvent: public Map {
 public:
     using Map::Map;
 
-    void continueEvents();
+    void render() override;
+    void continueEvents(bool result = true);
 
 protected:
     void doInteract();
     void onMove();
 
+    bool checkTime() override;
     virtual void setCellTexture(int x, int y, std::int16_t tex) {}
+    virtual void updateEventTextures();
 
 private:
-    void doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position);
-    void addItem(std::int16_t itemId, std::int16_t itemCount);
-    void modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
+    static void doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position);
+    static void addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount);
+    static void modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
                      std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
                      std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
                      std::int16_t y);
-    void tutorialTalk();
+    static void animation(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex);
+    static void openSubMap(MapWithEvent *map, std::int16_t subMapId);
+    static void forceDirection(MapWithEvent *map, std::int16_t direction);
+    static void tutorialTalk(MapWithEvent *map);
+    static void openWorld(MapWithEvent *map);
+    static void playMusic(MapWithEvent *map, std::int16_t musicId);
+    static void playSound(MapWithEvent *map, std::int16_t soundId);
 
 protected:
+    std::int16_t subMapId_ = -1;
+
     bool currEventPaused_ = false;
     std::int16_t currEventId_ = -1;
     size_t currEventIndex_ = 0, currEventSize_ = 0;
+    size_t currEventAdvTrue_ = 0, currEventAdvFalse_ = 0;
     const std::vector<std::int16_t> *currEventList_ = nullptr;
 
-    std::int16_t subMapId_ = -1;
+    std::uint64_t frames_ = 0;
+    std::int16_t animEventId_ = 0, animCurrTex_ = 0, animEndTex_ = 0;
 };
 
 }

@@ -23,7 +23,12 @@
 
 namespace hojy::scene {
 
+Node::Node(Node *parent, int x, int y, int width, int height) : parent_(parent), renderer_(parent->renderer_), x_(x), y_(y), width_(width), height_(height) {
+    if (parent_) { parent_->add(this); }
+}
+
 Node::~Node() {
+    if (parent_) { parent_->remove(this); }
     for (auto *n: children_) {
         delete n;
     }

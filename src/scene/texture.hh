@@ -55,6 +55,7 @@ public:
 
 private:
     bool loadFromRLE(Renderer *renderer, const std::string &data, void *palette);
+    bool loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, void *palette);
 
 private:
     void *data_ = nullptr;
@@ -67,6 +68,7 @@ public:
     void setPalette(const data::ColorPalette &col);
     bool loadFromRLE(const std::vector<std::string> &data);
     bool mergeFromRLE(const std::vector<std::string> &data);
+    Texture *loadFromRAW(const std::string &data, int width, int height);
     const Texture *operator[](std::int32_t id) const;
     void clear() { textures_.clear(); }
 
@@ -75,7 +77,5 @@ private:
     Renderer *renderer_ = nullptr;
     void *palette_ = nullptr;
 };
-
-extern TextureMgr gHeadTextureMgr;
 
 }

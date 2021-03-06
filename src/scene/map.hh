@@ -43,7 +43,7 @@ public:
     Map(const Map&) = delete;
     ~Map() override;
 
-    inline void setDirection(Direction dir) { direction_ = dir; }
+    void setDirection(Direction dir);
     void setPosition(int x, int y);
     void move(Direction direction);
 
@@ -54,9 +54,9 @@ protected:
     virtual bool tryMove(int x, int y) { return false; }
     virtual void updateMainCharTexture() {}
     virtual void resetTime();
-    virtual void checkTime();
+    virtual bool checkTime();
     void renderChar(int deltaY = 0);
-    void getFaceOffset(int &x, int &y);
+    bool getFaceOffset(int &x, int &y);
 
 protected:
     TextureMgr textureMgr;

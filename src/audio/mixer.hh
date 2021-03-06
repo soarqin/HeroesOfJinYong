@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <vector>
 #include <memory>
 #include <cstdint>
@@ -43,12 +44,11 @@ public:
         InvalidType = -1, F32 = 0,  F64,  I32,  I16,
     };
     enum {
-        ChannelMax = 8,
         VolumeMax = 128,
     };
 
-    Mixer();
     ~Mixer();
+    void init(int channels);
 
     void play(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
     void repeatPlay(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
@@ -66,6 +66,9 @@ private:
     std::uint32_t sampleRate_ = 0;
     std::uint16_t format_ = 0;
     std::vector<ChannelInfo> channels_;
+    std::mutex playMutex_;
 };
+
+extern Mixer gMixer;
 
 }

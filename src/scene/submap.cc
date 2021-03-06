@@ -35,7 +35,7 @@ SubMap::~SubMap() {
     delete drawingTerrainTex2_;
 }
 
-bool SubMap::load(std::int16_t subMapId) {
+bool SubMap::load(std::int16_t subMapId, int initX, int initY) {
     if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
         mapWidth_ = mem::SubMapWidth;
         mapHeight_ = mem::SubMapHeight;
@@ -48,6 +48,11 @@ bool SubMap::load(std::int16_t subMapId) {
         }
         subMapLoaded_.insert(subMapId);
     }
+    eventLoop_.clear();
+    eventDelay_.clear();
+    eventLoop_.resize(mem::SubMapEventCount);
+    eventDelay_.resize(mem::SubMapEventCount);
+    frames_ = 0;
     {
         auto *tex = textureMgr[0];
         cellWidth_ = tex->width();
@@ -97,20 +102,18 @@ bool SubMap::load(std::int16_t subMapId) {
         x -= cellDiffX; y += cellDiffY;
     }
 
-    currX_ = 19, currY_ = 20;
-    resetTime();
-    updateMainCharTexture();
     subMapId_ = subMapId;
+    setPosition(initX, initY);
     return true;
 }
 
-void SubMap::setDefaultPosition() {
-    const auto &smi = mem::gSaveData.subMapInfo[subMapId_];
-    setPosition(smi->enterX, smi->enterY);
+void SubMap::forceMainCharTexture(std::int16_t id) {
+    mainCharTex_ = textureMgr[id];
+    drawDirty_ = true;
 }
 
 void SubMap::render() {
-    Map::render();
+    MapWithEvent::render();
 
     if (drawDirty_) {
         drawDirty_ = false;
@@ -216,6 +219,7 @@ void SubMap::render() {
 }
 
 void SubMap::handleKeyInput(Key key) {
+    if (currEventPaused_) { return; }
     switch (key) {
     case KeyOK:
         doInteract();
@@ -246,14 +250,21 @@ bool SubMap::tryMove(int x, int y) {
     for (int i = 0; i < 3; ++i) {
         if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
             gWindow->exitToGlobalMap(int(direction_));
+            if (subMapInfo->exitMusic >= 0) {
+                gWindow->playMusic(subMapInfo->exitMusic);
+            }
             return true;
         }
     }
-    /* onMove(); */
+    onMove();
     return true;
 }
 
 void SubMap::updateMainCharTexture() {
+    if (animEventId_ < 0) {
+        mainCharTex_ = textureMgr[animCurrTex_ >> 1];
+        return;
+    }
     if (resting_) {
         mainCharTex_ = textureMgr[2501 + int(direction_) * 7];
         return;
@@ -265,6 +276,35 @@ void SubMap::setCellTexture(int x, int y, std::int16_t tex) {
     if (tex < 0) { return; }
     cellInfo_[y * mapWidth_ + x].event = textureMgr[tex];
     drawDirty_ = true;
+}
+
+void SubMap::updateEventTextures() {
+    MapWithEvent::updateEventTextures();
+    auto &evlist = mem::gSaveData.subMapEventInfo[subMapId_];
+    for (auto &ev: evlist->events) {
+        if (ev.x <= 0) { break; }
+        if (ev.begTex == ev.endTex) { continue; }
+        if (ev.currTex == ev.begTex) {
+            if (eventDelay_[ev.index]) {
+                if (--eventDelay_[ev.index] == 0) {
+                    eventLoop_[ev.index] = 0;
+                }
+                continue;
+            }
+        }
+        if (ev.currTex == ev.endTex) {
+            ev.currTex = ev.begTex;
+            if (++eventLoop_[ev.index] == 3) {
+                eventDelay_[ev.index] = ev.texDelay - std::abs(ev.endTex - ev.begTex);
+            }
+        } else {
+            int step = ev.begTex < ev.endTex ? 1 : -1;
+            ev.currTex += step;
+        }
+        auto &ci = cellInfo_[ev.y * mapWidth_ + ev.x];
+        ci.event = textureMgr[ev.currTex >> 1];
+        drawDirty_ = true;
+    }
 }
 
 }

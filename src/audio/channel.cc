@@ -23,11 +23,10 @@
 
 namespace hojy::audio {
 
-Channel::Channel(Mixer *mixer, const std::string &filename): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()) {
-    util::File::getFileContent(filename, data_);
+Channel::Channel(Mixer *mixer, const std::string &filename): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()), ok_(util::File::getFileContent(filename, data_)) {
 }
 
-Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()) {
+Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()), ok_(size > 0) {
     data_.resize(size);
     memcpy(data_.data(), data, size);
 }

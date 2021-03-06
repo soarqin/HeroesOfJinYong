@@ -27,25 +27,27 @@
 
 namespace hojy::scene {
 
-class TalkBox: public Node {
+class Texture;
+
+class Image : public Node {
 public:
     using Node::Node;
+    ~Image() override;
 
-    void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
+    bool loadRAW(const std::vector<std::string> &filename, int width, int height);
+    void setTexture(const Texture *texture);
 
     void render() override;
-    void handleKeyInput(Key key) override;
+
+protected:
+    void calcDrawRect();
 
 private:
-    void calcPosAndSize();
-
-private:
-    std::vector<std::wstring> text_;
-    const Texture *headTex_ = nullptr;
-    std::int16_t position_ = 0;
-    int index_ = 0, dispLines_ = 0, rowHeight_ = 0;
-    int headX_ = 0, headY_ = 0, headW_ = 0, headH_ = 0;
-    int textX_ = 0, textY_ = 0, textW_ = 0, textH_ = 0;
+    Texture *texture_ = nullptr;
+    bool keepAspectRatio_ = true;
+    bool freeOnClose_ = false;
+    int align_ = 0;
+    int destX_ = 0, destY_ = 0, destWidth_ = 0, destHeight_ = 0;
 };
 
 }

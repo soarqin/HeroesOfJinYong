@@ -52,7 +52,7 @@ protected:
     bool tryMove(int x, int y) override;
     void updateMainCharTexture() override;
     void resetTime() override;
-    void checkTime() override;
+    bool checkTime() override;
 
 private:
     bool onShip_ = false;

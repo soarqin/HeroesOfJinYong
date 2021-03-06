@@ -26,8 +26,6 @@
 
 namespace hojy::scene {
 
-TextureMgr gHeadTextureMgr;
-
 Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
@@ -56,6 +54,10 @@ Texture &Texture::operator=(Texture &&other) noexcept {
     originY_ = other.originY_;
     other.data_ = nullptr;
     return *this;
+}
+
+void Texture::enableBlendMode(bool r) {
+    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
 }
 
 bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *palette) {
@@ -103,9 +105,15 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *pal
         }
     }
     auto *surface = SDL_CreateRGBSurfaceWithFormatFrom(bitmap.data(), w, h, 8, w, SDL_PIXELFORMAT_INDEX8);
+    if (!surface) {
+        return false;
+    }
     SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
     data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer->renderer_), surface);
     SDL_FreeSurface(surface);
+    if (!data_) {
+        return false;
+    }
     SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), SDL_BLENDMODE_BLEND);
     width_ = hdr->w;
     height_ = hdr->h;
@@ -114,8 +122,23 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *pal
     return true;
 }
 
-void Texture::enableBlendMode(bool r) {
-    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+bool Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, void *palette) {
+    auto *surface = SDL_CreateRGBSurfaceWithFormatFrom(const_cast<char*>(data.data()), width, height, 8, width, SDL_PIXELFORMAT_INDEX8);
+    if (!surface) {
+        return false;
+    }
+    SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
+    data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer->renderer_), surface);
+    SDL_FreeSurface(surface);
+    if (!data_) {
+        return false;
+    }
+    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), SDL_BLENDMODE_BLEND);
+    width_ = width;
+    height_ = height;
+    originX_ = 0;
+    originY_ = 0;
+    return true;
 }
 
 void TextureMgr::setPalette(const data::ColorPalette &col) {
@@ -152,6 +175,15 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
         textures_[i] = std::move(tex);
     }
     return true;
+}
+
+Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height) {
+    Texture *tex = new Texture;
+    if (!tex->loadFromRAW(renderer_, data, width, height, palette_)) {
+        delete tex;
+        return nullptr;
+    }
+    return tex;
 }
 
 const Texture *TextureMgr::operator[](std::int32_t id) const {

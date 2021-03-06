@@ -19,40 +19,25 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
-
-#include <set>
+#include "node.hh"
+#include "texture.hh"
 
 namespace hojy::scene {
 
-class SubMap final: public MapWithEvent {
-    struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
-        bool isWater = false;
-    };
+class Title: public Node {
 public:
-    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);
-    ~SubMap() override;
+    using Node::Node;
+    ~Title() override;
 
-    bool load(std::int16_t subMapId, int initX, int initY);
-    void forceMainCharTexture(std::int16_t id);
-
+    void init();
     void render() override;
     void handleKeyInput(Key key) override;
 
-protected:
-    bool tryMove(int x, int y) override;
-    void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, std::int16_t tex) override;
-    void updateEventTextures() override;
-
 private:
-    std::int16_t charHeight_ = 0;
-    std::vector<CellInfo> cellInfo_;
-    Texture *drawingTerrainTex2_ = nullptr;
-    std::set<int16_t> subMapLoaded_;
-    std::vector<int16_t> eventLoop_, eventDelay_;
+    Node *images_[10] = {};
+    TextureMgr titleTextureMgr_;
+    bool selSave_ = false;
+    size_t currSel_ = 0;
 };
 
 }

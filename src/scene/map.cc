@@ -40,8 +40,39 @@ Map::~Map() {
     delete drawingTerrainTex_;
 }
 
+void Map::setDirection(Map::Direction dir) {
+    if (direction_ == dir) { return; }
+    direction_ = dir;
+    resetTime();
+    currFrame_ = 0;
+    updateMainCharTexture();
+}
+
+void Map::setPosition(int x, int y) {
+    currX_ = x;
+    currY_ = y;
+    currFrame_ = 0;
+    resting_ = false;
+    drawDirty_ = true;
+    tryMove(x, y);
+    resetTime();
+    updateMainCharTexture();
+}
+
+void Map::move(Map::Direction direction) {
+    int x, y;
+    direction_ = direction;
+    if (!getFaceOffset(x, y) || !tryMove(x, y)) {
+        return;
+    }
+    resetTime();
+    updateMainCharTexture();
+}
+
 void Map::render() {
-    checkTime();
+    if (checkTime()) {
+        updateMainCharTexture();
+    }
 }
 
 void Map::handleKeyInput(Node::Key key) {
@@ -64,58 +95,22 @@ void Map::handleKeyInput(Node::Key key) {
     }
 }
 
-void Map::setPosition(int x, int y) {
-    currX_ = x;
-    currY_ = y;
-    currFrame_ = 0;
-    resting_ = false;
-    drawDirty_ = true;
-    tryMove(x, y);
-    resetTime();
-    updateMainCharTexture();
-}
-
-void Map::move(Map::Direction direction) {
-    int x = currX_, y = currY_;
-    direction_ = direction;
-    switch (direction) {
-    case DirUp:
-        if (y > 0) { --y; }
-        break;
-    case DirRight:
-        if (x < mapWidth_ - 1) { ++x; }
-        break;
-    case DirLeft:
-        if (x > 0) { --x; }
-        break;
-    case DirDown:
-        if (y < mapHeight_ - 1) { ++y; }
-        break;
-    }
-    if (!tryMove(x, y)) {
-        return;
-    }
-    resetTime();
-    updateMainCharTexture();
-}
-
 void Map::resetTime() {
     resting_ = false;
     nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(currFrame_ > 0 ? 2 : 5);
 }
 
-void Map::checkTime() {
+bool Map::checkTime() {
     if (resting_) {
         if (std::chrono::steady_clock::now() < nextTime_) {
-            return;
+            return false;
         }
         currFrame_ = (currFrame_ + 1) % 6;
         nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
-        updateMainCharTexture();
-        return;
+        return true;
     }
     if (std::chrono::steady_clock::now() < nextTime_) {
-        return;
+        return false;
     }
     if (currFrame_ > 0) {
         currFrame_ = 0;
@@ -125,30 +120,31 @@ void Map::checkTime() {
         resting_ = true;
         nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
     }
-    updateMainCharTexture();
+    return true;
 }
 
 void Map::renderChar(int deltaY) {
     renderer_->renderTexture(mainCharTex_, float(x_ + int(width_) / 2), float(y_ + int(height_) / 2 - deltaY), scale_);
 }
 
-void Map::getFaceOffset(int &x, int &y) {
+bool Map::getFaceOffset(int &x, int &y) {
     x = currX_;
     y = currY_;
     switch (direction_) {
     case DirUp:
-        y -= 1;
-        break;
-    case DirDown:
-        y += 1;
-        break;
-    case DirLeft:
-        x -= 1;
+        if (y > 0) { --y; return true; }
         break;
     case DirRight:
-        x += 1;
+        if (x < mapWidth_ - 1) { ++x; return true; }
+        break;
+    case DirLeft:
+        if (x > 0) { --x; return true; }
+        break;
+    case DirDown:
+        if (y < mapHeight_ - 1) { ++y; return true; }
         break;
     }
+    return false;
 }
 
 }

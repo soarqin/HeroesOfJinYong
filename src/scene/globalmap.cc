@@ -35,16 +35,6 @@ enum {
 };
 
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
-    auto subMapSz = mem::gSaveData.subMapInfo.size();
-    for (size_t i = 0; i < subMapSz; ++i) {
-        const auto &smi = mem::gSaveData.subMapInfo[i];
-        auto x = smi->globalEnterX1;
-        auto y = smi->globalEnterY1;
-        subMapEntries_[std::make_pair(x, y)] = i;
-        x = smi->globalEnterX2;
-        y = smi->globalEnterY2;
-        subMapEntries_[std::make_pair(x, y)] = i;
-    }
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     auto &mmapData = data::gGrpData.lazyLoad("MMAP");
@@ -136,7 +126,7 @@ GlobalMap::~GlobalMap() {
 }
 
 void GlobalMap::render() {
-    Map::render();
+    MapWithEvent::render();
     if (drawDirty_) {
         drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
@@ -224,9 +214,33 @@ void GlobalMap::render() {
 }
 
 bool GlobalMap::tryMove(int x, int y) {
+    if (subMapEntries_.empty()) {
+        auto subMapSz = mem::gSaveData.subMapInfo.size();
+        for (size_t i = 0; i < subMapSz; ++i) {
+            const auto &smi = mem::gSaveData.subMapInfo[i];
+            auto ex = smi->globalEnterX1;
+            auto ey = smi->globalEnterY1;
+            subMapEntries_[std::make_pair(ex, ey)] = i;
+            ex = smi->globalEnterX2;
+            ey = smi->globalEnterY2;
+            subMapEntries_[std::make_pair(ex, ey)] = i;
+        }
+    }
     auto ite = subMapEntries_.find(std::make_pair(std::int16_t(x), std::int16_t(y)));
     if (ite != subMapEntries_.end()) {
+        auto *smi = mem::gSaveData.subMapInfo[ite->second];
+        if (smi->enterCondition == 1) {
+            return true;
+        }
+        /* TODO: check speed */
+        if (smi->enterCondition == 2) {
+            return true;
+        }
         gWindow->enterSubMap(ite->second, int(direction_));
+        auto music = smi->enterMusic;
+        if (music >= 0) {
+            gWindow->playMusic(music);
+        }
         return true;
     }
     auto offset = y * mapWidth_ + x;
@@ -262,9 +276,9 @@ void GlobalMap::resetTime() {
     Map::resetTime();
 }
 
-void GlobalMap::checkTime() {
-    if (onShip_) { return; }
-    Map::checkTime();
+bool GlobalMap::checkTime() {
+    if (onShip_) { return false; }
+    return MapWithEvent::checkTime();
 }
 
 }

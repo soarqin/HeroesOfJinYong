@@ -24,11 +24,11 @@
 namespace hojy::audio {
 
 ChannelMIDI::ChannelMIDI(Mixer *mixer, const std::string &filename) : Channel(mixer, filename) {
-    load();
+    if (ok_) { load(); }
 }
 
 ChannelMIDI::ChannelMIDI(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
-    load();
+    if (ok_) { load(); }
 }
 
 ChannelMIDI::~ChannelMIDI() {
@@ -42,6 +42,11 @@ void ChannelMIDI::reset() {
     adl_positionRewind(static_cast<ADL_MIDIPlayer*>(midiplayer_));
 }
 
+void ChannelMIDI::setRepeat(bool r) {
+    Channel::setRepeat(r);
+    adl_setLoopEnabled(static_cast<ADL_MIDIPlayer*>(midiplayer_), r ? 1 : 0);
+}
+
 size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
     auto count = size / sizeof(short);
     if (cache_.size() < count) {
@@ -51,14 +56,6 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
     if (res < 0) {
         return 0;
     }
-    if (res < size && adl_atEnd(static_cast<ADL_MIDIPlayer*>(midiplayer_)) && repeat_) {
-        reset();
-        auto res2 = adl_play(static_cast<ADL_MIDIPlayer*>(midiplayer_), count - res / sizeof(short), cache_.data() + res / sizeof(short));
-        if (res2 < 0) {
-            return res;
-        }
-        res += res2;
-    }
     *data = cache_.data();
     return res * sizeof(short);
 }
@@ -66,15 +63,17 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
 void ChannelMIDI::load() {
     midiplayer_ = adl_init(ADL_CHIP_SAMPLE_RATE);
     if (!midiplayer_) {
+        ok_ = false;
         return;
     }
-    // adl_setLoopEnabled(static_cast<ADL_MIDIPlayer*>(midiplayer_), 1);
     if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
+        ok_ = false;
         return;
     }
     channels_ = 2;
     sampleRateIn_ = ADL_CHIP_SAMPLE_RATE;
     typeIn_ = Mixer::I16;
+    ok_ = true;
 }
 
 }

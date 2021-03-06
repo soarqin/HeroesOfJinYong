@@ -24,11 +24,11 @@
 namespace hojy::audio {
 
 ChannelWav::ChannelWav(Mixer *mixer, const std::string &filename) : Channel(mixer, filename) {
-    load();
+    if (ok_) { load(); }
 }
 
 ChannelWav::ChannelWav(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
-    load();
+    if (ok_) { load(); }
 }
 
 ChannelWav::~ChannelWav() {
@@ -78,9 +78,23 @@ void ChannelWav::load() {
     SDL_AudioSpec spec;
     if (SDL_LoadWAV_RW(SDL_RWFromConstMem(data_.data(), data_.size()),
                        1, &spec, &buffer_, &length_)) {
-        channels_ = spec.channels;
-        sampleRateIn_ = 44100.;
-        typeIn_ = Mixer::convertDataType(spec.format);
+        sampleRateIn_ = spec.freq;
+        auto format = spec.format;
+        if (spec.channels != 2 || (format != AUDIO_F32 && format != AUDIO_S32 && format != AUDIO_S16)) {
+            SDL_AudioCVT cvt;
+            format = format != AUDIO_F32 && format != AUDIO_S32 && format != AUDIO_S16 ? AUDIO_S16 : format;
+            SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq, format, 2, spec.freq);
+            cvt.len = length_;
+            cvt.buf = static_cast<Uint8*>(SDL_realloc(buffer_, length_ * cvt.len_mult));
+            SDL_ConvertAudio(&cvt);
+            buffer_ = cvt.buf;
+            length_ = cvt.len_cvt;
+        }
+        channels_ = 2;
+        typeIn_ = Mixer::convertDataType(format);
+        ok_ = true;
+    } else {
+        ok_ = false;
     }
 }
 

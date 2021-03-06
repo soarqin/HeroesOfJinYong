@@ -22,10 +22,15 @@
 #include "globalmap.hh"
 #include "submap.hh"
 #include "talkbox.hh"
+#include "title.hh"
 
+#include "audio/mixer.hh"
+#include "audio/channelmidi.hh"
+#include "audio/channelwav.hh"
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
+#include "core/config.hh"
 
 #include <SDL.h>
 
@@ -42,23 +47,37 @@ Window::Window(int w, int h): width_(w), height_(h) {
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         SDL_Init(SDL_INIT_VIDEO);
     }
-    auto *win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN);
+    auto *win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     win_ = win;
-    renderer_ = new Renderer(win_, w, h);
-    globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, 2.f);
-    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
-    subMap_ = new SubMap(renderer_, 0, 0, w, h, 2.f);
-    subMap_->load(70);
-    map_ = subMap_;
-    gHeadTextureMgr.setPalette(data::gNormalPalette);
-    gHeadTextureMgr.setRenderer(renderer_);
-    data::GrpData::DataSet dset;
-    if (data::GrpData::loadData("HDGRP", dset)) {
-        gHeadTextureMgr.loadFromRLE(dset);
-    }
     gWindow = this;
+
+    renderer_ = new Renderer(win_, w, h);
+
+    SDL_ShowWindow(win);
+
+    audio::gMixer.init(2);
+    playMusic(16);
+    audio::gMixer.pause(false);
+
+    globalTextureMgr_.setPalette(data::gNormalPalette);
+    globalTextureMgr_.setRenderer(renderer_);
+    headTextureMgr_.setPalette(data::gNormalPalette);
+    headTextureMgr_.setRenderer(renderer_);
+    data::GrpData::DataSet dset;
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    if (data::GrpData::loadData("HDGRP", dset)) {
+        headTextureMgr_.loadFromRLE(dset);
+    }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+
+    globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, 2.f);
+    subMap_ = new SubMap(renderer_, 0, 0, w, h, 2.f);
+
+    auto *title = new Title(renderer_, 0, 0, w, h);
+    title->init();
+    popup_ = title;
 }
 
 Window::~Window() {
@@ -106,10 +125,6 @@ bool Window::processEvents() {
     return true;
 }
 
-void Window::flush() {
-    renderer_->present();
-}
-
 void Window::render() {
     if (map_) {
         map_->doRender();
@@ -119,30 +134,102 @@ void Window::render() {
     }
 }
 
+void Window::flush() {
+    renderer_->present();
+}
+
+void Window::playMusic(int idx) {
+    (void)this;
+    std::string filename;
+    ++idx;
+    if (idx < 10) {
+        filename = "data/GAME0" + std::to_string(idx) + ".XMI";
+    } else {
+        filename = "data/GAME" + std::to_string(idx) + ".XMI";
+    }
+    audio::gMixer.repeatPlay(0, new audio::ChannelMIDI(&audio::gMixer, filename));
+}
+
+void Window::playAtkSound(int idx) {
+    (void)this;
+    std::string filename;
+    if (idx < 10) {
+        filename = "data/ATK0" + std::to_string(idx) + ".WAV";
+    } else {
+        filename = "data/ATK" + std::to_string(idx) + ".WAV";
+    }
+    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, filename));
+}
+
+void Window::playEffectSound(int idx) {
+    (void)this;
+    std::string filename;
+    if (idx < 10) {
+        filename = "data/E0" + std::to_string(idx) + ".WAV";
+    } else {
+        filename = "data/E" + std::to_string(idx) + ".WAV";
+    }
+    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, filename));
+}
+
+void Window::newGame() {
+    mem::gSaveData.newGame();
+    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
+    dynamic_cast<SubMap*>(subMap_)->load(70, 19, 20);
+    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
+    map_ = subMap_;
+}
+
+void Window::loadGame(int slot) {
+    mem::gSaveData.load(slot);
+    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
+    auto &binfo = mem::gSaveData.baseInfo;
+    if (binfo->subMap >= 0) {
+        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap, binfo->subX, binfo->subY);
+        map_ = subMap_;
+    } else {
+        map_ = globalMap_;
+    }
+}
+
+void Window::forceQuit() {
+    static SDL_QuitEvent evt = {SDL_QUIT, SDL_GetTicks()};
+    SDL_PushEvent(reinterpret_cast<SDL_Event*>(&evt));
+}
+
 void Window::exitToGlobalMap(int direction) {
     globalMap_->setDirection(Map::Direction(direction));
     map_ = globalMap_;
 }
 
 void Window::enterSubMap(std::int16_t subMapId, int direction) {
-    subMap_->load(subMapId);
     subMap_->setDirection(Map::Direction(direction));
-    subMap_->setDefaultPosition();
+    const auto &smi = mem::gSaveData.subMapInfo[subMapId];
+    dynamic_cast<SubMap*>(subMap_)->load(subMapId, smi->enterX, smi->enterY);
     map_ = subMap_;
 }
 
 void Window::closePopup() {
     if (!popup_) { return; }
+    if (freeOnClose_) {
+        delete popup_;
+    }
     popup_ = nullptr;
-    map_->continueEvents();
+    if (map_) {
+        map_->continueEvents();
+    }
 }
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
+    if (popup_) {
+        return;
+    }
     if (!talkBox_) {
         talkBox_ = new TalkBox(renderer_, 50, 50, width_ - 100, height_ - 100);
     }
     dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
     popup_ = talkBox_;
+    freeOnClose_ = false;
 }
 
 }

@@ -41,6 +41,8 @@ public:
     size_t readData(void *data, size_t size);
     void start();
 
+    [[nodiscard]] inline bool ok() const { return ok_; }
+
     virtual void setRepeat(bool r) { repeat_ = r; }
     virtual void reset() {}
 
@@ -54,7 +56,7 @@ protected:
     std::uint32_t channels_ = 0;
     double sampleRateIn_ = 0.f, sampleRateOut_ = 0.f;
     Mixer::DataType typeIn_ = Mixer::F32, typeOut_ = Mixer::F32;
-    bool repeat_ = false;
+    bool ok_ = false, repeat_ = false;
 };
 
 }

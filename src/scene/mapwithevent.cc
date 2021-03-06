@@ -22,24 +22,28 @@
 #include "window.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
+#include "audio/mixer.hh"
+#include "audio/channelmidi.hh"
+#include "audio/channelwav.hh"
 #include "util/random.hh"
 
 #include <functional>
 
 namespace hojy::scene {
 
+void MapWithEvent::render() {
+    Map::render();
+    if ((++frames_) % 10) { return; }
+    updateEventTextures();
+}
+
 template <class R, class... Args>
 constexpr auto argCounter(std::function<R(Args...)>) {
     return sizeof...(Args);
 }
 
-template <class R, class... Args, class P>
-constexpr auto argCounter(R(P::*)(Args...)) {
-    return sizeof...(Args);
-}
-
 template <class R, class... Args>
-constexpr auto argCounter(R(Args...)) {
+constexpr auto argCounter(R(*)(Args...)) {
     return sizeof...(Args);
 }
 
@@ -51,53 +55,54 @@ struct ReturnTypeMatches<std::function<R(Args...)>, M> {
     static constexpr bool value = std::is_same<R, M>::value;
 };
 
-template <class R, class M, class... Args, class P>
-struct ReturnTypeMatches<R(P::*)(Args...), M> {
-    static constexpr bool value = std::is_same<R, M>::value;
-};
-
 template <class R, class M, class... Args>
-struct ReturnTypeMatches<R(Args...), M> {
+struct ReturnTypeMatches<R(*)(Args...), M> {
     static constexpr bool value = std::is_same<R, M>::value;
 };
 
 template<class F, class P, size_t ...I>
 typename std::enable_if<ReturnTypeMatches<F, void>::value, void>::type
-runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, std::index_sequence<I...>) {
-    (p->*f)(evlist[I + index]...);
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse, std::index_sequence<I...>) {
+    f(p, evlist[I + index]...);
     index += sizeof...(I);
+    advTrue = advFalse = 0;
 }
 
 template<class F, class P, size_t ...I>
 typename std::enable_if<ReturnTypeMatches<F, bool>::value, void>::type
-runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, std::index_sequence<I...>) {
-    if ((p->*f)(evlist[I + index]...)) {
-        index += sizeof...(I);
-        index += evlist[index] + 2;
-    } else {
-        index += sizeof...(I);
-        index += evlist[index + 1] + 2;
-    }
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse, std::index_sequence<I...>) {
+    advTrue = evlist[index + sizeof...(I)];
+    advFalse = evlist[index + sizeof...(I) + 1];
+    f(p, evlist[I + index]...);
+    index += sizeof...(I) + 2;
 }
 
-void MapWithEvent::continueEvents() {
+void MapWithEvent::continueEvents(bool result) {
     if (!currEventList_) { return; }
     currEventPaused_ = false;
+    currEventIndex_ += result ? currEventAdvTrue_ : currEventAdvFalse_;
+    currEventAdvTrue_ = currEventAdvFalse_ = 0;
 
-#define OpRun(O, F)                                                    \
+#define OpRun(O, F) \
     case O: \
-        runFunc(&MapWithEvent::F, this, evlist, currEventIndex_, std::make_index_sequence<argCounter(&MapWithEvent::F)>()); \
+        runFunc(F, this, evlist, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_, std::make_index_sequence<argCounter(F)-1>()); \
         break
 
     const auto &evlist = *currEventList_;
     while (!currEventPaused_ && currEventIndex_ < currEventSize_) {
         auto op = evlist[currEventIndex_++];
-        if (op == -1) { break; }
+        if (op == -1 || op == 7) { break; }
         switch (op) {
         OpRun(1, doTalk);
         OpRun(2, addItem);
         OpRun(3, modifyEvent);
+        OpRun(27, animation);
+        OpRun(39, openSubMap);
+        OpRun(40, forceDirection);
         OpRun(51, tutorialTalk);
+        OpRun(54, openWorld);
+        OpRun(66, playMusic);
+        OpRun(67, playSound);
         default:
             break;
         }
@@ -112,7 +117,9 @@ void MapWithEvent::continueEvents() {
 
 void MapWithEvent::doInteract() {
     int x, y;
-    getFaceOffset(x, y);
+    if (!getFaceOffset(x, y)) {
+        return;
+    }
 
     auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;
     auto eventId = layers[3][y * mapWidth_ + x];
@@ -128,6 +135,7 @@ void MapWithEvent::doInteract() {
     currEventIndex_ = 0;
 
     resetTime();
+    currFrame_ = 0;
     updateMainCharTexture();
 
     continueEvents();
@@ -146,25 +154,54 @@ void MapWithEvent::onMove() {
     currEventList_ = &data::gEvent.event(evt);
     currEventSize_ = currEventList_->size();
     currEventIndex_ = 0;
+
+    resetTime();
+    currFrame_ = 0;
+    updateMainCharTexture();
+
+    continueEvents();
 }
 
-void MapWithEvent::doTalk(std::int16_t talkId, std::int16_t headId, std::int16_t position) {
-    (void)this; /* avoid Clang-Tidy warning: Method can be made static */
+void MapWithEvent::updateEventTextures() {
+    if (animCurrTex_ == 0) { return; }
+    if (animCurrTex_ == animEndTex_) {
+        if (animEventId_ < 0) {
+            updateMainCharTexture();
+        }
+        animEventId_ = 0;
+        animCurrTex_ = 0;
+        animEndTex_ = 0;
+        continueEvents();
+        return;
+    }
+    int step = animCurrTex_ < animEndTex_ ? 1 : -1;
+    animCurrTex_ += step;
+    if (animEventId_ < 0) {
+        updateMainCharTexture();
+    } else {
+        auto &evt = mem::gSaveData.subMapEventInfo[subMapId_]->events[animEventId_];
+        evt.currTex = evt.begTex = evt.endTex = animCurrTex_;
+        setCellTexture(evt.x, evt.y, animCurrTex_ >> 1);
+    }
+}
+
+void MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position) {
     gWindow->runTalk(data::gEvent.talk(talkId), headId, position);
-    currEventPaused_ = true;
+    map->currEventPaused_ = true;
 }
 
-void MapWithEvent::addItem(std::int16_t itemId, std::int16_t itemCount) {
-    (void)this; /* avoid Clang-Tidy warning: Method can be made static */
+void MapWithEvent::addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
     mem::gBag.add(itemId, itemCount);
 }
 
-void MapWithEvent::modifyEvent(std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
+void MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
                                std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
                                std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
                                std::int16_t y) {
-    if (subMapId < 0) { subMapId = subMapId_; }
-    if (eventId < 0) { eventId = currEventId_; }
+    if (subMapId < 0) { subMapId = map->subMapId_; }
+    if (subMapId < 0) { return; }
+    if (eventId < 0) { eventId = map->currEventId_; }
+    if (eventId < 0) { return; }
     auto &ev = mem::gSaveData.subMapEventInfo[subMapId]->events[eventId];
     if (blocked > -2) { ev.blocked = blocked; }
     if (index > -2) { ev.index = index; }
@@ -178,18 +215,63 @@ void MapWithEvent::modifyEvent(std::int16_t subMapId, std::int16_t eventId, std:
     if (y < 0) { y = ev.y; }
     if (x != ev.x || y != ev.y) {
         auto &layer = mem::gSaveData.subMapLayerInfo[subMapId]->data[3];
-        layer[ev.y * mapWidth_ + ev.x] = -1;
-        layer[y * mapWidth_ + x] = eventId;
+        layer[ev.y * map->mapWidth_ + ev.x] = -1;
+        layer[y * map->mapWidth_ + x] = eventId;
         ev.x = x; ev.y = y;
     }
     if (currTex > -2) {
         ev.currTex = currTex;
-        setCellTexture(x, y, currTex >> 1);
+        map->setCellTexture(x, y, currTex >> 1);
     }
 }
 
-void MapWithEvent::tutorialTalk() {
-    doTalk(2547 + util::gRandom(18), 114, 0);
+void MapWithEvent::animation(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex) {
+    if (map->subMapId_ < 0) { return; }
+    map->animEventId_ = eventId;
+    map->animCurrTex_ = begTex;
+    map->animEndTex_ = endTex;
+    map->currEventPaused_ = true;
+}
+
+void MapWithEvent::openSubMap(MapWithEvent *, std::int16_t subMapId) {
+    mem::gSaveData.subMapInfo[subMapId]->enterCondition = 0;
+}
+
+void MapWithEvent::forceDirection(MapWithEvent *map, std::int16_t direction) {
+    map->setDirection(Direction(direction));
+    map->updateMainCharTexture();
+}
+
+void MapWithEvent::tutorialTalk(MapWithEvent *map) {
+    doTalk(map, 2547 + util::gRandom(18), 114, 0);
+}
+
+void MapWithEvent::openWorld(MapWithEvent *) {
+    auto sz = mem::gSaveData.subMapInfo.size();
+    for (size_t i = 0; i < sz; ++i) {
+        mem::gSaveData.subMapInfo[i]->enterCondition = 0;
+    }
+    mem::gSaveData.subMapInfo[2]->enterCondition = 2;
+    mem::gSaveData.subMapInfo[38]->enterCondition = 2;
+    mem::gSaveData.subMapInfo[75]->enterCondition = 1;
+    mem::gSaveData.subMapInfo[80]->enterCondition = 1;
+}
+
+bool MapWithEvent::checkTime() {
+    if (animEventId_ < 0) { return false; }
+    return Map::checkTime();
+}
+
+void MapWithEvent::playMusic(MapWithEvent *, std::int16_t musicId) {
+    gWindow->playMusic(musicId);
+}
+
+void MapWithEvent::playSound(MapWithEvent *map, std::int16_t soundId) {
+    if (soundId < 24) {
+        gWindow->playAtkSound(soundId);
+    } else {
+        gWindow->playEffectSound(soundId - 24);
+    }
 }
 
 }

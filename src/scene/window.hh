@@ -19,8 +19,9 @@
 
 #pragma once
 
-#include "submap.hh"
 #include "renderer.hh"
+#include "texture.hh"
+#include "mapwithevent.hh"
 
 #include <string>
 #include <cstdint>
@@ -41,13 +42,23 @@ public:
         return renderer_;
     }
 
-    [[nodiscard]] int width() const { return width_; }
-    [[nodiscard]] int height() const { return height_; }
+    [[nodiscard]] inline int width() const { return width_; }
+    [[nodiscard]] inline int height() const { return height_; }
+
+    [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
+    [[nodiscard]] TextureMgr &globalTextureMgr() { return globalTextureMgr_; }
 
     bool processEvents();
     void render();
     void flush();
 
+    void playMusic(int idx);
+    void playAtkSound(int idx);
+    void playEffectSound(int idx);
+
+    void newGame();
+    void loadGame(int slot);
+    void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
     void closePopup();
@@ -59,10 +70,12 @@ private:
     Renderer *renderer_ = nullptr;
     MapWithEvent *map_ = nullptr;
     Node *popup_ = nullptr;
+    bool freeOnClose_ = false;
 
     MapWithEvent *globalMap_ = nullptr;
-    SubMap *subMap_ = nullptr;
+    MapWithEvent *subMap_ = nullptr;
     Node *talkBox_ = nullptr;
+    TextureMgr globalTextureMgr_, headTextureMgr_;
 };
 
 extern Window *gWindow;

@@ -30,6 +30,7 @@ public:
     ~ChannelMIDI() override;
 
     void reset() override;
+    void setRepeat(bool r) override;
 
 protected:
     size_t readPCMData(const void **data, size_t size) override;

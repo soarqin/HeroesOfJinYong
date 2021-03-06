@@ -37,7 +37,7 @@ public:
         KeyCancel,
     };
 public:
-    Node(Node *parent, int x, int y, int width, int height): parent_(parent), renderer_(parent->renderer_), x_(x), y_(y), width_(width), height_(height){}
+    Node(Node *parent, int x, int y, int width, int height);
     Node(Renderer *renderer, int x, int y, int width, int height): parent_(nullptr), renderer_(renderer), x_(x), y_(y), width_(width), height_(height) {}
     Node(const Node&) = delete;
     virtual ~Node();
