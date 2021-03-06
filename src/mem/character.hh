@@ -27,6 +27,33 @@ enum {
     CharFrameCount = 15,
     LearnSkillCount = 10,
     CarryItemCount = 4,
+
+    SkillLevelMax = 999,
+    SkillLevelMaxDiv = 9,
+
+    LevelMax = 30,
+    ExpMax = 99999,
+    HPMax = 999,
+    MPMax = 999,
+    StaminaMax = 100,
+    PoisonedMax = 100,
+    AttackMax = 100,
+    DefenceMax = 100,
+    SpeedMax = 100,
+    MedicMax = 100,
+    PoisonMax = 100,
+    DepoisonMax = 100,
+    AntipoisonMax = 100,
+    FistMax = 100,
+    SwordMax = 100,
+    BladeMax = 100,
+    SpecialMax = 100,
+    HiddenWeaponMax = 100,
+    KnowledgeMax = 100,
+    IntegrityMax = 100,
+    PoisonAmpMax = 100,
+    ReputationMax = 999,
+    PotentialMax = 100,
 };
 
 #pragma pack(push, 1)

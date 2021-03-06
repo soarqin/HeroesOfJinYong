@@ -272,9 +272,24 @@ void SubMap::updateMainCharTexture() {
     mainCharTex_ = textureMgr[2501 + int(direction_) * 7 + currFrame_];
 }
 
-void SubMap::setCellTexture(int x, int y, std::int16_t tex) {
+void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
     if (tex < 0) { return; }
-    cellInfo_[y * mapWidth_ + x].event = textureMgr[tex];
+    switch (layer) {
+    case 0:
+        cellInfo_[y * mapWidth_ + x].earth = textureMgr[tex];
+        break;
+    case 1:
+        cellInfo_[y * mapWidth_ + x].building = textureMgr[tex];
+        break;
+    case 2:
+        cellInfo_[y * mapWidth_ + x].decoration = textureMgr[tex];
+        break;
+    case 3:
+        cellInfo_[y * mapWidth_ + x].event = textureMgr[tex];
+        break;
+    default:
+        return;
+    }
     drawDirty_ = true;
 }
 

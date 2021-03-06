@@ -39,7 +39,7 @@ protected:
     void checkEvent(int type, int x, int y);
 
     bool checkTime() override;
-    virtual void setCellTexture(int x, int y, std::int16_t tex) {}
+    virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
     virtual void updateEventTextures();
 
 private:
@@ -77,12 +77,13 @@ private:
     static bool walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1);
     static int checkMoney(MapWithEvent *map, std::int16_t amount);
     static bool addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount);
-    static bool learnSkill(MapWithEvent *map, std::int16_t skillId, std::int16_t quiet);
-    static bool addPotential(MapWithEvent *map, std::int16_t value);
-    static bool setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t charSkillIndex,
+    static bool learnSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillId, std::int16_t quiet);
+    static bool addPotential(MapWithEvent *map, std::int16_t charId, std::int16_t value);
+    static bool setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillIndex,
                          std::int16_t skillId, std::int16_t level);
     static int checkSex(MapWithEvent *map, std::int16_t sex);
     static bool addIntegrity(MapWithEvent *map, std::int16_t value);
+    static bool modifySubMapLayerTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer, std::int16_t oldTex, std::int16_t newTex);
     static bool openSubMap(MapWithEvent *map, std::int16_t subMapId);
     static bool forceDirection(MapWithEvent *map, std::int16_t direction);
     static bool addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount);

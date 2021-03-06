@@ -44,7 +44,7 @@ public:
 protected:
     bool tryMove(int x, int y) override;
     void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, std::int16_t tex) override;
+    void setCellTexture(int x, int y, int layer, std::int16_t tex) override;
     void updateEventTextures() override;
 
 private:

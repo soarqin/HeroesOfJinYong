@@ -182,6 +182,7 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(35, setSkill);
         OpRun(36, checkSex);
         OpRun(37, addIntegrity);
+        OpRun(38, modifySubMapLayerTex);
         OpRun(39, openSubMap);
         OpRun(40, forceDirection);
         OpRun(41, addItemToChar);
@@ -283,7 +284,7 @@ void MapWithEvent::updateEventTextures() {
     } else {
         auto &evt = mem::gSaveData.subMapEventInfo[subMapId_]->events[animEventId_];
         evt.currTex = evt.begTex = evt.endTex = animCurrTex_;
-        setCellTexture(evt.x, evt.y, animCurrTex_ >> 1);
+        setCellTexture(evt.x, evt.y, 3, animCurrTex_ >> 1);
     }
 }
 
@@ -294,6 +295,7 @@ bool MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t h
 
 bool MapWithEvent::addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
     mem::gBag.add(itemId, itemCount);
+    /* TODO: get item tips */
     return true;
 }
 
@@ -324,7 +326,7 @@ bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::in
     }
     if (currTex > -2) {
         ev.currTex = currTex;
-        map->setCellTexture(x, y, currTex >> 1);
+        map->setCellTexture(x, y, 3, currTex >> 1);
     }
     return true;
 }
@@ -334,6 +336,7 @@ int MapWithEvent::useItem(MapWithEvent *map, std::int16_t itemId) {
 }
 
 int MapWithEvent::tryStartFight(MapWithEvent *map) {
+    /* TODO: implement this */
     return 0;
 }
 
@@ -343,6 +346,7 @@ bool MapWithEvent::changeExitMusic(MapWithEvent *map, std::int16_t music) {
 }
 
 int MapWithEvent::wantJoinTeam(MapWithEvent *map) {
+    /* TODO: implement this */
     return 0;
 }
 
@@ -371,22 +375,27 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
 }
 
 int MapWithEvent::wantSleep(MapWithEvent *map) {
+    /* TODO: implement this */
     return 0;
 }
 
 bool MapWithEvent::sleep(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::makeBright(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::makeDim(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::die(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
@@ -402,7 +411,7 @@ int MapWithEvent::checkTeamMember(MapWithEvent *map, std::int16_t charId) {
 bool MapWithEvent::changeLayer(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
                                std::int16_t x, std::int16_t y, std::int16_t value) {
     mem::gSaveData.subMapLayerInfo[map->subMapId_]->data[layer][y * map->mapWidth_ + x] = value;
-    map->drawDirty_ = true;
+    map->setCellTexture(x, y, layer, value >> 1);
     return true;
 }
 
@@ -411,6 +420,7 @@ int MapWithEvent::hasItem(MapWithEvent *map, std::int16_t itemId) {
 }
 
 bool MapWithEvent::setCameraPosition(MapWithEvent *map, std::int16_t x, std::int16_t y) {
+    /* TODO: implement this */
     return true;
 }
 
@@ -453,6 +463,7 @@ bool MapWithEvent::setAttrPoison(MapWithEvent *map, std::int16_t charId, std::in
 }
 
 bool MapWithEvent::moveCamera(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
+    /* TODO: implement this */
     return true;
 }
 
@@ -484,6 +495,7 @@ int MapWithEvent::checkAttack(MapWithEvent *map, std::int16_t charId, std::int16
 }
 
 bool MapWithEvent::walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
+    /* TODO: implement this */
     return true;
 }
 
@@ -496,24 +508,79 @@ bool MapWithEvent::addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t
     return true;
 }
 
-bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t skillId, std::int16_t quiet) {
+bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillId, std::int16_t quiet) {
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    auto *skillInfo = mem::gSaveData.skillInfo[skillId];
+
+    int found = -1;
+    auto learnId = skillInfo->id;
+    for (int i = 0; i < mem::LearnSkillCount; ++i) {
+        auto thisId = charInfo->skillId[i];
+        if (thisId == skillInfo->id) {
+            if (charInfo->skillLevel[i] < mem::SkillLevelMaxDiv * 100) {
+                charInfo->skillLevel[i] += 100;
+            }
+            found = -1;
+            break;
+        }
+        if (thisId < 0) {
+            if (found < 0) {
+                found = i;
+            }
+        }
+    }
+    if (found >= 0) {
+        charInfo->skillId[found] = learnId;
+        charInfo->skillLevel[found] = 0;
+    }
+    if (quiet) {
+        return true;
+    }
+    /* TODO: learn skill tips */
+    return false;
+}
+
+bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, mem::PotentialMax);
     return true;
 }
 
-bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t value) {
-    return true;
-}
-
-bool MapWithEvent::setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t charSkillIndex,
+bool MapWithEvent::setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillIndex,
                             std::int16_t skillId, std::int16_t level) {
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->skillId[skillIndex] = skillId;
+    charInfo->skillLevel[skillIndex] = level;
     return true;
 }
 
 int MapWithEvent::checkSex(MapWithEvent *map, std::int16_t sex) {
-    return 0;
+    return mem::gSaveData.charInfo[0]->sex == sex ? 1 : 0;
 }
 
 bool MapWithEvent::addIntegrity(MapWithEvent *map, std::int16_t value) {
+    auto *charInfo = mem::gSaveData.charInfo[0];
+    charInfo->integrity = std::clamp<std::int16_t>(charInfo->integrity + value, 0, mem::IntegrityMax);
+    return true;
+}
+
+bool MapWithEvent::modifySubMapLayerTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
+                                        std::int16_t oldTex, std::int16_t newTex) {
+    auto &l = mem::gSaveData.subMapLayerInfo[subMapId < 0 ? map->subMapId_ : subMapId]->data[layer];
+    auto pos = 0;
+    bool currentMap = subMapId == map->subMapId_;
+    for (int y = 0; y < mem::SubMapHeight; ++y) {
+        for (int x = 0; x < mem::SubMapWidth; ++x) {
+            if (l[pos] == oldTex) {
+                l[pos] = newTex;
+                if (currentMap) {
+                    map->setCellTexture(x, y, layer, newTex >> 1);
+                }
+            }
+            ++pos;
+        }
+    }
+    if (currentMap) { map->drawDirty_ = true; }
     return true;
 }
 
@@ -529,58 +596,71 @@ bool MapWithEvent::forceDirection(MapWithEvent *map, std::int16_t direction) {
 }
 
 bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount) {
+    /* TODO: implement this */
     return true;
 }
 
 int MapWithEvent::checkFemaleInTeam(MapWithEvent *map) {
+    /* TODO: implement this */
     return 0;
 }
 
 bool MapWithEvent::animation2(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2,
                               std::int16_t eventId3, std::int16_t begTex3, std::int16_t endTex3) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::setMPType(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 int MapWithEvent::checkHas5Item(MapWithEvent *map, std::int16_t itemId0, std::int16_t itemId1, std::int16_t itemId2,
                                 std::int16_t itemId3, std::int16_t itemId4) {
+    /* TODO: implement this */
     return 0;
 }
 
 bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
+    /* TODO: implement this */
     return doTalk(map, 2547 + util::gRandom(18), 114, 0);
 }
 
 bool MapWithEvent::showIntegrity(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::showReputation(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
@@ -597,39 +677,48 @@ bool MapWithEvent::openWorld(MapWithEvent *) {
 }
 
 int MapWithEvent::checkEventID(MapWithEvent *map, std::int16_t eventId, std::int16_t value) {
+    /* TODO: implement this */
     return 0;
 }
 
 bool MapWithEvent::addReputation(MapWithEvent *map, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::removeBarrier(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::tournament(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::disbandTeam(MapWithEvent *map) {
+    /* TODO: implement this */
     return true;
 }
 
 int MapWithEvent::checkSubMapTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t tex) {
+    /* TODO: implement this */
     return 0;
 }
 
 int MapWithEvent::checkAllStoryBooks(MapWithEvent *map) {
+    /* TODO: implement this */
     return 0;
 }
 
 bool MapWithEvent::goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2) {
+    /* TODO: implement this */
     return true;
 }
 
 bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t value) {
+    /* TODO: implement this */
     return true;
 }
 
