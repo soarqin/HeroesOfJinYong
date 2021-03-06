@@ -43,7 +43,7 @@ struct SubMapData {
 } ATTR_PACKED;
 
 struct SubMapEvent {
-    std::int16_t blocked, index, event1, event2, event3, currTex, endTex, begTex, texDelay, x, y;
+    std::int16_t blocked, index, event[3], currTex, endTex, begTex, texDelay, x, y;
 };
 
 struct SubMapLayerData {

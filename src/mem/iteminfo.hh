@@ -37,7 +37,7 @@ struct ItemData {
     std::int16_t padding[3];
     std::int16_t addHp, addMaxHp, addPoisoned, addStamina, changeMpType, addMp, addMaxMp;
     std::int16_t addAttack, addSpeed, addDefence, addMedic, addPoison, addDepoison, addAntipoison;
-    std::int16_t addFist, addSword, addBlade, addSpecial, addHiddenWeapon, addKnowledge, addMoral, addDoubleAttack, addPoisonAmp;
+    std::int16_t addFist, addSword, addBlade, addSpecial, addHiddenWeapon, addKnowledge, addIntegrity, addDoubleAttack, addPoisonAmp;
     std::int16_t charOnly, reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
     std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
     std::int16_t reqExp, reqExpForMakeItem, reqMaterial;

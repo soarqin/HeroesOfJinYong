@@ -43,7 +43,7 @@ struct CharacterData {
     std::int16_t frame[CharFrameCount];
     std::int16_t mpType, mp, maxMp;
     std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, hiddenWeapon;
-    std::int16_t knowledge, integrity, poisonAmp, doubleAttack, fame, potential;
+    std::int16_t knowledge, integrity, poisonAmp, doubleAttack, reputation, potential;
     std::int16_t trainingItem;
     std::uint16_t expForItem;
     std::int16_t skillId[LearnSkillCount], skillLevel[LearnSkillCount];

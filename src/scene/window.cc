@@ -113,6 +113,12 @@ bool Window::processEvents() {
             case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE: case SDL_SCANCODE_BACKSPACE:
                 node->doHandleKeyInput(Node::KeyCancel);
                 break;
+            case SDL_SCANCODE_Y:
+                node->doHandleKeyInput(Node::KeyYes);
+                break;
+            case SDL_SCANCODE_N:
+                node->doHandleKeyInput(Node::KeyNo);
+                break;
             default:
                 break;
             }
@@ -215,9 +221,6 @@ void Window::closePopup() {
         delete popup_;
     }
     popup_ = nullptr;
-    if (map_) {
-        map_->continueEvents();
-    }
 }
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
@@ -230,6 +233,12 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
     dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
     popup_ = talkBox_;
     freeOnClose_ = false;
+}
+
+void Window::endTalk() {
+    if (map_) {
+        map_->continueEvents();
+    }
 }
 
 }

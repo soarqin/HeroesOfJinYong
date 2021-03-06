@@ -63,6 +63,7 @@ public:
     void enterSubMap(std::int16_t subMapId, int direction);
     void closePopup();
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
+    void endTalk();
 
 private:
     int width_, height_;

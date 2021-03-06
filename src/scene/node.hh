@@ -35,6 +35,8 @@ public:
         KeyRight,
         KeyOK,
         KeyCancel,
+        KeyYes,
+        KeyNo,
     };
 public:
     Node(Node *parent, int x, int y, int width, int height);

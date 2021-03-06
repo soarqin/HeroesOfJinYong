@@ -132,7 +132,7 @@ void TalkBox::handleKeyInput(Node::Key key) {
             index_ += dispLines_;
             calcPosAndSize();
         } else {
-            gWindow->closePopup();
+            gWindow->endTalk();
         }
         break;
     default:

@@ -33,17 +33,21 @@ bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::
         return false;
     }
     size_t count = ifs.size() / sizeof(std::uint32_t);
+    size_t fileSize = ifs2.size();
     dset.resize(count);
     std::uint32_t offset = 0;
     for (size_t i = 0; i < count; ++i) {
         std::uint32_t endoffset;
         ifs.read(&endoffset, sizeof(endoffset));
+        if (endoffset == 0) {
+            endoffset = fileSize;
+        }
         if (endoffset > offset) {
             dset[i].resize(endoffset - offset);
             ifs2.seek(offset);
             ifs2.read(dset[i].data(), endoffset - offset);
+            offset = endoffset;
         }
-        offset = endoffset;
     }
     return true;
 }
