@@ -45,10 +45,10 @@ protected:
 private:
     static bool doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position);
     static bool addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount);
-    static bool modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
-                     std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
-                     std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
-                     std::int16_t y);
+    static bool modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked,
+                            std::int16_t index, std::int16_t event1, std::int16_t event2, std::int16_t event3,
+                            std::int16_t currTex, std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay,
+                            std::int16_t x, std::int16_t y);
     static int useItem(MapWithEvent *map, std::int16_t itemId);
     static int tryStartFight(MapWithEvent *map);
     static bool changeExitMusic(MapWithEvent *map, std::int16_t music);
@@ -60,38 +60,45 @@ private:
     static bool makeDim(MapWithEvent *map);
     static bool die(MapWithEvent *map);
     static int checkTeamMember(MapWithEvent *map, std::int16_t charId);
-    static bool changeLayer(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer, std::int16_t x, std::int16_t y, std::int16_t value);
+    static bool changeLayer(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
+                            std::int16_t x, std::int16_t y, std::int16_t value);
     static int hasItem(MapWithEvent *map, std::int16_t itemId);
     static bool setCameraPosition(MapWithEvent *map, std::int16_t x, std::int16_t y);
     static int checkTeamFull(MapWithEvent *map);
     static bool leaveTeam(MapWithEvent *map, std::int16_t charId);
     static bool emptyAllMP(MapWithEvent *map);
-    static bool usePoison(MapWithEvent *map, std::int16_t charId, std::int16_t value);
+    static bool setAttrPoison(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool moveCamera(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1);
-    static bool modifyEventId(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t ev0, std::int16_t ev1, std::int16_t ev2);
+    static bool modifyEventId(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId,
+                              std::int16_t ev0, std::int16_t ev1, std::int16_t ev2);
     static bool animation(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex);
-    static int checkIntegrity(MapWithEvent *map, std::int16_t low, std::int16_t high);
-    static int checkAttack(MapWithEvent *map, std::int16_t low, std::int16_t high);
+    static int checkIntegrity(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high);
+    static int checkAttack(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high);
     static bool walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1);
     static int checkMoney(MapWithEvent *map, std::int16_t amount);
-    static bool addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCunt);
+    static bool addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount);
     static bool learnSkill(MapWithEvent *map, std::int16_t skillId, std::int16_t quiet);
     static bool addPotential(MapWithEvent *map, std::int16_t value);
-    static bool setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t charSkillIndex, std::int16_t skillId, std::int16_t level);
+    static bool setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t charSkillIndex,
+                         std::int16_t skillId, std::int16_t level);
     static int checkSex(MapWithEvent *map, std::int16_t sex);
     static bool addIntegrity(MapWithEvent *map, std::int16_t value);
     static bool openSubMap(MapWithEvent *map, std::int16_t subMapId);
     static bool forceDirection(MapWithEvent *map, std::int16_t direction);
     static bool addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount);
     static int checkFemaleInTeam(MapWithEvent *map);
-    static bool animation2(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex, std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
-    static bool animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex, std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2, std::int16_t eventId3, std::int16_t begTex3, std::int16_t endTex3);
+    static bool animation2(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
+                           std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
+    static bool animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
+                           std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2,
+                           std::int16_t eventId3, std::int16_t begTex3, std::int16_t endTex3);
     static bool addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool setMPType(MapWithEvent *map, std::int16_t charId, std::int16_t value);
-    static int checkHas5Item(MapWithEvent *map, std::int16_t itemId0, std::int16_t itemId1, std::int16_t itemId2, std::int16_t itemId3, std::int16_t itemId4);
+    static int checkHas5Item(MapWithEvent *map, std::int16_t itemId0, std::int16_t itemId1, std::int16_t itemId2,
+                             std::int16_t itemId3, std::int16_t itemId4);
     static bool tutorialTalk(MapWithEvent *map);
     static bool showIntegrity(MapWithEvent *map);
     static bool showReputation(MapWithEvent *map);
@@ -103,7 +110,8 @@ private:
     static bool disbandTeam(MapWithEvent *map);
     static int checkSubMapTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t tex);
     static int checkAllStoryBooks(MapWithEvent *map);
-    static bool goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex, std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
+    static bool goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
+                           std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
     static bool setSex(MapWithEvent *map, std::int16_t value);
     static bool openShop(MapWithEvent *map);
     static bool playMusic(MapWithEvent *map, std::int16_t musicId);

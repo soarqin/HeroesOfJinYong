@@ -25,6 +25,8 @@
 namespace hojy::mem {
 
 enum {
+    ItemIDMoney = 174,
+    ItemIDCompass = 182,
     BagItemCount = 200,
 };
 

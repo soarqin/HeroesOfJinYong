@@ -27,13 +27,17 @@
 
 namespace hojy::mem {
 
+enum {
+    TeamMemberCount = 6,
+};
+
 #pragma pack(push, 1)
 struct BaseData {
     struct ItemInfo {
         std::int16_t id, count;
     };
     std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
-    std::int16_t members[6];
+    std::int16_t members[TeamMemberCount];
     ItemInfo items[BagItemCount];
 } ATTR_PACKED;
 #pragma pack(pop)

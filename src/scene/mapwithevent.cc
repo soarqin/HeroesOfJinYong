@@ -65,7 +65,8 @@ void printArgs(const std::vector<std::int16_t>& e, int i, int size) {
 
 template<class F, class P, size_t ...I>
 typename std::enable_if<ReturnTypeMatches<F, bool>::value, bool>::type
-runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse, std::index_sequence<I...>) {
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse,
+        std::index_sequence<I...>) {
 #ifndef NDEBUG
     printArgs(evlist, index, sizeof...(I));
 #endif
@@ -77,7 +78,8 @@ runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_
 
 template<class F, class P, size_t ...I>
 typename std::enable_if<ReturnTypeMatches<F, int>::value, bool>::type
-runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse, std::index_sequence<I...>) {
+runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_t &advTrue, size_t &advFalse,
+        std::index_sequence<I...>) {
 #ifndef NDEBUG
     printArgs(evlist, index, sizeof...(I) + 2);
 #endif
@@ -108,7 +110,8 @@ void MapWithEvent::continueEvents(bool result) {
 
 #define OpRun(O, F) \
     case O: \
-        if (!runFunc(F, this, evlist, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_, std::make_index_sequence<argCounter(F)-1>())) { \
+        if (!runFunc(F, this, evlist, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_, \
+                     std::make_index_sequence<argCounter(F)-1>())) { \
             currEventPaused_ = true; \
         } \
         break
@@ -164,7 +167,7 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(20, checkTeamFull);
         OpRun(21, leaveTeam);
         OpRun(22, emptyAllMP);
-        OpRun(23, usePoison);
+        OpRun(23, setAttrPoison);
         OpRun(24, die);
         OpRun(25, moveCamera);
         OpRun(26, modifyEventId);
@@ -294,10 +297,10 @@ bool MapWithEvent::addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t 
     return true;
 }
 
-bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked, std::int16_t index,
-                               std::int16_t event1, std::int16_t event2, std::int16_t event3, std::int16_t currTex,
-                               std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay, std::int16_t x,
-                               std::int16_t y) {
+bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked,
+                               std::int16_t index, std::int16_t event1, std::int16_t event2, std::int16_t event3,
+                               std::int16_t currTex, std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay,
+                               std::int16_t x, std::int16_t y) {
     if (subMapId < 0) { subMapId = map->subMapId_; }
     if (subMapId < 0) { return true; }
     if (eventId < 0) { eventId = map->currEventId_; }
@@ -344,7 +347,27 @@ int MapWithEvent::wantJoinTeam(MapWithEvent *map) {
 }
 
 bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
-    return true;
+    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+        if (mem::gSaveData.baseInfo->members[i] < 0) {
+            mem::gSaveData.baseInfo->members[i] = charId;
+            auto *charInfo = mem::gSaveData.charInfo[charId];
+            for (size_t j = 0; j < mem::CarryItemCount; ++j) {
+                if (charInfo->item[j] >= 0) {
+                    if (charInfo->itemCount[j] == 0) { charInfo->itemCount[j] = 1; }
+                    auto itemId = charInfo->item[j];
+                    std::int16_t itemCount = charInfo->itemCount[j] == 0 ? 1 : charInfo->itemCount[j];
+                    map->pendingSubEvents_.emplace_back([map, itemId, itemCount]()->bool {
+                        addItem(map, itemId, itemCount);
+                        return false;
+                    });
+                    charInfo->item[j] = -1;
+                    charInfo->itemCount[j] = 0;
+                }
+            }
+            break;
+        }
+    }
+    return map->pendingSubEvents_.empty();
 }
 
 int MapWithEvent::wantSleep(MapWithEvent *map) {
@@ -368,6 +391,11 @@ bool MapWithEvent::die(MapWithEvent *map) {
 }
 
 int MapWithEvent::checkTeamMember(MapWithEvent *map, std::int16_t charId) {
+    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+        if (mem::gSaveData.baseInfo->members[i] == charId) {
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -379,7 +407,7 @@ bool MapWithEvent::changeLayer(MapWithEvent *map, std::int16_t subMapId, std::in
 }
 
 int MapWithEvent::hasItem(MapWithEvent *map, std::int16_t itemId) {
-    return 0;
+    return mem::gBag[itemId] > 0 ? 1 : 0;
 }
 
 bool MapWithEvent::setCameraPosition(MapWithEvent *map, std::int16_t x, std::int16_t y) {
@@ -387,18 +415,40 @@ bool MapWithEvent::setCameraPosition(MapWithEvent *map, std::int16_t x, std::int
 }
 
 int MapWithEvent::checkTeamFull(MapWithEvent *map) {
-    return 0;
+    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+        if (mem::gSaveData.baseInfo->members[i] < 0) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 bool MapWithEvent::leaveTeam(MapWithEvent *map, std::int16_t charId) {
+    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+        if (mem::gSaveData.baseInfo->members[i] == charId) {
+            for (size_t j = i; j < mem::TeamMemberCount - 1; ++j) {
+                mem::gSaveData.baseInfo->members[j] = mem::gSaveData.baseInfo->members[j + 1];
+            }
+            mem::gSaveData.baseInfo->members[mem::TeamMemberCount - 1] = -1;
+            break;
+        }
+    }
     return true;
 }
 
 bool MapWithEvent::emptyAllMP(MapWithEvent *map) {
+    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) {
+            continue;
+        }
+        mem::gSaveData.charInfo[id]->mp = 0;
+    }
     return true;
 }
 
-bool MapWithEvent::usePoison(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+bool MapWithEvent::setAttrPoison(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    mem::gSaveData.charInfo[charId]->poison = value;
     return true;
 }
 
@@ -423,12 +473,14 @@ bool MapWithEvent::animation(MapWithEvent *map, std::int16_t eventId, std::int16
     return false;
 }
 
-int MapWithEvent::checkIntegrity(MapWithEvent *map, std::int16_t low, std::int16_t high) {
-    return 0;
+int MapWithEvent::checkIntegrity(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high) {
+    auto value = mem::gSaveData.charInfo[charId]->integrity;
+    return value >= low && value <= high ? 1 : 0;
 }
 
-int MapWithEvent::checkAttack(MapWithEvent *map, std::int16_t low, std::int16_t high) {
-    return 0;
+int MapWithEvent::checkAttack(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high) {
+    auto value = mem::gSaveData.charInfo[charId]->attack;
+    return value >= low ? 1 : 0;
 }
 
 bool MapWithEvent::walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
@@ -436,10 +488,11 @@ bool MapWithEvent::walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0,
 }
 
 int MapWithEvent::checkMoney(MapWithEvent *map, std::int16_t amount) {
-    return 0;
+    return mem::gBag[mem::ItemIDMoney] >= amount;
 }
 
-bool MapWithEvent::addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCunt) {
+bool MapWithEvent::addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
+    mem::gBag.add(itemId, itemCount);
     return true;
 }
 
