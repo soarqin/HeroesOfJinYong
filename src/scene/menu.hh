@@ -44,6 +44,23 @@ protected:
     int currIndex_ = 0;
 };
 
+class MenuTextList: public Menu {
+public:
+    using Menu::Menu;
+
+    inline void setHandler(const std::function<void(int)> &okHandler, const std::function<void()> &cancelHandler) {
+        okHandler_ = okHandler;
+        cancelHandler_ = cancelHandler;
+    }
+
+protected:
+    void onOK() override;
+    void onCancel() override;
+
+protected:
+    std::function<void(int)> okHandler_;
+    std::function<void()> cancelHandler_;
+};
 
 class MenuYesNo: public Menu {
 public:

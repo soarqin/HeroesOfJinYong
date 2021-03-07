@@ -22,6 +22,7 @@
 #include "window.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
+#include "core/config.hh"
 #include "util/random.hh"
 #include "util/conv.hh"
 
@@ -29,7 +30,9 @@ namespace hojy::scene {
 
 void MapWithEvent::render() {
     Map::render();
-    if ((++frames_) % 10) { return; }
+    ++frames_;
+    if (float(frames_) < nextEventFrame_) { return; }
+    nextEventFrame_ += 10.f / core::config.animationSpeed();
     updateEventTextures();
 }
 

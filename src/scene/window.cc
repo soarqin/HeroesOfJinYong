@@ -23,6 +23,7 @@
 #include "submap.hh"
 #include "talkbox.hh"
 #include "title.hh"
+#include "menu.hh"
 
 #include "audio/mixer.hh"
 #include "audio/channelmidi.hh"
@@ -236,6 +237,27 @@ void Window::endPopup(bool close, bool result) {
     }
     if (map_) {
         map_->continueEvents(result);
+    }
+}
+
+void Window::showMainMenu(bool inSubMap) {
+    if (popup_) {
+        return;
+    }
+    if (mainMenu_ == nullptr) {
+        auto *menu = new MenuTextList(renderer_, 40, 40, width_ - 80, height_ - 80);
+        mainMenu_ = menu;
+        menu->setHandler([](int index) {
+        }, [this]() {
+            closePopup();
+        });
+    }
+    popup_ = mainMenu_;
+    freeOnClose_ = false;
+    if (inSubMap) {
+        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態"});
+    } else {
+        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態", L"離隊", L"系統"});
     }
 }
 

@@ -119,7 +119,7 @@ private:
     static bool playSound(MapWithEvent *map, std::int16_t soundId);
 
 protected:
-    std::int16_t subMapId_ = -1;
+    float nextEventFrame_ = 0.f;
 
     bool currEventPaused_ = false;
     std::int16_t currEventId_ = -1;

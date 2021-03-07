@@ -60,6 +60,7 @@ bool Config::load(const std::string &filename) {
     if (ui) {
         showPotential_ = ui["show_potential"].value_or<bool>(false);
         scale_ = ui["scale"].value_or<float>(2.f);
+        animationSpeed_ = ui["animation_speed"].value_or<float>(1.f);
     }
     return true;
 }

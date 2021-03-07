@@ -29,6 +29,8 @@ public:
 
     ~NodeWithCache() override;
 
+    inline void update() { makeCache(); }
+
     void close() override;
     void render() override;
 

@@ -52,6 +52,7 @@ bool SubMap::load(std::int16_t subMapId, int initX, int initY) {
     eventLoop_.resize(mem::SubMapEventCount);
     eventDelay_.resize(mem::SubMapEventCount);
     frames_ = 0;
+    nextEventFrame_ = 0.f;
     {
         auto *tex = textureMgr[0];
         cellWidth_ = tex->width();
@@ -224,7 +225,7 @@ void SubMap::handleKeyInput(Key key) {
         doInteract();
         break;
     default:
-        Map::handleKeyInput(key);
+        MapWithEvent::handleKeyInput(key);
         break;
     }
 }

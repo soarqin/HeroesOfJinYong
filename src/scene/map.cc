@@ -19,6 +19,7 @@
 
 #include "map.hh"
 
+#include "window.hh"
 #include "data/colorpalette.hh"
 
 #include <chrono>
@@ -88,6 +89,9 @@ void Map::handleKeyInput(Node::Key key) {
         break;
     case KeyDown:
         move(Map::DirDown);
+        break;
+    case KeyCancel:
+        gWindow->showMainMenu(subMapId_ >= 0);
         break;
     default:
         Node::handleKeyInput(key);

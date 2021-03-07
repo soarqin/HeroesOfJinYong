@@ -36,12 +36,14 @@ public:
 
     [[nodiscard]] bool showPotential() const { return showPotential_; }
     [[nodiscard]] float scale() const { return scale_; }
+    [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
 
 private:
     std::vector<std::string> dataPath_;
     int windowWidth_ = 640, windowHeight_ = 480;
     bool showPotential_ = false;
     float scale_ = 2.f;
+    float animationSpeed_ = 1.f;
 };
 
 extern Config config;

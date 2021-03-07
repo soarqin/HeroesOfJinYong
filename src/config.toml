@@ -8,3 +8,4 @@ height = 480
 [ui]
 show_potential = true
 scale = 2.0
+animation_speed = 1.0

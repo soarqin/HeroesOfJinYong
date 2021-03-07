@@ -61,8 +61,6 @@ void Menu::handleKeyInput(Key key) {
 }
 
 void Menu::makeCache() {
-    NodeWithCache::makeCache();
-
     auto *ttf = renderer_->ttf();
     int w = 0;
     std::vector<int> itemsW;
@@ -82,6 +80,10 @@ void Menu::makeCache() {
     x = (width_ - w) / 2;
     y = (height_ - h) / 2;
 */
+    width_ = w;
+    height_ = h;
+
+    NodeWithCache::makeCache();
 
     renderer_->setTargetTexture(cache_);
     renderer_->fill(0, 0, 0, 0);
@@ -96,6 +98,14 @@ void Menu::makeCache() {
         ttf->render(items_[i], x + (nw - itemsW[i]) / 2, y, true);
     }
     renderer_->setTargetTexture(nullptr);
+}
+
+void MenuTextList::onOK() {
+    okHandler_(currIndex_);
+}
+
+void MenuTextList::onCancel() {
+    cancelHandler_();
 }
 
 void MenuYesNo::popupWithYesNo() {

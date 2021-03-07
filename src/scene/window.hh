@@ -66,6 +66,7 @@ public:
     void closePopup();
     void endPopup(bool close = false, bool result = true);
 
+    void showMainMenu(bool inSubMap);
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
     void popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type = MessageBox::Normal);
 
@@ -75,6 +76,7 @@ private:
     Renderer *renderer_ = nullptr;
     MapWithEvent *map_ = nullptr;
     Node *popup_ = nullptr;
+    Node *mainMenu_ = nullptr;
     bool freeOnClose_ = false;
 
     MapWithEvent *globalMap_ = nullptr;

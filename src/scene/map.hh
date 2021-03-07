@@ -60,6 +60,8 @@ protected:
 
 protected:
     TextureMgr textureMgr;
+    std::int16_t subMapId_ = -1;
+
     float scale_ = 1.f;
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
