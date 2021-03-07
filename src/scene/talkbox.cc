@@ -106,7 +106,7 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     if (dispLines_ > text_.size()) { dispLines_ = text_.size(); }
 
     position_ = position;
-    makeCache();
+    update();
 }
 
 void TalkBox::handleKeyInput(Node::Key key) {
@@ -119,7 +119,7 @@ void TalkBox::handleKeyInput(Node::Key key) {
                 ++index_;
             }
             if (index_ < text_.size()) {
-                makeCache();
+                update();
                 break;
             }
         }

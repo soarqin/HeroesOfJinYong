@@ -28,7 +28,7 @@ namespace hojy::scene {
 void MessageBox::popup(const std::vector<std::wstring> &text, MessageBox::Type type) {
     text_ = text;
     type_ = type;
-    makeCache();
+    update();
 }
 
 void MessageBox::handleKeyInput(Node::Key key) {
@@ -42,7 +42,6 @@ void MessageBox::handleKeyInput(Node::Key key) {
 }
 
 void MessageBox::makeCache() {
-    NodeWithCache::makeCache();
 
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
@@ -74,14 +73,17 @@ void MessageBox::makeCache() {
     }
     textW += SubWindowBorder * 2;
     textH = rowHeight * int(lines.size()) + SubWindowBorder * 2 - TextLineSpacing;
-    int textX = (width_ - textW) / 2;
-    int textY = (height_ - textH) / 2;
+    x_ += (width_ - textW) / 2;
+    y_ += (height_ - textH) / 2;
+    width_ = textW;
+    height_ = textH;
 
+    NodeWithCache::makeCache();
     renderer_->setTargetTexture(cache_);
     renderer_->fill(0, 0, 0, 0);
-    int x = SubWindowBorder + textX;
-    int y = SubWindowBorder + textY;
-    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 64, 64, 64, 160);
+    int x = SubWindowBorder;
+    int y = SubWindowBorder;
+    renderer_->fillRoundedRect(0, 0, textW, textH, RoundedRectRad, 64, 64, 64, 160);
     ttf->setColor(236, 200, 40);
     for (auto &l: lines) {
         ttf->render(l, x, y, true);
@@ -92,7 +94,7 @@ void MessageBox::makeCache() {
 
     if (type_ == YesNo) {
         if (menu_ == nullptr) {
-            auto mx = x_ + textX + textW + 5, my = y_ + textY;
+            auto mx = x_ + textW + 5, my = y_;
             auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
             m->popupWithYesNo();
             m->setHandler([]{

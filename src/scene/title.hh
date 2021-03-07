@@ -24,8 +24,6 @@
 
 namespace hojy::scene {
 
-class MenuYesNo;
-
 class Title final: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
@@ -43,7 +41,7 @@ private:
 private:
     TextureMgr titleTextureMgr_;
     Texture *big_ = nullptr;
-    MenuYesNo *menu_ = nullptr;
+    Node *menu_ = nullptr;
     int mode_ = 0;
     size_t currSel_ = 0;
     std::wstring mainCharName_;

@@ -25,8 +25,9 @@
 
 namespace hojy::scene {
 
-SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
-    drawingTerrainTex2_ = Texture::createAsTarget(renderer_, width, height);
+SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, float scale):
+    MapWithEvent(renderer, ix, iy, width, height, scale),
+    drawingTerrainTex2_(Texture::createAsTarget(renderer_, width, height)) {
     drawingTerrainTex2_->enableBlendMode(true);
 }
 

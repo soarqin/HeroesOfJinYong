@@ -46,18 +46,18 @@ void Title::init() {
     if (data::GrpData::loadData("TITLE", dset)) {
         titleTextureMgr_.loadFromRLE(dset);
     }
-    makeCache();
+    update();
 }
 
 void Title::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyUp:
         if (currSel_-- == 0) { currSel_ = 2; }
-        makeCache();
+        update();
         break;
     case KeyDown:
         if (currSel_++ == 2) { currSel_ = 0; }
-        makeCache();
+        update();
         break;
     case KeyOK: case KeySpace:
         switch (mode_) {
@@ -66,12 +66,12 @@ void Title::handleKeyInput(Node::Key key) {
             case 0:
                 mainCharName_.clear();
                 mode_ = 2;
-                makeCache();
+                update();
                 break;
             case 1:
                 currSel_ = 0;
                 mode_ = 1;
-                makeCache();
+                update();
                 break;
             case 2:
                 gWindow->closePopup();
@@ -90,7 +90,7 @@ void Title::handleKeyInput(Node::Key key) {
                 mode_ = 3;
                 mem::gSaveData.newGame();
                 doRandomBaseInfo();
-                makeCache();
+                update();
             }
             break;
         }
@@ -101,7 +101,7 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             currSel_ = 0;
             mode_ = 0;
-            makeCache();
+            update();
             break;
         }
         break;
@@ -110,7 +110,7 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             if (!mainCharName_.empty()) {
                 mainCharName_.pop_back();
-                makeCache();
+                update();
             }
             break;
         }
@@ -130,7 +130,7 @@ void Title::handleTextInput(const std::wstring &str) {
         }
     }
     if (dirty) {
-        makeCache();
+        update();
     }
 }
 
@@ -184,15 +184,16 @@ void Title::makeCache() {
         if (menu_ == nullptr) {
             renderer_->setTargetTexture(nullptr);
             int mx = x + ttf->stringWidth(askText) + SubWindowBorder + 10, my = y - SubWindowBorder + lineheight / 2;
-            menu_ = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
-            menu_->popupWithYesNo();
-            menu_->setHandler([] {
+            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
+            menu->popupWithYesNo();
+            menu->setHandler([] {
                 gWindow->closePopup();
                 gWindow->newGame();
             }, [this] {
                 doRandomBaseInfo();
-                makeCache();
+                update();
             });
+            menu_ = menu;
             renderer_->setTargetTexture(cache_);
         }
         auto *data = mem::gSaveData.charInfo[0];

@@ -83,6 +83,8 @@ private:
     MapWithEvent *subMap_ = nullptr;
     Node *talkBox_ = nullptr;
     TextureMgr globalTextureMgr_, headTextureMgr_;
+
+    int playingMusic_ = -1;
 };
 
 extern Window *gWindow;

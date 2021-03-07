@@ -29,7 +29,7 @@ public:
 
     ~NodeWithCache() override;
 
-    inline void update() { makeCache(); }
+    inline void update() { cacheDirty_ = true; }
 
     void close() override;
     void render() override;
@@ -39,6 +39,7 @@ protected:
 
 protected:
     Texture *cache_ = nullptr;
+    bool cacheDirty_ = true;
 };
 
 }

@@ -26,28 +26,28 @@ namespace hojy::scene {
 void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
     items_ = items;
     currIndex_ = defaultIndex;
-    makeCache();
+    update();
 }
 
 void Menu::handleKeyInput(Key key) {
     switch (key) {
     case KeyUp:
         if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
-        makeCache();
+        update();
         break;
     case KeyDown:
         if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
-        makeCache();
+        update();
         break;
     case KeyLeft:
         if (currIndex_ == 0) { break; }
         currIndex_ = 0;
-        makeCache();
+        update();
         break;
     case KeyRight:
         if (currIndex_ == int(items_.size()) - 1) { break; }
         currIndex_ = int(items_.size()) - 1;
-        makeCache();
+        update();
         break;
     case KeyOK: case KeySpace:
         onOK();

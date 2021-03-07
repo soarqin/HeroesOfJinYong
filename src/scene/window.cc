@@ -153,14 +153,18 @@ void Window::flush() {
 
 void Window::playMusic(int idx) {
     (void)this;
-    std::string filename;
     ++idx;
+    if (playingMusic_ == idx) {
+        return;
+    }
+    std::string filename;
     if (idx < 10) {
         filename = "data/GAME0" + std::to_string(idx) + ".XMI";
     } else {
         filename = "data/GAME" + std::to_string(idx) + ".XMI";
     }
     audio::gMixer.repeatPlay(0, new audio::ChannelMIDI(&audio::gMixer, filename));
+    playingMusic_ = idx;
 }
 
 void Window::playAtkSound(int idx) {

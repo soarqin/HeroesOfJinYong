@@ -65,6 +65,7 @@ void Node::doTextInput(const std::wstring &str) {
 
 void Node::removeAllChildren() {
     for (auto *n: children_) {
+        n->parent_ = nullptr;
         delete n;
     }
     children_.clear();
