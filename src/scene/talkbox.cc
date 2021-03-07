@@ -111,7 +111,7 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
 
 void TalkBox::handleKeyInput(Node::Key key) {
     switch (key) {
-    case KeyOK: case KeyCancel:
+    case KeyOK: case KeySpace: case KeyCancel:
         if (index_ + dispLines_ < text_.size()) {
             index_ += dispLines_;
             /* skip start empty lines */

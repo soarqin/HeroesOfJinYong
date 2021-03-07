@@ -35,8 +35,6 @@ public:
         KeyRight,
         KeyOK,
         KeyCancel,
-        KeyYes,
-        KeyNo,
         KeySpace,
         KeyBackspace,
     };

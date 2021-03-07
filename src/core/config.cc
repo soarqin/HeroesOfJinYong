@@ -59,6 +59,7 @@ bool Config::load(const std::string &filename) {
     auto ui = tbl["ui"];
     if (ui) {
         showPotential_ = ui["show_potential"].value_or<bool>(false);
+        scale_ = ui["scale"].value_or<float>(2.f);
     }
     return true;
 }

@@ -21,7 +21,6 @@
 
 #include "window.hh"
 #include "data/grpdata.hh"
-#include "data/event.hh"
 #include "mem/savedata.hh"
 
 namespace hojy::scene {

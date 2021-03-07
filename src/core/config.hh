@@ -35,11 +35,13 @@ public:
     [[nodiscard]] int windowHeight() const { return windowHeight_; }
 
     [[nodiscard]] bool showPotential() const { return showPotential_; }
+    [[nodiscard]] float scale() const { return scale_; }
 
 private:
     std::vector<std::string> dataPath_;
     int windowWidth_ = 640, windowHeight_ = 480;
     bool showPotential_ = false;
+    float scale_ = 2.f;
 };
 
 extern Config config;

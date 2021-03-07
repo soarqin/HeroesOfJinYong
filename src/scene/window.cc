@@ -30,6 +30,7 @@
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
+#include "core/config.hh"
 #include "util/conv.hh"
 
 #include <SDL.h>
@@ -72,8 +73,8 @@ Window::Window(int w, int h): width_(w), height_(h) {
     }
     renderer_->enableLinear(false);
 
-    globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, 2.f);
-    subMap_ = new SubMap(renderer_, 0, 0, w, h, 2.f);
+    globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
+    subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
 
     auto *title = new Title(renderer_, 0, 0, w, h);
     title->init();
@@ -117,12 +118,6 @@ bool Window::processEvents() {
                 break;
             case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE:
                 node->doHandleKeyInput(Node::KeyCancel);
-                break;
-            case SDL_SCANCODE_Y:
-                node->doHandleKeyInput(Node::KeyYes);
-                break;
-            case SDL_SCANCODE_N:
-                node->doHandleKeyInput(Node::KeyNo);
                 break;
             case SDL_SCANCODE_SPACE:
                 node->doHandleKeyInput(Node::KeySpace);

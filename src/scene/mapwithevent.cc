@@ -381,7 +381,16 @@ int MapWithEvent::wantSleep(MapWithEvent *map) {
 }
 
 bool MapWithEvent::sleep(MapWithEvent *map) {
-    /* TODO: implement this */
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id <= 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        charInfo->stamina = mem::StaminaMax;
+        charInfo->hp = charInfo->maxHp;
+        charInfo->mp = charInfo->maxMp;
+        charInfo->hurt = 0;
+        charInfo->poisoned = 0;
+    }
     return true;
 }
 
@@ -537,14 +546,15 @@ bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16
     if (quiet) {
         return true;
     }
-    /* TODO: learn skill tips */
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 習得武學 " + util::big5Conv.toUnicode(skillInfo->name)});
     return false;
 }
 
 bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
     charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, mem::PotentialMax);
-    return true;
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 資質增加 " + std::to_wstring(value)});
+    return false;
 }
 
 bool MapWithEvent::setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillIndex,
@@ -597,12 +607,34 @@ bool MapWithEvent::forceDirection(MapWithEvent *map, std::int16_t direction) {
 }
 
 bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount) {
-    /* TODO: implement this */
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    int firstEmpty = -1;
+    for (int i = 0; i < mem::CarryItemCount; ++i) {
+        if (charInfo->item[i] < 0) {
+            firstEmpty = i;
+            continue;
+        }
+        if (charInfo->item[i] == itemId) {
+            charInfo->itemCount[i] += itemCount;
+            return true;
+        }
+    }
+    if (firstEmpty < 0) {
+        return true;
+    }
+    charInfo->item[firstEmpty] = itemId;
+    charInfo->itemCount[firstEmpty] = itemCount;
     return true;
 }
 
 int MapWithEvent::checkFemaleInTeam(MapWithEvent *map) {
-    /* TODO: implement this */
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        if (mem::gSaveData.charInfo[id]->sex == 1) {
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -620,34 +652,45 @@ bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int1
 }
 
 bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    /* TODO: implement this */
-    return true;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->speed = std::clamp<std::int16_t>(charInfo->speed + value, 0, mem::SpeedMax);
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 輕功增加 " + std::to_wstring(value)});
+    return false;
 }
 
 bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    /* TODO: implement this */
-    return true;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, mem::MPMax);
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 內力增加 " + std::to_wstring(value)});
+    return false;
 }
 
 bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    /* TODO: implement this */
-    return true;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->attack = std::clamp<std::int16_t>(charInfo->attack + value, 0, mem::AttackMax);
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 武力增加 " + std::to_wstring(value)});
+    return false;
 }
 
 bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    /* TODO: implement this */
-    return true;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, mem::HPMax);
+    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 生命增加 " + std::to_wstring(value)});
+    return false;
 }
 
 bool MapWithEvent::setMPType(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    /* TODO: implement this */
+    mem::gSaveData.charInfo[charId]->mpType = value;
     return true;
 }
 
 int MapWithEvent::checkHas5Item(MapWithEvent *map, std::int16_t itemId0, std::int16_t itemId1, std::int16_t itemId2,
                                 std::int16_t itemId3, std::int16_t itemId4) {
-    /* TODO: implement this */
-    return 0;
+    return mem::gBag[itemId0] > 0
+        && mem::gBag[itemId1] > 0
+        && mem::gBag[itemId2] > 0
+        && mem::gBag[itemId3] > 0
+        && mem::gBag[itemId4] > 0 ? 1 : 0;
 }
 
 bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
@@ -655,13 +698,13 @@ bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
 }
 
 bool MapWithEvent::showIntegrity(MapWithEvent *map) {
-    /* TODO: implement this */
-    return true;
+    gWindow->popupMessageBox({L"你的道德指數為 " + std::to_wstring(mem::gSaveData.charInfo[0]->integrity)});
+    return false;
 }
 
 bool MapWithEvent::showReputation(MapWithEvent *map) {
-    /* TODO: implement this */
-    return true;
+    gWindow->popupMessageBox({L"你的聲望指數為 " + std::to_wstring(mem::gSaveData.charInfo[0]->reputation)});
+    return false;
 }
 
 bool MapWithEvent::openWorld(MapWithEvent *) {

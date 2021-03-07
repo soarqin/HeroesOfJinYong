@@ -1,0 +1,10 @@
+[main]
+data_path = "data"
+
+[window]
+width = 640
+height = 480
+
+[ui]
+show_potential = true
+scale = 2.0
