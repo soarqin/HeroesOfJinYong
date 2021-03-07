@@ -24,6 +24,10 @@
 
 namespace hojy::scene {
 
+TalkBox::~TalkBox() {
+    delete cache_;
+}
+
 void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t position) {
     text_.clear();
     size_t idx = 0;
@@ -61,13 +65,13 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     }
 
     headTex_ = (position != 2 && position != 3 && headId >= 0) ? gWindow->headTexture(headId) : nullptr;
+    int headW = 0;
     if (headTex_) {
-        headW_ = headTex_->width() * 2 + SubWindowBorder * 2;
-        headH_ = headTex_->height() * 2 + SubWindowBorder * 2;
+        headW = headTex_->width() * 2 + SubWindowBorder * 2;
     }
 
     auto *ttf = renderer_->ttf();
-    size_t widthMax = width_ - headW_ - 10 - SubWindowBorder * 2;
+    size_t widthMax = width_ - headW - 10 - SubWindowBorder * 2;
     for (auto &l: lines) {
         size_t len = l.length();
         if (!len) {
@@ -106,23 +110,17 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     if (dispLines_ > text_.size()) { dispLines_ = text_.size(); }
 
     position_ = position;
-    calcPosAndSize();
+    makeCache();
+}
+
+void TalkBox::close() {
+    delete cache_;
+    cache_ = nullptr;
+    removeAllChildren();
 }
 
 void TalkBox::render() {
-    if (headTex_) {
-        renderer_->fillRoundedRect(headX_, headY_, headW_, headH_, RoundedRectRad, 0, 0, 0, 96);
-        renderer_->renderTexture(headTex_, float(headX_ + SubWindowBorder), float(headY_ + SubWindowBorder), 2., true);
-    }
-
-    auto *ttf = renderer_->ttf();
-    size_t sz = text_.size();
-    int x = SubWindowBorder + textX_;
-    int y = SubWindowBorder + textY_;
-    renderer_->fillRoundedRect(textX_, textY_, textW_, textH_, RoundedRectRad, 0, 0, 0, 96);
-    for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight_) {
-        ttf->render(text_[idx], x, y, 0);
-    }
+    renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
 }
 
 void TalkBox::handleKeyInput(Node::Key key) {
@@ -130,51 +128,88 @@ void TalkBox::handleKeyInput(Node::Key key) {
     case KeyOK: case KeyCancel:
         if (index_ + dispLines_ < text_.size()) {
             index_ += dispLines_;
-            calcPosAndSize();
-        } else {
-            gWindow->endTalk();
+            /* skip start empty lines */
+            while (index_ < text_.size() && text_[index_].empty()) {
+                ++index_;
+            }
+            if (index_ < text_.size()) {
+                makeCache();
+                break;
+            }
         }
+        gWindow->endPopup();
         break;
     default:
         break;
     }
 }
 
-void TalkBox::calcPosAndSize() {
-    auto *ttf = renderer_->ttf();
-    rowHeight_ = ttf->fontSize() + TextLineSpacing;
+void TalkBox::makeCache() {
+    if (!cache_) {
+        cache_ = Texture::createAsTarget(renderer_, width_, height_);
+        cache_->enableBlendMode(true);
+    }
+
+    int rowHeight;
+    int headX, headY, headW = 0, headH = 0;
+    int textX, textY, textW, textH;
+
     if (headTex_) {
-        textW_ = width_ - headW_ - 10;
+        headW = headTex_->width() * 2 + SubWindowBorder * 2;
+        headH = headTex_->height() * 2 + SubWindowBorder * 2;
+    }
+    auto *ttf = renderer_->ttf();
+    rowHeight = ttf->fontSize() + TextLineSpacing;
+    if (headTex_) {
+        textW = width_ - headW - 10;
     } else {
-        textW_ = width_;
+        textW = width_;
     }
     auto sz = int(text_.size());
     auto lines = index_ + dispLines_ > sz ? sz - index_ : dispLines_;
-    textH_ = rowHeight_ * lines + SubWindowBorder * 2 + TextLineSpacing;
+    textH = rowHeight * lines + SubWindowBorder * 2 + TextLineSpacing;
     if (position_ % 2) {
         if (headTex_) {
-            headY_ = y_ + height_ - headH_;
+            headY = height_ - headH;
         }
-        textY_ = y_ + height_ - textH_;
+        textY = height_ - textH;
     } else {
         if (headTex_) {
-            headY_ = y_;
+            headY = 0;
         }
-        textY_ = y_;
+        textY = 0;
     }
     if (position_ == 1 || position_ == 4) {
         if (headTex_) {
-            headX_ = x_ + width_ - headW_;
+            headX = width_ - headW;
         }
-        textX_ = x_;
+        textX = 0;
     } else {
         if (headTex_) {
-            headX_ = x_;
-            textX_ = headW_ + 10 + x_;
+            headX = headY = 0;
+            textX = headW + 10;
         } else {
-            textX_ = x_;
+            textX = 0;
         }
     }
+
+    renderer_->setTargetTexture(cache_);
+    renderer_->fill(0, 0, 0, 0);
+    if (headTex_) {
+        renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 0, 0, 0, 160);
+        renderer_->renderTexture(headTex_, float(headX + SubWindowBorder), float(headY + SubWindowBorder), 2., true);
+    }
+
+    int x = SubWindowBorder + textX;
+    int y = SubWindowBorder + textY;
+    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 0, 0, 0, 160);
+    ttf->setColor(220, 220, 220);
+    for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight) {
+        ttf->render(text_[idx], x, y, true);
+    }
+    renderer_->setTargetTexture(nullptr);
+    // 252, 148, 16
+    // 236, 236, 236
 }
 
 }

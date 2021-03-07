@@ -31,8 +31,12 @@ public:
     [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
     [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
 
+    [[nodiscard]] int windowWidth() const { return windowWidth_; }
+    [[nodiscard]] int windowHeight() const { return windowHeight_; }
+
 private:
     std::vector<std::string> dataPath_;
+    int windowWidth_ = 640, windowHeight_ = 480;
 };
 
 extern Config config;

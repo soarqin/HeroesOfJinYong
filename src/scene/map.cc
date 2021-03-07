@@ -31,7 +31,7 @@ Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): 
     textureMgr.clear();
     textureMgr.setRenderer(renderer_);
     textureMgr.setPalette(data::gNormalPalette);
-    drawingTerrainTex_ = Texture::createAsTarget(renderer_, 2048, 2048);
+    drawingTerrainTex_ = Texture::createAsTarget(renderer_, width, height);
     drawingTerrainTex_->enableBlendMode(true);
     drawDirty_ = true;
 }

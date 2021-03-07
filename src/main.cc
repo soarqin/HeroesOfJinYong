@@ -26,7 +26,7 @@ using namespace hojy;
 int main() {
     core::config.load("config.toml");
     data::loadData();
-    scene::Window win(1024, 768);
+    scene::Window win(core::config.windowWidth(), core::config.windowHeight());
     // win.newGame();
     while (win.processEvents()) {
         win.render();

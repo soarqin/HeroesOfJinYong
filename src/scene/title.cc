@@ -49,7 +49,7 @@ void Title::init() {
     }
     const auto *img0 = titleTextureMgr_[0];
     int x = x_ + width_ / 2 - img0->width() + img0->originX();
-    int y = y_ + height_ * 3 / 4;
+    int y = y_ + height_ * 9 / 10 - 120;
     std::pair<int, int> offsetY[9] = {
         {y, 120}, {y, 40}, {y + 40, 40}, {y + 80, 40},
         {y, 120}, {y, 40}, {y + 40, 40}, {y + 80, 40}, {y, 40}

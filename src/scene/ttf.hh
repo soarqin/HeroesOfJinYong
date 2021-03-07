@@ -40,7 +40,7 @@ enum {
 
 struct rect_pack_data;
 
-class TTF {
+class TTF final {
 protected:
     struct FontData {
         int16_t rpx, rpy;
@@ -60,10 +60,8 @@ protected:
 #endif
     };
 public:
-    TTF(void *renderer);
-    virtual ~TTF();
-
-    virtual void setDrawColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {}
+    explicit TTF(void *renderer);
+    ~TTF();
 
     void init(int size, std::uint8_t width = 0);
     void deinit();
@@ -73,7 +71,7 @@ public:
     inline int fontSize() const { return fontSize_; }
     void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
-    void render(std::wstring_view str, int x, int y, int maxw);
+    void render(std::wstring_view str, int x, int y, bool shadow);
 
 private:
     void newRectPack();

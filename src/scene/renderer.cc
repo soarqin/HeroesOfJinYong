@@ -30,9 +30,9 @@ Renderer::Renderer(void *win, int w, int h):
     ttf_(new TTF(renderer_)) {
     SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
     if (w * 3 > h * 4) {
-        ttf_->init(h / 64 * 2);
+        ttf_->init(h / 48 * 2);
     } else {
-        ttf_->init(w * 3 / 4 / 64 * 2);
+        ttf_->init(w * 3 / 4 / 48 * 2);
     }
     ttf_->add("mono.ttf");
     ttf_->add("cjk.ttf");

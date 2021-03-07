@@ -22,6 +22,7 @@
 #include "renderer.hh"
 #include "texture.hh"
 #include "mapwithevent.hh"
+#include "messagebox.hh"
 
 #include <string>
 #include <cstdint>
@@ -61,9 +62,12 @@ public:
     void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
+
     void closePopup();
+    void endPopup(bool close = false);
+
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
-    void endTalk();
+    void popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type = MessageBox::Normal);
 
 private:
     int width_, height_;

@@ -21,32 +21,29 @@
 
 #include "node.hh"
 
-#include <vector>
-#include <string>
-#include <cstdint>
-
 namespace hojy::scene {
 
-class TalkBox: public Node {
+class MessageBox: public Node {
+public:
+    enum Type {
+        Normal,
+        YesNo,
+    };
+
 public:
     using Node::Node;
-    ~TalkBox() override;
-
-    void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
+    ~MessageBox() override;
 
     void close() override;
+    void popup(const std::vector<std::wstring> &text, Type type = Normal);
     void render() override;
     void handleKeyInput(Key key) override;
 
 private:
-    void makeCache();
+    void makeCache(const std::vector<std::wstring> &text);
 
 private:
-    std::vector<std::wstring> text_;
-    const Texture *headTex_ = nullptr;
     Texture *cache_ = nullptr;
-    std::int16_t position_ = 0;
-    int index_ = 0, dispLines_ = 0;
 };
 
 }

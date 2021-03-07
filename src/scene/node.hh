@@ -46,12 +46,14 @@ public:
     void add(Node *child);
     void remove(Node *child);
 
+    virtual void close() { removeAllChildren(); }
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}
 
 protected:
     void doRender();
     void doHandleKeyInput(Key key);
+    void removeAllChildren();
 
 protected:
     Node *parent_;

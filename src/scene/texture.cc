@@ -26,7 +26,22 @@
 
 namespace hojy::scene {
 
+int upToPowerOf2(int n) {
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    return n + 1;
+}
+
 Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
+#ifdef ALLOW_ODD_WIDTH
+#else
+    w = upToPowerOf2(w);
+    h = upToPowerOf2(h);
+#endif
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
     auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);

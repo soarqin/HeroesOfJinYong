@@ -133,7 +133,7 @@ void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     r_ = r; g_ = g; b_ = b;
 }
 
-void TTF::render(std::wstring_view str, int x, int y, int maxw) {
+void TTF::render(std::wstring_view str, int x, int y, bool shadow) {
     auto *renderer = static_cast<SDL_Renderer*>(renderer_);
     for (auto ch: str) {
         const FontData *fd;
@@ -147,14 +147,23 @@ void TTF::render(std::wstring_view str, int x, int y, int maxw) {
             fd = &ite->second;
             if (fd->advW == 0) continue;
         }
-        SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
-        SDL_Rect dstrc = {x + fd->ix0 + 2, y + fd->iy0 + 2, fd->w, fd->h};
-        auto *tex = static_cast<SDL_Texture*>(textures_[fd->rpidx]);
-        SDL_SetTextureColorMod(tex, 0, 0, 0);
-        SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
-        dstrc.x -= 2; dstrc.y -= 2;
-        SDL_SetTextureColorMod(tex, r_, g_, b_);
-        SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+        if (shadow) {
+            SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
+            SDL_Rect dstrc = {x + fd->ix0 + 2, y + fd->iy0 + 2, fd->w, fd->h};
+            auto *tex = static_cast<SDL_Texture *>(textures_[fd->rpidx]);
+            SDL_SetTextureColorMod(tex, 0, 0, 0);
+            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+            dstrc.x -= 2;
+            dstrc.y -= 2;
+            SDL_SetTextureColorMod(tex, r_, g_, b_);
+            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+        } else {
+            SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
+            SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
+            auto *tex = static_cast<SDL_Texture *>(textures_[fd->rpidx]);
+            SDL_SetTextureColorMod(tex, r_, g_, b_);
+            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+        }
         x += fd->advW;
     }
 }

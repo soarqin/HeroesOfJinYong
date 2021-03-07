@@ -112,9 +112,9 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     }
 
     std::sort(buildingTex_.begin(), buildingTex_.end(), BuildingTexComp());
-    drawingBuildingTex_[0] = Texture::createAsTarget(renderer_, 2048, 1024);
+    drawingBuildingTex_[0] = Texture::createAsTarget(renderer_, width_, height_);
     drawingBuildingTex_[0]->enableBlendMode(true);
-    drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, 2048, 1024);
+    drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, width_, height_);
     drawingBuildingTex_[1]->enableBlendMode(true);
     resetTime();
     updateMainCharTexture();

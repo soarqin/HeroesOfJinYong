@@ -23,6 +23,7 @@
 #include "data/event.hh"
 #include "mem/savedata.hh"
 #include "util/random.hh"
+#include "util/conv.hh"
 
 namespace hojy::scene {
 
@@ -295,8 +296,8 @@ bool MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t h
 
 bool MapWithEvent::addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
     mem::gBag.add(itemId, itemCount);
-    /* TODO: get item tips */
-    return true;
+    gWindow->popupMessageBox({L"獲得 " + util::big5Conv.toUnicode(mem::gSaveData.itemInfo[itemId]->name) + L'x' + std::to_wstring(itemCount)});
+    return false;
 }
 
 bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked,
@@ -375,8 +376,8 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
 }
 
 int MapWithEvent::wantSleep(MapWithEvent *map) {
-    /* TODO: implement this */
-    return 0;
+    gWindow->popupMessageBox({L"請選擇是或否？"}, MessageBox::YesNo);
+    return -1;
 }
 
 bool MapWithEvent::sleep(MapWithEvent *map) {
@@ -612,8 +613,8 @@ bool MapWithEvent::animation2(MapWithEvent *map, std::int16_t eventId, std::int1
 }
 
 bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
-                              std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2,
-                              std::int16_t eventId3, std::int16_t begTex3, std::int16_t endTex3) {
+                              std::int16_t eventId2, std::int16_t begTex2,
+                              std::int16_t eventId3, std::int16_t begTex3) {
     /* TODO: implement this */
     return true;
 }
@@ -650,7 +651,6 @@ int MapWithEvent::checkHas5Item(MapWithEvent *map, std::int16_t itemId0, std::in
 }
 
 bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
-    /* TODO: implement this */
     return doTalk(map, 2547 + util::gRandom(18), 114, 0);
 }
 
@@ -677,18 +677,25 @@ bool MapWithEvent::openWorld(MapWithEvent *) {
 }
 
 int MapWithEvent::checkEventID(MapWithEvent *map, std::int16_t eventId, std::int16_t value) {
-    /* TODO: implement this */
-    return 0;
+    return mem::gSaveData.subMapEventInfo[map->subMapId_]->events[eventId].event[0] == value ? 1 : 0;
 }
 
 bool MapWithEvent::addReputation(MapWithEvent *map, std::int16_t value) {
-    /* TODO: implement this */
+    auto *charInfo = mem::gSaveData.charInfo[0];
+    auto oldRep = charInfo->reputation;
+    charInfo->reputation += value;
+    if (oldRep <= 200 && charInfo->reputation > 200) {
+        modifyEvent(map, 70, 11, 0, 11, 932, -1, -1, 7968, 7968, 7968, 0, 18, 21);
+    }
     return true;
 }
 
 bool MapWithEvent::removeBarrier(MapWithEvent *map) {
-    /* TODO: implement this */
-    return true;
+    animation(map, -1, 3832 * 2, 3844 * 2);
+    map->pendingSubEvents_.emplace_back([map]() {
+        return animation3(map, 2, 3845 * 2, 3873 * 2, 3, 3874 * 2, 4, 3903 * 2);
+    });
+    return false;
 }
 
 bool MapWithEvent::tournament(MapWithEvent *map) {
@@ -697,18 +704,27 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
 }
 
 bool MapWithEvent::disbandTeam(MapWithEvent *map) {
-    /* TODO: implement this */
+    for (int i = 1; i < mem::TeamMemberCount; ++i) {
+        mem::gSaveData.baseInfo->members[i] = -1;
+    }
     return true;
 }
 
 int MapWithEvent::checkSubMapTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t tex) {
-    /* TODO: implement this */
-    return 0;
+    const auto &evt = mem::gSaveData.subMapEventInfo[subMapId < 0 ? map->subMapId_ : subMapId]->events[eventId];
+    return (evt.currTex == tex || evt.begTex == tex || evt.endTex == tex) ? 1 : 0;
 }
 
 int MapWithEvent::checkAllStoryBooks(MapWithEvent *map) {
-    /* TODO: implement this */
-    return 0;
+    const auto &events = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
+    for (int i = 11; i <= 24; i++)
+    {
+        if (events[i].currTex != 4664)
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 bool MapWithEvent::goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
@@ -717,8 +733,9 @@ bool MapWithEvent::goBackHome(MapWithEvent *map, std::int16_t eventId, std::int1
     return true;
 }
 
-bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t value) {
-    /* TODO: implement this */
+bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    charInfo->sex = value;
     return true;
 }
 
@@ -726,8 +743,8 @@ bool MapWithEvent::openShop(MapWithEvent *map) {
     doTalk(map, 0xB9E, 0x6F, 0);
     /* TODO: popup shop ui */
     map->pendingSubEvents_.emplace_back([map]() {
-        doTalk(map, 0xBA0, 0x6F, 0);
-        return false;
+        gWindow->closePopup();
+        return doTalk(map, 0xBA0, 0x6F, 0);
     });
     return false;
 }

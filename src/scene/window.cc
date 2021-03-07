@@ -30,7 +30,6 @@
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
-#include "core/config.hh"
 
 #include <SDL.h>
 
@@ -219,12 +218,24 @@ void Window::closePopup() {
     if (!popup_) { return; }
     if (freeOnClose_) {
         delete popup_;
+    } else {
+        popup_->close();
     }
     popup_ = nullptr;
 }
 
+void Window::endPopup(bool close) {
+    if (close) {
+        closePopup();
+    }
+    if (map_) {
+        map_->continueEvents();
+    }
+}
+
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
     if (popup_) {
+        map_->continueEvents(false);
         return;
     }
     if (!talkBox_) {
@@ -235,10 +246,16 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
     freeOnClose_ = false;
 }
 
-void Window::endTalk() {
-    if (map_) {
-        map_->continueEvents();
+void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type) {
+    MessageBox *msgBox;
+    if (popup_) {
+        msgBox = new MessageBox(popup_, 50, 50, width_ - 100, height_ - 100);
+    } else {
+        msgBox = new MessageBox(renderer_, 50, 50, width_ - 100, height_ - 100);
+        popup_ = msgBox;
+        freeOnClose_ = true;
     }
+    msgBox->popup(text, type);
 }
 
 }

@@ -51,6 +51,11 @@ bool Config::load(const std::string &filename) {
             if (!path.empty() && path.back() != '/') { path += '/'; }
         }
     }
+    auto window = tbl["window"];
+    if (window) {
+        windowWidth_ = window["width"].value_or<int>(640);
+        windowHeight_ = window["height"].value_or<int>(480);
+    }
     return true;
 }
 

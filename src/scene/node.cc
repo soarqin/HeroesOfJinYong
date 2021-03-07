@@ -29,10 +29,7 @@ Node::Node(Node *parent, int x, int y, int width, int height) : parent_(parent),
 
 Node::~Node() {
     if (parent_) { parent_->remove(this); }
-    for (auto *n: children_) {
-        delete n;
-    }
-    children_.clear();
+    removeAllChildren();
 }
 
 void Node::add(Node *child) {
@@ -56,6 +53,13 @@ void Node::doHandleKeyInput(Node::Key key) {
         return;
     }
     children_.back()->handleKeyInput(key);
+}
+
+void Node::removeAllChildren() {
+    for (auto *n: children_) {
+        delete n;
+    }
+    children_.clear();
 }
 
 }

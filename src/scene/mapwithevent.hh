@@ -91,8 +91,8 @@ private:
     static bool animation2(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                            std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
     static bool animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
-                           std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2,
-                           std::int16_t eventId3, std::int16_t begTex3, std::int16_t endTex3);
+                           std::int16_t eventId2, std::int16_t begTex2,
+                           std::int16_t eventId3, std::int16_t begTex3);
     static bool addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value);
@@ -113,7 +113,7 @@ private:
     static int checkAllStoryBooks(MapWithEvent *map);
     static bool goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                            std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2);
-    static bool setSex(MapWithEvent *map, std::int16_t value);
+    static bool setSex(MapWithEvent *map, std::int16_t charId, std::int16_t value);
     static bool openShop(MapWithEvent *map);
     static bool playMusic(MapWithEvent *map, std::int16_t musicId);
     static bool playSound(MapWithEvent *map, std::int16_t soundId);
