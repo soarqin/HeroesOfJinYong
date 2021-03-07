@@ -17,31 +17,31 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "nodewithcache.hh"
 
-#include <string>
-#include <vector>
+#include "texture.hh"
 
-namespace hojy::core {
+namespace hojy::scene {
 
-class Config {
-public:
-    bool load(const std::string &filename);
+NodeWithCache::~NodeWithCache() {
+    delete cache_;
+}
 
-    [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
-    [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
+void NodeWithCache::close() {
+    delete cache_;
+    cache_ = nullptr;
+    Node::close();
+}
 
-    [[nodiscard]] int windowWidth() const { return windowWidth_; }
-    [[nodiscard]] int windowHeight() const { return windowHeight_; }
+void NodeWithCache::render() {
+    renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
+}
 
-    [[nodiscard]] bool showPotential() const { return showPotential_; }
-
-private:
-    std::vector<std::string> dataPath_;
-    int windowWidth_ = 640, windowHeight_ = 480;
-    bool showPotential_ = false;
-};
-
-extern Config config;
+void NodeWithCache::makeCache() {
+    if (!cache_) {
+        cache_ = Texture::createAsTarget(renderer_, width_, height_);
+        cache_->enableBlendMode(true);
+    }
+}
 
 }

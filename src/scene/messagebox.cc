@@ -20,31 +20,20 @@
 #include "messagebox.hh"
 
 #include "texture.hh"
+#include "menu.hh"
 #include "window.hh"
 
 namespace hojy::scene {
 
-MessageBox::~MessageBox() {
-    delete cache_;
-}
-
 void MessageBox::popup(const std::vector<std::wstring> &text, MessageBox::Type type) {
-    makeCache(text);
-}
-
-void MessageBox::close() {
-    delete cache_;
-    cache_ = nullptr;
-    removeAllChildren();
-}
-
-void MessageBox::render() {
-    renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
+    text_ = text;
+    type_ = type;
+    makeCache();
 }
 
 void MessageBox::handleKeyInput(Node::Key key) {
     switch (key) {
-    case KeyOK: case KeyCancel:
+    case KeyOK: case KeySpace: case KeyCancel:
         gWindow->endPopup(true);
         break;
     default:
@@ -52,18 +41,16 @@ void MessageBox::handleKeyInput(Node::Key key) {
     }
 }
 
-void MessageBox::makeCache(const std::vector<std::wstring> &text) {
-    if (!cache_) {
-        cache_ = Texture::createAsTarget(renderer_, width_, height_);
-        cache_->enableBlendMode(true);
-    }
+void MessageBox::makeCache() {
+    NodeWithCache::makeCache();
+
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
 
     std::vector<std::wstring> lines;
     size_t widthMax = width_ - SubWindowBorder * 2;
     int textW = 0, textH;
-    for (auto &l: text) {
+    for (auto &l: text_) {
         size_t w = 0;
         size_t len = l.length();
         size_t idx = 0;
@@ -86,7 +73,7 @@ void MessageBox::makeCache(const std::vector<std::wstring> &text) {
         }
     }
     textW += SubWindowBorder * 2;
-    textH = rowHeight * int(lines.size()) + SubWindowBorder * 2 + TextLineSpacing;
+    textH = rowHeight * int(lines.size()) + SubWindowBorder * 2 - TextLineSpacing;
     int textX = (width_ - textW) / 2;
     int textY = (height_ - textH) / 2;
 
@@ -94,13 +81,28 @@ void MessageBox::makeCache(const std::vector<std::wstring> &text) {
     renderer_->fill(0, 0, 0, 0);
     int x = SubWindowBorder + textX;
     int y = SubWindowBorder + textY;
-    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 0, 0, 0, 160);
+    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 64, 64, 64, 160);
     ttf->setColor(236, 200, 40);
     for (auto &l: lines) {
         ttf->render(l, x, y, true);
         y += rowHeight;
     }
     renderer_->setTargetTexture(nullptr);
+    text_.clear();
+
+    if (type_ == YesNo) {
+        if (menu_ == nullptr) {
+            auto mx = x_ + textX + textW + 5, my = y_ + textY;
+            auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
+            m->popupWithYesNo();
+            m->setHandler([]{
+                gWindow->endPopup(true, true);
+            }, [] {
+                gWindow->endPopup(true, false);
+            });
+            menu_ = m;
+        }
+    }
 }
 
 }

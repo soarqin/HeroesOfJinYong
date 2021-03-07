@@ -35,6 +35,7 @@ public:
     Renderer(const Renderer&) = delete;
     ~Renderer();
 
+    void enableLinear(bool linear = true);
     void setTargetTexture(Texture *tex);
     void setClipRect(int x, int y, int w, int h);
     void unsetClipRect();

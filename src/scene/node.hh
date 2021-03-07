@@ -37,6 +37,8 @@ public:
         KeyCancel,
         KeyYes,
         KeyNo,
+        KeySpace,
+        KeyBackspace,
     };
 public:
     Node(Node *parent, int x, int y, int width, int height);
@@ -49,10 +51,12 @@ public:
     virtual void close() { removeAllChildren(); }
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}
+    virtual void handleTextInput(const std::wstring &str) {}
 
 protected:
     void doRender();
     void doHandleKeyInput(Key key);
+    void doTextInput(const std::wstring &str);
     void removeAllChildren();
 
 protected:

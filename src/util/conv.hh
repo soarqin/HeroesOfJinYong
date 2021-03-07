@@ -43,7 +43,13 @@ protected:
 
 class Big5Conv final: public Conv {
 public:
-    Big5Conv();
+    Big5Conv() noexcept;
+};
+
+class Utf8Conv {
+public:
+    static std::wstring toUnicode(std::string_view str);
+    static std::string fromUnicode(std::wstring_view wstr);
 };
 
 class Trad2SimpConv final {
@@ -52,7 +58,7 @@ class Trad2SimpConv final {
         std::map<uint32_t, CNode> nodes;
     };
 public:
-    Trad2SimpConv();
+    Trad2SimpConv() noexcept;
     std::wstring convert(const std::wstring &str);
 
 private:

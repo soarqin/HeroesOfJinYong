@@ -64,7 +64,7 @@ public:
     void enterSubMap(std::int16_t subMapId, int direction);
 
     void closePopup();
-    void endPopup(bool close = false);
+    void endPopup(bool close = false, bool result = true);
 
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
     void popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type = MessageBox::Normal);

@@ -129,6 +129,17 @@ void TTF::charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, s
     b = fd->iy0 + fd->h;
 }
 
+int TTF::stringWidth(const std::wstring &str) {
+    std::uint8_t w;
+    std::int8_t t, b;
+    int res = 0;
+    for (auto &ch: str) {
+        charDimension(ch, w, t, b);
+        res += int(std::uint32_t(w));
+    }
+    return res;
+}
+
 void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     r_ = r; g_ = g; b_ = b;
 }
@@ -218,7 +229,7 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
     int ix0, iy0, ix1, iy1;
     stbtt_GetGlyphBitmapBoxSubpixel(info, index, fi->font_scale, fi->font_scale, 0, 0, &ix0, &iy0, &ix1, &iy1);
     fd->ix0 = ix0;
-    fd->iy0 = fontSize_ + iy0;
+    fd->iy0 = fontSize_ * 7 / 8 + iy0;
     fd->w = ix1 - ix0;
     fd->h = iy1 - iy0;
 #endif

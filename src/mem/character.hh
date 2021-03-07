@@ -59,7 +59,7 @@ enum {
 #pragma pack(push, 1)
 struct CharacterData {
     std::int16_t id;
-    std::int16_t headId, incLife, padding;
+    std::int16_t headId, hpAddOnLevelUp, padding;
     char name[10], nick[10];
     std::int16_t sex;
     std::int16_t level;

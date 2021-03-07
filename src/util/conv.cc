@@ -90,13 +90,107 @@ void Conv::postInit() {
     std::sort(tableRev_.begin(), tableRev_.end());
 }
 
-Big5Conv::Big5Conv() {
+Big5Conv::Big5Conv() noexcept {
     table_ =
 #include "big5table.inl"
     postInit();
 }
 
-Trad2SimpConv::Trad2SimpConv() {
+std::wstring Utf8Conv::toUnicode(std::string_view str) {
+    size_t sz = str.size();
+    const auto *n = reinterpret_cast<const uint8_t*>(str.data());
+    size_t i = 0;
+    std::wstring res;
+    while (i < sz) {
+        if (n[i] < 0x80) {
+            res += wchar_t(n[i]);
+            ++i; continue;
+        }
+        if (n[i] < 0xE0) {
+            if (i + 2 > sz) { break; }
+            res += wchar_t((std::uint32_t(n[i] & 0x1F) << 6) | std::uint32_t(n[i + 1] & 0x3F));
+            i += 2; continue;
+        }
+        if (n[i] < 0xF0) {
+            if (i + 3 > sz) { break; }
+            res += wchar_t((std::uint32_t(n[i] & 0x0F) << 12) | ((std::uint32_t(n[i + 1] & 0x3F) << 6))
+                           | (std::uint32_t(n[i + 2] & 0x3F)));
+            i += 3; continue;
+        }
+        if (n[i] < 0xF8) {
+            if (i + 4 > sz) { break; }
+            if constexpr (sizeof(wchar_t) > 2) {
+                res += wchar_t((std::uint32_t(n[i] & 0x07) << 18) | ((std::uint32_t(n[i + 1] & 0x3F) << 12))
+                               | ((std::uint32_t(n[i + 2] & 0x3F) << 6)) | (std::uint32_t(n[i + 3] & 0x3F)));
+            }
+            i += 4; continue;
+        }
+        if (n[i] < 0xFC) {
+            if (i + 5 > sz) { break; }
+            if constexpr (sizeof(wchar_t) > 2) {
+                res += wchar_t((std::uint32_t(n[i] & 0x03) << 24) | ((std::uint32_t(n[i + 1] & 0x3F) << 18))
+                               | ((std::uint32_t(n[i + 2] & 0x3F) << 12)) | ((std::uint32_t(n[i + 3] & 0x3F) << 6))
+                               | (std::uint32_t(n[i + 4] & 0x3F)));
+            }
+            i += 5; continue;
+        }
+        if (i + 6 > sz) { break; }
+        if constexpr (sizeof(wchar_t) > 2) {
+            res += wchar_t((std::uint32_t(n[i] & 0x01) << 30) | ((std::uint32_t(n[i + 1] & 0x3F) << 24))
+                           | ((std::uint32_t(n[i + 2] & 0x3F) << 18)) | ((std::uint32_t(n[i + 3] & 0x3F) << 12))
+                           | ((std::uint32_t(n[i + 4] & 0x3F) << 6)) | (std::uint32_t(n[i + 5] & 0x3F)));
+        }
+        i += 6;
+    }
+    return res;
+}
+
+std::string Utf8Conv::fromUnicode(std::wstring_view wstr) {
+    std::string res;
+    for (auto &ch: wstr) {
+        if (ch < 0x80) {
+            res += char(ch);
+            continue;
+        }
+        if (ch < 0x800) {
+            res += char(0xC0 | (ch >> 6));
+            res += char(0x80 | (ch & 0x3F));
+            continue;
+        }
+        if constexpr (sizeof(wchar_t) > 2) {
+            if (ch < 0x10000) {
+                res += char(0xE0 | (ch >> 12));
+                res += char(0x80 | ((ch >> 6) & 0x3F));
+                res += char(0x80 | (ch & 0x3F));
+                continue;
+            }
+            if (ch < 0x200000) {
+                res += char(0xF0 | (ch >> 18));
+                res += char(0x80 | ((ch >> 12) & 0x3F));
+                res += char(0x80 | ((ch >> 6) & 0x3F));
+                res += char(0x80 | (ch & 0x3F));
+                continue;
+            }
+            if (ch < 0x4000000) {
+                res += char(0xF8 | (ch >> 24));
+                res += char(0x80 | ((ch >> 18) & 0x3F));
+                res += char(0x80 | ((ch >> 12) & 0x3F));
+                res += char(0x80 | ((ch >> 6) & 0x3F));
+                res += char(0x80 | (ch & 0x3F));
+                continue;
+            }
+            res += char(0xFC | (ch >> 30));
+            res += char(0x80 | ((ch >> 24) & 0x3F));
+            res += char(0x80 | ((ch >> 18) & 0x3F));
+            res += char(0x80 | ((ch >> 12) & 0x3F));
+            res += char(0x80 | ((ch >> 6) & 0x3F));
+            res += char(0x80 | (ch & 0x3F));
+        }
+    }
+    return res;
+}
+
+Trad2SimpConv::Trad2SimpConv() noexcept {
     charTable_ = {
 #include "tschars.inl"
     };

@@ -55,6 +55,14 @@ void Node::doHandleKeyInput(Node::Key key) {
     children_.back()->handleKeyInput(key);
 }
 
+void Node::doTextInput(const std::wstring &str) {
+    if (children_.empty()) {
+        handleTextInput(str);
+        return;
+    }
+    children_.back()->handleTextInput(str);
+}
+
 void Node::removeAllChildren() {
     for (auto *n: children_) {
         delete n;

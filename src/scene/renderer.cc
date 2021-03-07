@@ -43,6 +43,10 @@ Renderer::~Renderer() {
     SDL_DestroyRenderer(static_cast<SDL_Renderer*>(renderer_));
 }
 
+void Renderer::enableLinear(bool linear) {
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, linear ? "linear" : "nearest");
+}
+
 void Renderer::setTargetTexture(Texture *tex) {
     SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
 }

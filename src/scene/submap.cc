@@ -221,7 +221,7 @@ void SubMap::render() {
 void SubMap::handleKeyInput(Key key) {
     if (currEventPaused_) { return; }
     switch (key) {
-    case KeyOK:
+    case KeyOK: case KeySpace:
         doInteract();
         break;
     default:

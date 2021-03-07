@@ -19,11 +19,11 @@
 
 #pragma once
 
-#include "node.hh"
+#include "nodewithcache.hh"
 
 namespace hojy::scene {
 
-class MessageBox: public Node {
+class MessageBox: public NodeWithCache {
 public:
     enum Type {
         Normal,
@@ -31,19 +31,18 @@ public:
     };
 
 public:
-    using Node::Node;
-    ~MessageBox() override;
+    using NodeWithCache::NodeWithCache;
 
-    void close() override;
     void popup(const std::vector<std::wstring> &text, Type type = Normal);
-    void render() override;
     void handleKeyInput(Key key) override;
 
 private:
-    void makeCache(const std::vector<std::wstring> &text);
+    void makeCache() override;
 
 private:
-    Texture *cache_ = nullptr;
+    std::vector<std::wstring> text_;
+    Node *menu_ = nullptr;
+    Type type_ = Normal;
 };
 
 }

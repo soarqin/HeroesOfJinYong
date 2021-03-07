@@ -19,25 +19,34 @@
 
 #pragma once
 
-#include "node.hh"
+#include "nodewithcache.hh"
 #include "texture.hh"
 
 namespace hojy::scene {
 
-class Title: public Node {
+class MenuYesNo;
+
+class Title final: public NodeWithCache {
 public:
-    using Node::Node;
+    using NodeWithCache::NodeWithCache;
     ~Title() override;
 
     void init();
-    void render() override;
     void handleKeyInput(Key key) override;
+    void handleTextInput(const std::wstring &str) override;
 
 private:
-    Node *images_[10] = {};
+    void makeCache() override;
+    void doRandomBaseInfo();
+    void drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType = -1);
+
+private:
     TextureMgr titleTextureMgr_;
-    bool selSave_ = false;
+    Texture *big_ = nullptr;
+    MenuYesNo *menu_ = nullptr;
+    int mode_ = 0;
     size_t currSel_ = 0;
+    std::wstring mainCharName_;
 };
 
 }

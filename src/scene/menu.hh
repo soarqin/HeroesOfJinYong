@@ -19,29 +19,49 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include "nodewithcache.hh"
+#include <functional>
 
-namespace hojy::core {
+namespace hojy::scene {
 
-class Config {
+class Menu: public NodeWithCache {
 public:
-    bool load(const std::string &filename);
+    using NodeWithCache::NodeWithCache;
 
-    [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
-    [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
+    void popup(const std::vector<std::wstring> &items, int defaultIndex = 0);
 
-    [[nodiscard]] int windowWidth() const { return windowWidth_; }
-    [[nodiscard]] int windowHeight() const { return windowHeight_; }
+    void handleKeyInput(Key key) override;
 
-    [[nodiscard]] bool showPotential() const { return showPotential_; }
+protected:
+    virtual void onOK() {}
+    virtual void onCancel() {}
 
 private:
-    std::vector<std::string> dataPath_;
-    int windowWidth_ = 640, windowHeight_ = 480;
-    bool showPotential_ = false;
+    void makeCache() override;
+
+protected:
+    std::vector<std::wstring> items_;
+    int currIndex_ = 0;
 };
 
-extern Config config;
+
+class MenuYesNo: public Menu {
+public:
+    using Menu::Menu;
+
+    void popupWithYesNo();
+
+    void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
+        yesHandler_ = yesHandler;
+        noHandler_ = noHandler;
+    }
+
+protected:
+    void onOK() override;
+    void onCancel() override;
+
+private:
+    std::function<void()> yesHandler_, noHandler_;
+};
 
 }

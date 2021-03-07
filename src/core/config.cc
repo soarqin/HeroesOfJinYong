@@ -56,6 +56,10 @@ bool Config::load(const std::string &filename) {
         windowWidth_ = window["width"].value_or<int>(640);
         windowHeight_ = window["height"].value_or<int>(480);
     }
+    auto ui = tbl["ui"];
+    if (ui) {
+        showPotential_ = ui["show_potential"].value_or<bool>(false);
+    }
     return true;
 }
 

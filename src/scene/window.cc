@@ -30,6 +30,7 @@
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
+#include "util/conv.hh"
 
 #include <SDL.h>
 
@@ -46,13 +47,13 @@ Window::Window(int w, int h): width_(w), height_(h) {
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         SDL_Init(SDL_INIT_VIDEO);
     }
-    auto *win = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
+    auto *win = SDL_CreateWindow("Heroes of Jin Yong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     win_ = win;
     gWindow = this;
 
     renderer_ = new Renderer(win_, w, h);
+    renderer_->enableLinear(false);
 
     SDL_ShowWindow(win);
 
@@ -65,11 +66,11 @@ Window::Window(int w, int h): width_(w), height_(h) {
     headTextureMgr_.setPalette(data::gNormalPalette);
     headTextureMgr_.setRenderer(renderer_);
     data::GrpData::DataSet dset;
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    renderer_->enableLinear(true);
     if (data::GrpData::loadData("HDGRP", dset)) {
         headTextureMgr_.loadFromRLE(dset);
     }
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+    renderer_->enableLinear(false);
 
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, 2.f);
     subMap_ = new SubMap(renderer_, 0, 0, w, h, 2.f);
@@ -91,6 +92,11 @@ bool Window::processEvents() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
+        case SDL_TEXTINPUT: {
+            auto *node = popup_ ? popup_ : map_;
+            node->doTextInput(util::Utf8Conv::toUnicode(e.text.text));
+            break;
+        }
         case SDL_KEYDOWN: {
             auto *node = popup_ ? popup_ : map_;
             switch (e.key.keysym.scancode) {
@@ -106,10 +112,10 @@ bool Window::processEvents() {
             case SDL_SCANCODE_DOWN:
                 node->doHandleKeyInput(Node::KeyDown);
                 break;
-            case SDL_SCANCODE_RETURN: case SDL_SCANCODE_SPACE:
+            case SDL_SCANCODE_RETURN:
                 node->doHandleKeyInput(Node::KeyOK);
                 break;
-            case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE: case SDL_SCANCODE_BACKSPACE:
+            case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE:
                 node->doHandleKeyInput(Node::KeyCancel);
                 break;
             case SDL_SCANCODE_Y:
@@ -117,6 +123,12 @@ bool Window::processEvents() {
                 break;
             case SDL_SCANCODE_N:
                 node->doHandleKeyInput(Node::KeyNo);
+                break;
+            case SDL_SCANCODE_SPACE:
+                node->doHandleKeyInput(Node::KeySpace);
+                break;
+            case SDL_SCANCODE_BACKSPACE:
+                node->doHandleKeyInput(Node::KeyBackspace);
                 break;
             default:
                 break;
@@ -178,7 +190,6 @@ void Window::playEffectSound(int idx) {
 }
 
 void Window::newGame() {
-    mem::gSaveData.newGame();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     dynamic_cast<SubMap*>(subMap_)->load(70, 19, 20);
     dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
@@ -224,12 +235,12 @@ void Window::closePopup() {
     popup_ = nullptr;
 }
 
-void Window::endPopup(bool close) {
+void Window::endPopup(bool close, bool result) {
     if (close) {
         closePopup();
     }
     if (map_) {
-        map_->continueEvents();
+        map_->continueEvents(result);
     }
 }
 

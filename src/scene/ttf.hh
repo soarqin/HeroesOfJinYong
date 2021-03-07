@@ -67,6 +67,7 @@ public:
     void deinit();
     bool add(const std::string& filename, int index = 0);
     void charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b);
+    int stringWidth(const std::wstring &str);
 
     inline int fontSize() const { return fontSize_; }
     void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);

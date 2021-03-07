@@ -19,29 +19,24 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include "node.hh"
 
-namespace hojy::core {
+namespace hojy::scene {
 
-class Config {
+class NodeWithCache: public Node {
 public:
-    bool load(const std::string &filename);
+    using Node::Node;
 
-    [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
-    [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
+    ~NodeWithCache() override;
 
-    [[nodiscard]] int windowWidth() const { return windowWidth_; }
-    [[nodiscard]] int windowHeight() const { return windowHeight_; }
+    void close() override;
+    void render() override;
 
-    [[nodiscard]] bool showPotential() const { return showPotential_; }
+protected:
+    virtual void makeCache();
 
-private:
-    std::vector<std::string> dataPath_;
-    int windowWidth_ = 640, windowHeight_ = 480;
-    bool showPotential_ = false;
+protected:
+    Texture *cache_ = nullptr;
 };
-
-extern Config config;
 
 }

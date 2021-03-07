@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "node.hh"
+#include "nodewithcache.hh"
 
 #include <vector>
 #include <string>
@@ -27,24 +27,20 @@
 
 namespace hojy::scene {
 
-class TalkBox: public Node {
+class TalkBox: public NodeWithCache {
 public:
-    using Node::Node;
-    ~TalkBox() override;
+    using NodeWithCache::NodeWithCache;
 
     void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
 
-    void close() override;
-    void render() override;
     void handleKeyInput(Key key) override;
 
 private:
-    void makeCache();
+    void makeCache() override;
 
 private:
     std::vector<std::wstring> text_;
     const Texture *headTex_ = nullptr;
-    Texture *cache_ = nullptr;
     std::int16_t position_ = 0;
     int index_ = 0, dispLines_ = 0;
 };
