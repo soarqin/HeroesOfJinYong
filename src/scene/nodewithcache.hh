@@ -30,6 +30,7 @@ public:
     ~NodeWithCache() override;
 
     inline void update() { cacheDirty_ = true; }
+    inline void forceUpdate() { cacheDirty_ = false; makeCache(); }
 
     void close() override;
     void render() override;

@@ -27,13 +27,18 @@ class MessageBox: public NodeWithCache {
 public:
     enum Type {
         Normal,
+        ClickToClose,
         YesNo,
+    };
+    enum Align {
+        Center,
+        TopLeft,
     };
 
 public:
     using NodeWithCache::NodeWithCache;
 
-    void popup(const std::vector<std::wstring> &text, Type type = Normal);
+    void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
     void handleKeyInput(Key key) override;
 
 private:
@@ -43,6 +48,7 @@ private:
     std::vector<std::wstring> text_;
     Node *menu_ = nullptr;
     Type type_ = Normal;
+    Align align_ = Center;
 };
 
 }

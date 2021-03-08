@@ -63,6 +63,13 @@ void Menu::handleKeyInput(Key key) {
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
     int w = 0;
+    int itemsTW = 0;
+    auto lines = int(items_.size());
+    auto totalLines = lines;
+    if (!title_.empty()) {
+        ++totalLines;
+        w = itemsTW = ttf->stringWidth(title_);
+    }
     std::vector<int> itemsW;
     itemsW.reserve(items_.size());
     for (auto &s: items_) {
@@ -73,8 +80,7 @@ void Menu::makeCache() {
     int nw = w;
     w += SubWindowBorder * 2;
     auto rowHeight = ttf->fontSize() + TextLineSpacing;
-    auto lines = int(items_.size());
-    auto h = rowHeight * lines + SubWindowBorder * 2 - TextLineSpacing;
+    auto h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
     auto x = 0, y = 0;
 /* TODO: support centered menu?
     x = (width_ - w) / 2;
@@ -90,18 +96,24 @@ void Menu::makeCache() {
     renderer_->fillRoundedRect(x, y, w, h, RoundedRectRad, 64, 64, 64, 160);
     renderer_->drawRoundedRect(x, y, w, h, RoundedRectRad, 224, 224, 224, 255);
     x += SubWindowBorder; y += SubWindowBorder;
+    if (!title_.empty()) {
+        ttf->setColor(236, 200, 40);
+        ttf->render(title_, x/* + (nw - itemsTW) / 2*/, y, true);
+        y += rowHeight;
+    }
     for (int i = 0; i < lines; ++i, y += rowHeight) {
         if (i == currIndex_) {
-            ttf->setColor(252, 148, 16);
-        } else {
             ttf->setColor(236, 236, 236);
+        } else {
+            ttf->setColor(252, 148, 16);
         }
-        ttf->render(items_[i], x + (nw - itemsW[i]) / 2, y, true);
+        ttf->render(items_[i], x/* + (nw - itemsW[i]) / 2*/, y, true);
     }
     renderer_->setTargetTexture(nullptr);
 }
 
 void MenuTextList::onOK() {
+    if (currIndex_ < 0) { return; }
     okHandler_(currIndex_);
 }
 

@@ -39,7 +39,10 @@ void Node::add(Node *child) {
 }
 
 void Node::remove(Node *child) {
-    children_.erase(std::remove(children_.begin(), children_.end(), child), children_.end());
+    auto ite = std::remove(children_.begin(), children_.end(), child);
+    if (ite == children_.end()) { return; }
+    child->parent_ = nullptr;
+    children_.erase(ite, children_.end());
 }
 
 void Node::fadeEnd() {

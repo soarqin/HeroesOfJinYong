@@ -226,7 +226,7 @@ void Title::makeCache() {
 }
 
 void Title::doRandomBaseInfo() {
-    (void*)this;
+    (void)this;
     auto *data = mem::gSaveData.charInfo[0];
     data->maxHp = util::gRandom(25, 50);
     data->hp = data->maxHp;

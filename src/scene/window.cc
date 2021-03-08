@@ -220,6 +220,7 @@ void Window::loadGame(int slot) {
 }
 
 void Window::forceQuit() {
+    (void)this;
     static SDL_QuitEvent evt = {SDL_QUIT, SDL_GetTicks()};
     SDL_PushEvent(reinterpret_cast<SDL_Event*>(&evt));
 }
@@ -265,6 +266,112 @@ void Window::endPopup(bool close, bool result) {
     }
 }
 
+static void medicTargetMenu(Node *mainMenu, int16_t charId) {
+    auto x = mainMenu->x() + mainMenu->width() + 30;
+    auto y = mainMenu->y() + 20;
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"要醫治誰"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    subMenu->setTitle(L"生命點數");
+    std::vector<std::wstring> names;
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->hp) + L'/' + std::to_wstring(charInfo->maxHp));
+    }
+    subMenu->setHandler([charId](int index) {
+        /* TODO: do heal */
+        gWindow->closePopup();
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+    subMenu->popup(names);
+}
+
+static void medicMenu(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"誰要使用醫術"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    subMenu->setTitle(L"醫療能力");
+    std::vector<std::wstring> names;
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->medic));
+    }
+    subMenu->setHandler([mainMenu](int index) {
+        medicTargetMenu(mainMenu, mem::gSaveData.baseInfo->members[index]);
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+    subMenu->popup(names);
+}
+
+static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
+    auto x = mainMenu->x() + mainMenu->width() + 30;
+    auto y = mainMenu->y() + 20;
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"替誰解毒"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    subMenu->setTitle(L"中毒程度");
+    std::vector<std::wstring> names;
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->poisoned));
+    }
+    subMenu->setHandler([charId](int index) {
+        /* TODO: do depoison */
+        gWindow->closePopup();
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+    subMenu->popup(names);
+}
+
+static void depoisonMenu(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"誰要幫人解毒"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    subMenu->setTitle(L"解毒能力");
+    std::vector<std::wstring> names;
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->depoison));
+    }
+    subMenu->setHandler([mainMenu](int index) {
+        depoisonTargetMenu(mainMenu, mem::gSaveData.baseInfo->members[index]);
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+    subMenu->popup(names);
+}
+
 void Window::showMainMenu(bool inSubMap) {
     if (popup_) {
         return;
@@ -272,10 +379,27 @@ void Window::showMainMenu(bool inSubMap) {
     if (mainMenu_ == nullptr) {
         auto *menu = new MenuTextList(renderer_, 40, 40, width_ - 80, height_ - 80);
         mainMenu_ = menu;
-        menu->setHandler([](int index) {
+        menu->setHandler([this](int index) {
+            switch (index) {
+            case 0:
+                medicMenu(mainMenu_);
+                break;
+            case 1:
+                depoisonMenu(mainMenu_);
+                break;
+            case 2:
+                break;
+            case 3:
+                break;
+            case 4:
+                break;
+            case 5:
+                break;
+            }
         }, [this]() {
             closePopup();
         });
+        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態", L"離隊", L"系統"});
     }
     popup_ = mainMenu_;
     freeOnClose_ = false;

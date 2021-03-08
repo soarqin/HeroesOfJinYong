@@ -28,6 +28,7 @@ class Menu: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
+    inline void setTitle(const std::wstring &title) { title_ = title; }
     void popup(const std::vector<std::wstring> &items, int defaultIndex = 0);
 
     void handleKeyInput(Key key) override;
@@ -40,6 +41,7 @@ private:
     void makeCache() override;
 
 protected:
+    std::wstring title_;
     std::vector<std::wstring> items_;
     int currIndex_ = 0;
 };

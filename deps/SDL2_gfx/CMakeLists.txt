@@ -5,9 +5,9 @@ find_package(SDL2 REQUIRED)
 option(SDL2_GFX_USE_MMX "Use MMX for SDL2_gfx" ON)
 
 add_library(SDL2_gfx STATIC
-    SDL2_framerate.c SDL2_framerate.h
+    #SDL2_framerate.c SDL2_framerate.h
     SDL2_gfxPrimitives.c SDL2_gfxPrimitives.h SDL2_gfxPrimitives_font.h
-    SDL2_imageFilter.c SDL2_imageFilter.h
+    #SDL2_imageFilter.c SDL2_imageFilter.h
     SDL2_rotozoom.c SDL2_rotozoom.h)
 
 target_include_directories(SDL2_gfx PUBLIC ${PROJECT_SOURCE_DIR})

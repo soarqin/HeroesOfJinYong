@@ -25,16 +25,19 @@
 
 namespace hojy::scene {
 
-void MessageBox::popup(const std::vector<std::wstring> &text, MessageBox::Type type) {
+void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align align) {
     text_ = text;
     type_ = type;
+    align_ = align;
     update();
 }
 
 void MessageBox::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
-        gWindow->endPopup(true);
+        if (type_ == ClickToClose) {
+            gWindow->endPopup(true);
+        }
         break;
     default:
         break;
@@ -42,7 +45,6 @@ void MessageBox::handleKeyInput(Node::Key key) {
 }
 
 void MessageBox::makeCache() {
-
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
 
@@ -73,8 +75,10 @@ void MessageBox::makeCache() {
     }
     textW += SubWindowBorder * 2;
     textH = rowHeight * int(lines.size()) + SubWindowBorder * 2 - TextLineSpacing;
-    x_ += (width_ - textW) / 2;
-    y_ += (height_ - textH) / 2;
+    if (align_ == Center) {
+        x_ += (width_ - textW) / 2;
+        y_ += (height_ - textH) / 2;
+    }
     width_ = textW;
     height_ = textH;
 
@@ -93,7 +97,8 @@ void MessageBox::makeCache() {
     renderer_->setTargetTexture(nullptr);
     text_.clear();
 
-    if (type_ == YesNo) {
+    switch (type_) {
+    case YesNo:
         if (menu_ == nullptr) {
             auto mx = x_ + textW + 5, my = y_;
             auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
@@ -105,6 +110,7 @@ void MessageBox::makeCache() {
             });
             menu_ = m;
         }
+        break;
     }
 }
 
