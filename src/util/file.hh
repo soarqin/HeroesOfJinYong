@@ -67,6 +67,7 @@ public:
     File(File &&other) noexcept: handle_(other.handle_) { other.handle_ = nullptr; }
     ~File();
     File &operator=(const File &) = delete;
+    File &operator=(File &&other) noexcept { handle_ = other.handle_; other.handle_ = nullptr; return *this; }
     size_t read(void *buf, size_t size);
     size_t write(const void *buf, size_t size);
     std::uint64_t size();

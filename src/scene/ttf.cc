@@ -92,7 +92,7 @@ bool TTF::add(const std::string &filename, int index) {
     FT_Set_Pixel_Sizes(fi.face, 0, font_size);
     fonts.emplace_back(fi);
 #else
-    if (!util::File::getFileContent(core::config.dataFilePath(filename), fi.ttf_buffer)) {
+    if (!util::File::getFileContent(core::config.fontFilePath(filename), fi.ttf_buffer)) {
         return false;
     }
     auto *info = new stbtt_fontinfo;

@@ -1,5 +1,9 @@
 [main]
-data_path = "data"
+data_path = ["data", "."]
+music_path = "data"
+sound_path = "data"
+font_path = "data"
+save_path = "data"
 
 [window]
 width = 640

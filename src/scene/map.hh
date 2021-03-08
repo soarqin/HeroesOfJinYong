@@ -43,6 +43,11 @@ public:
     Map(const Map&) = delete;
     ~Map() override;
 
+    [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
+    [[nodiscard]] std::int16_t currX() const { return currX_; }
+    [[nodiscard]] std::int16_t currY() const { return currY_; }
+
+    [[nodiscard]] Map::Direction direction() const { return direction_; }
     void setDirection(Direction dir);
     void setPosition(int x, int y, bool checkEvent = true);
     void move(Direction direction);

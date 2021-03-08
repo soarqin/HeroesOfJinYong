@@ -31,9 +31,9 @@ public:
     using DataSet = std::vector<std::string>;
 
 public:
-    static bool loadData(const std::string &idx, const std::string &grp, DataSet &dset);
-    static bool loadData(const std::string &name, DataSet &dset);
-    static bool saveData(const std::string &name, const DataSet &dset);
+    static bool loadData(const std::string &idx, const std::string &grp, DataSet &dset, bool isSave = false);
+    static bool loadData(const std::string &name, DataSet &dset, bool isSave = false);
+    static bool saveData(const std::string &name, const DataSet &dset, bool isSave = false);
     const DataSet &lazyLoad(const std::string &idx, const std::string &grp);
     const DataSet &lazyLoad(const std::string &name);
     const DataSet &operator[](const std::string &name) const;

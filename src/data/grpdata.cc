@@ -26,9 +26,15 @@ namespace hojy::data {
 
 GrpData gGrpData;
 
-bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset) {
-    auto ifs = util::File::open(core::config.dataFilePath(idx));
-    auto ifs2 = util::File::open(core::config.dataFilePath(grp));
+bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset, bool isSave) {
+    util::File ifs, ifs2;
+    if (isSave) {
+        ifs = util::File::open(core::config.saveFilePath(idx));
+        ifs2 = util::File::open(core::config.saveFilePath(grp));
+    } else {
+        ifs = util::File::open(core::config.dataFilePath(idx));
+        ifs2 = util::File::open(core::config.dataFilePath(grp));
+    }
     if (!ifs || !ifs2) {
         return false;
     }
@@ -52,13 +58,19 @@ bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::
     return true;
 }
 
-bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset) {
-    return loadData(name + ".IDX", name + ".GRP", dset);
+bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset, bool isSave) {
+    return loadData(name + ".IDX", name + ".GRP", dset, isSave);
 }
 
-bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset) {
-    auto ifs = util::File::create(core::config.dataFilePathFirst(name + ".IDX"));
-    auto ifs2 = util::File::create(core::config.dataFilePathFirst(name + ".GRP"));
+bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset, bool isSave) {
+    util::File ifs, ifs2;
+    if (isSave) {
+        ifs = util::File::create(core::config.saveFilePath(name + ".IDX"));
+        ifs2 = util::File::create(core::config.saveFilePath(name + ".GRP"));
+    } else {
+        ifs = util::File::create(core::config.dataFilePathFirst(name + ".IDX"));
+        ifs2 = util::File::create(core::config.dataFilePathFirst(name + ".GRP"));
+    }
     if (!ifs || !ifs2) {
         return false;
     }

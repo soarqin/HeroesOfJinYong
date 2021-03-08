@@ -47,9 +47,20 @@ bool Config::load(const std::string &filename) {
                 dataPath_.emplace_back(p.value_or<std::string>("."));
             }
         }
-        for (auto &path: dataPath_) {
+        auto fixPath = [](std::string &path) {
             if (!path.empty() && path.back() != '/') { path += '/'; }
+        };
+        for (auto &path: dataPath_) {
+            fixPath(path);
         }
+        musicPath_ = main["music_path"].value_or("");
+        fixPath(musicPath_);
+        soundPath_ = main["sound_path"].value_or("");
+        fixPath(soundPath_);
+        fontPath_ = main["font_path"].value_or("");
+        fixPath(fontPath_);
+        savePath_ = main["save_path"].value_or("");
+        fixPath(savePath_);
     }
     auto window = tbl["window"];
     if (window) {
@@ -79,6 +90,22 @@ std::vector<std::string> Config::dataFilePath(const std::string &filename) const
         res.emplace_back(d + filename);
     }
     return res;
+}
+
+std::string Config::musicFilePath(const std::string &filename) const {
+    return musicPath_.empty() ? dataFilePathFirst(filename) : musicPath_ + filename;
+}
+
+std::string Config::soundFilePath(const std::string &filename) const {
+    return soundPath_.empty() ? dataFilePathFirst(filename) : soundPath_ + filename;
+}
+
+std::string Config::fontFilePath(const std::string &filename) const {
+    return fontPath_.empty() ? dataFilePathFirst(filename) : fontPath_ + filename;
+}
+
+std::string Config::saveFilePath(const std::string &filename) const {
+    return savePath_.empty() ? dataFilePathFirst(filename) : savePath_ + filename;
 }
 
 }

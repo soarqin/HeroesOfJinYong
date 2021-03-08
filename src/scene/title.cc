@@ -80,7 +80,7 @@ void Title::handleKeyInput(Node::Key key) {
             }
             break;
         case 1: {
-            int sel = currSel_;
+            int sel = currSel_ + 1;
             gWindow->closePopup();
             gWindow->loadGame(sel);
             break;

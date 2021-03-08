@@ -45,7 +45,7 @@ bool SaveData::load(int num) {
     std::string rangerFile, sinFile, defFile;
     buildSaveFilename(num, rangerFile, sinFile, defFile);
     data::GrpData::DataSet rangerData, sinData, defData;
-    if (!data::GrpData::loadData(rangerFile, rangerData)) {
+    if (!data::GrpData::loadData(rangerFile, rangerData, num > 0)) {
         return false;
     }
     if (rangerData.size() < 6) {
@@ -95,7 +95,7 @@ bool SaveData::save(int num) {
     subMapInfo.serialize(data[3]);
     skillInfo.serialize(data[4]);
     shopInfo.serialize(data[5]);
-    if (!data::GrpData::saveData(rangerFile, data)) {
+    if (!data::GrpData::saveData(rangerFile, data, true)) {
         return false;
     }
     size_t sz = subMapLayerInfo.size();
@@ -103,7 +103,7 @@ bool SaveData::save(int num) {
     for (size_t i = 0; i < sz; ++i) {
         subMapLayerInfo[i].serialize(data[i]);
     }
-    if (!data::GrpData::saveData(sinFile, data)) {
+    if (!data::GrpData::saveData(sinFile, data, true)) {
         return false;
     }
     sz = subMapLayerInfo.size();
@@ -111,7 +111,7 @@ bool SaveData::save(int num) {
     for (size_t i = 0; i < sz; ++i) {
         subMapEventInfo[i].serialize(data[i]);
     }
-    return data::GrpData::saveData(defFile, data);
+    return data::GrpData::saveData(defFile, data, true);
 }
 
 }
