@@ -49,21 +49,23 @@ void Map::setDirection(Map::Direction dir) {
     updateMainCharTexture();
 }
 
-void Map::setPosition(int x, int y) {
+void Map::setPosition(int x, int y, bool checkEvent) {
     currX_ = x;
     currY_ = y;
     currFrame_ = 0;
     resting_ = false;
     drawDirty_ = true;
-    tryMove(x, y);
+    bool r = tryMove(x, y, checkEvent);
     resetTime();
-    updateMainCharTexture();
+    if (r) {
+        updateMainCharTexture();
+    }
 }
 
 void Map::move(Map::Direction direction) {
     int x, y;
     direction_ = direction;
-    if (!getFaceOffset(x, y) || !tryMove(x, y)) {
+    if (!getFaceOffset(x, y) || !tryMove(x, y, true)) {
         return;
     }
     resetTime();

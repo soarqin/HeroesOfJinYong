@@ -22,6 +22,7 @@
 #include "renderer.hh"
 
 #include <vector>
+#include <functional>
 
 namespace hojy::scene {
 
@@ -46,6 +47,15 @@ public:
     void add(Node *child);
     void remove(Node *child);
 
+    [[nodiscard]] inline int x() const { return x_; }
+    [[nodiscard]] inline int y() const { return y_; }
+    [[nodiscard]] inline int width() const { return width_; }
+    [[nodiscard]] inline int height() const { return height_; }
+
+    void fadeIn(const std::function<void()> &postAction);
+    void fadeOut(const std::function<void()> &postAction);
+    void fadeEnd();
+
     virtual void close() { removeAllChildren(); }
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}
@@ -65,6 +75,10 @@ protected:
     bool visible_ = true;
 
     std::vector<Node*> children_;
+
+    Node *fadeNode_ = nullptr;
+    std::function<void()> fadePostAction_;
+    bool runFadePostAction_ = false;
 };
 
 }

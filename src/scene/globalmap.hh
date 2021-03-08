@@ -49,7 +49,7 @@ public:
     void render() override;
 
 protected:
-    bool tryMove(int x, int y) override;
+    bool tryMove(int x, int y, bool checkEvent) override;
     void updateMainCharTexture() override;
     void resetTime() override;
     bool checkTime() override;

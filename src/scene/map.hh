@@ -44,14 +44,14 @@ public:
     ~Map() override;
 
     void setDirection(Direction dir);
-    void setPosition(int x, int y);
+    void setPosition(int x, int y, bool checkEvent = true);
     void move(Direction direction);
 
     void render() override;
     void handleKeyInput(Key key) override;
 
 protected:
-    virtual bool tryMove(int x, int y) { return false; }
+    virtual bool tryMove(int x, int y, bool checkEvent) { return false; }
     virtual void updateMainCharTexture() {}
     virtual void resetTime();
     virtual bool checkTime();

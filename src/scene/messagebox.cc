@@ -84,6 +84,7 @@ void MessageBox::makeCache() {
     int x = SubWindowBorder;
     int y = SubWindowBorder;
     renderer_->fillRoundedRect(0, 0, textW, textH, RoundedRectRad, 64, 64, 64, 160);
+    renderer_->drawRoundedRect(0, 0, textW, textH, RoundedRectRad, 224, 224, 224, 255);
     ttf->setColor(236, 200, 40);
     for (auto &l: lines) {
         ttf->render(l, x, y, true);

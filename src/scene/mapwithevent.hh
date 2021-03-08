@@ -20,7 +20,9 @@
 #pragma once
 
 #include "map.hh"
+
 #include <functional>
+#include <chrono>
 #include <list>
 
 namespace hojy::scene {
@@ -119,8 +121,6 @@ private:
     static bool playSound(MapWithEvent *map, std::int16_t soundId);
 
 protected:
-    float nextEventFrame_ = 0.f;
-
     bool currEventPaused_ = false;
     std::int16_t currEventId_ = -1;
     size_t currEventIndex_ = 0, currEventSize_ = 0;
@@ -129,6 +129,7 @@ protected:
     const std::vector<std::int16_t> *currEventList_ = nullptr;
 
     std::uint64_t frames_ = 0;
+    std::chrono::steady_clock::time_point nextEventCheck_;
     std::int16_t animEventId_ = 0, animCurrTex_ = 0, animEndTex_ = 0;
 
     std::list<std::function<bool()>> pendingSubEvents_;

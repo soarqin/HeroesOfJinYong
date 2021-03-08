@@ -9,3 +9,4 @@ height = 480
 show_potential = true
 scale = 2.0
 animation_speed = 1.0
+fade_speed = 1.0

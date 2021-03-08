@@ -139,6 +139,7 @@ bool Window::processEvents() {
 }
 
 void Window::render() {
+    currTime_ = std::chrono::steady_clock::now();
     if (map_) {
         map_->doRender();
     }
@@ -190,10 +191,15 @@ void Window::playEffectSound(int idx) {
 }
 
 void Window::newGame() {
-    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
-    dynamic_cast<SubMap*>(subMap_)->load(70, 19, 20);
-    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
     map_ = subMap_;
+    globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
+    dynamic_cast<SubMap*>(subMap_)->load(70);
+    subMap_->setPosition(19, 20, false);
+    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
+    map_->fadeIn([this] {
+        map_->setPosition(19, 20);
+        dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
+    });
 }
 
 void Window::loadGame(int slot) {
@@ -201,10 +207,15 @@ void Window::loadGame(int slot) {
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
     if (binfo->subMap >= 0) {
-        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap, binfo->subX, binfo->subY);
         map_ = subMap_;
+        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap);
+        subMap_->setPosition(binfo->subX, binfo->subY, false);
+        map_->fadeIn([this]() {
+            map_->setPosition(binfo->subX, binfo->subY);
+        });
     } else {
         map_ = globalMap_;
+        map_->fadeIn(nullptr);
     }
 }
 
@@ -214,15 +225,25 @@ void Window::forceQuit() {
 }
 
 void Window::exitToGlobalMap(int direction) {
-    globalMap_->setDirection(Map::Direction(direction));
-    map_ = globalMap_;
+    map_->fadeOut([this, direction]() {
+        map_ = globalMap_;
+        globalMap_->setDirection(Map::Direction(direction));
+        globalMap_->fadeIn(nullptr);
+    });
 }
 
 void Window::enterSubMap(std::int16_t subMapId, int direction) {
-    subMap_->setDirection(Map::Direction(direction));
-    const auto &smi = mem::gSaveData.subMapInfo[subMapId];
-    dynamic_cast<SubMap*>(subMap_)->load(subMapId, smi->enterX, smi->enterY);
-    map_ = subMap_;
+    map_->fadeOut([this, subMapId, direction]() {
+        map_ = subMap_;
+        subMap_->setDirection(Map::Direction(direction));
+        const auto &smi = mem::gSaveData.subMapInfo[subMapId];
+        dynamic_cast<SubMap *>(subMap_)->load(subMapId);
+        auto x = smi->enterX, y = smi->enterY;
+        subMap_->setPosition(x, y, false);
+        map_->fadeIn([this, x, y] {
+            map_->setPosition(x, y);
+        });
+    });
 }
 
 void Window::closePopup() {

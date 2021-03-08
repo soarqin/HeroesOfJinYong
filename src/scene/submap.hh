@@ -35,14 +35,14 @@ public:
     SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~SubMap() override;
 
-    bool load(std::int16_t subMapId, int initX, int initY);
+    bool load(std::int16_t subMapId);
     void forceMainCharTexture(std::int16_t id);
 
     void render() override;
     void handleKeyInput(Key key) override;
 
 protected:
-    bool tryMove(int x, int y) override;
+    bool tryMove(int x, int y, bool checkEvent) override;
     void updateMainCharTexture() override;
     void setCellTexture(int x, int y, int layer, std::int16_t tex) override;
     void updateEventTextures() override;

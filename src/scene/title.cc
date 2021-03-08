@@ -168,9 +168,9 @@ void Title::makeCache() {
         break;
     }
     case 2: {
-        y = height_ * 9 / 10 - 120;
         auto *ttf = renderer_->ttf();
-        ttf->render(L"請輸入姓名：" + mainCharName_, 50, y, false);
+        y = height_ - (ttf->fontSize() + TextLineSpacing) * 5;
+        ttf->render(L"請輸入姓名：" + mainCharName_, width_ / 4, y, false);
         break;
     }
     case 3: {
@@ -186,9 +186,11 @@ void Title::makeCache() {
             int mx = x + ttf->stringWidth(askText) + SubWindowBorder + 10, my = y - SubWindowBorder + lineheight / 2;
             auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
             menu->popupWithYesNo();
-            menu->setHandler([] {
-                gWindow->closePopup();
-                gWindow->newGame();
+            menu->setHandler([this] {
+                fadeOut([] {
+                    gWindow->closePopup();
+                    gWindow->newGame();
+                });
             }, [this] {
                 doRandomBaseInfo();
                 update();
@@ -242,7 +244,7 @@ void Title::doRandomBaseInfo() {
     data->sword = util::gRandom(25, 30);
     data->blade = util::gRandom(25, 30);
     data->special = util::gRandom(25, 30);
-    data->hiddenWeapon = util::gRandom(25, 30);
+    data->throwing = util::gRandom(25, 30);
     data->potential = util::gRandom(1, 100);
 }
 
@@ -251,7 +253,7 @@ void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int1
     bool shadow = false;
     auto dispString = name + L"：" + std::to_wstring(value);
     if (value >= maxValue) {
-        renderer_->fillRect(x, y, ttf->stringWidth(dispString), h, 216, 20, 24, 255);
+        renderer_->fillRect(x, y, ttf->stringWidth(dispString) + 2, h, 216, 20, 24, 255);
         shadow = true;
     }
     if (mpType == 0) {

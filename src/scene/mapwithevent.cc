@@ -31,8 +31,8 @@ namespace hojy::scene {
 void MapWithEvent::render() {
     Map::render();
     ++frames_;
-    if (float(frames_) < nextEventFrame_) { return; }
-    nextEventFrame_ += 10.f / core::config.animationSpeed();
+    if (gWindow->currTime() < nextEventCheck_) { return; }
+    nextEventCheck_ += std::chrono::microseconds(int(100000.f / core::config.animationSpeed()));
     updateEventTextures();
 }
 
@@ -59,6 +59,7 @@ struct ReturnTypeMatches<R(*)(Args...), M> {
     static constexpr bool value = std::is_same<R, M>::value;
 };
 
+#ifndef NDEBUG
 void printArgs(const std::vector<std::int16_t>& e, int i, int size) {
     for (int idx = 0; idx < size; ++idx, ++i) {
         fprintf(stdout, " %d", e[i]);
@@ -66,6 +67,7 @@ void printArgs(const std::vector<std::int16_t>& e, int i, int size) {
     fprintf(stdout, "\n");
     fflush(stdout);
 }
+#endif
 
 template<class F, class P, size_t ...I>
 typename std::enable_if<ReturnTypeMatches<F, bool>::value, bool>::type

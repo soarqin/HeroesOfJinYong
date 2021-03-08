@@ -19,6 +19,8 @@
 
 #include "node.hh"
 
+#include "mask.hh"
+
 #include <algorithm>
 
 namespace hojy::scene {
@@ -40,10 +42,31 @@ void Node::remove(Node *child) {
     children_.erase(std::remove(children_.begin(), children_.end(), child), children_.end());
 }
 
+void Node::fadeEnd() {
+    runFadePostAction_ = true;
+}
+
+void Node::fadeIn(const std::function<void()> &postAction) {
+    fadePostAction_ = postAction;
+    fadeNode_ = new Mask(this, Mask::FadeIn, 3);
+}
+
+void Node::fadeOut(const std::function<void()> &postAction) {
+    fadePostAction_ = postAction;
+    fadeNode_ = new Mask(this, Mask::FadeOut, 3);
+}
+
 void Node::doRender() {
     render();
     for (auto *node : children_) {
         node->doRender();
+    }
+    if (runFadePostAction_) {
+        runFadePostAction_ = false;
+        auto fn = std::move(fadePostAction_);
+        delete fadeNode_;
+        fadeNode_ = nullptr;
+        if (fn) { fn(); }
     }
 }
 

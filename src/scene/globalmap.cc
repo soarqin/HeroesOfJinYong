@@ -25,8 +25,6 @@
 #include "util/file.hh"
 #include "core/config.hh"
 
-#include <algorithm>
-
 namespace hojy::scene {
 
 enum {
@@ -213,7 +211,7 @@ void GlobalMap::render() {
     renderer_->renderTexture(drawingBuildingTex_[1], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
-bool GlobalMap::tryMove(int x, int y) {
+bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     if (subMapEntries_.empty()) {
         auto subMapSz = mem::gSaveData.subMapInfo.size();
         for (size_t i = 0; i < subMapSz; ++i) {

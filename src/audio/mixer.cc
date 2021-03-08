@@ -56,6 +56,7 @@ void Mixer::init(int channels) {
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
+    /* TODO: implement fade in/out */
     if (channelId >= channels_.size()) {
         return;
     }

@@ -24,6 +24,7 @@
 #include "mapwithevent.hh"
 #include "messagebox.hh"
 
+#include <chrono>
 #include <string>
 #include <cstdint>
 
@@ -31,7 +32,7 @@ namespace hojy::scene {
 
 enum {
     SubWindowBorder = 10,
-    RoundedRectRad = 5,
+    RoundedRectRad = 10,
 };
 
 class Window final {
@@ -45,6 +46,8 @@ public:
 
     [[nodiscard]] inline int width() const { return width_; }
     [[nodiscard]] inline int height() const { return height_; }
+
+    [[nodiscard]] std::chrono::steady_clock::time_point currTime() { return currTime_; }
 
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
     [[nodiscard]] TextureMgr &globalTextureMgr() { return globalTextureMgr_; }
@@ -84,6 +87,7 @@ private:
     Node *talkBox_ = nullptr;
     TextureMgr globalTextureMgr_, headTextureMgr_;
 
+    std::chrono::steady_clock::time_point currTime_;
     int playingMusic_ = -1;
 };
 

@@ -48,7 +48,7 @@ enum {
     SwordMax = 100,
     BladeMax = 100,
     SpecialMax = 100,
-    HiddenWeaponMax = 100,
+    ThrowingMax = 100,
     KnowledgeMax = 100,
     IntegrityMax = 100,
     PoisonAmpMax = 100,
@@ -69,7 +69,7 @@ struct CharacterData {
     std::int16_t equip0, equip1;
     std::int16_t frame[CharFrameCount];
     std::int16_t mpType, mp, maxMp;
-    std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, hiddenWeapon;
+    std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, throwing;
     std::int16_t knowledge, integrity, poisonAmp, doubleAttack, reputation, potential;
     std::int16_t trainingItem;
     std::uint16_t expForItem;

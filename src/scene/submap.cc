@@ -35,7 +35,7 @@ SubMap::~SubMap() {
     delete drawingTerrainTex2_;
 }
 
-bool SubMap::load(std::int16_t subMapId, int initX, int initY) {
+bool SubMap::load(std::int16_t subMapId) {
     if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
         mapWidth_ = mem::SubMapWidth;
         mapHeight_ = mem::SubMapHeight;
@@ -53,7 +53,7 @@ bool SubMap::load(std::int16_t subMapId, int initX, int initY) {
     eventLoop_.resize(mem::SubMapEventCount);
     eventDelay_.resize(mem::SubMapEventCount);
     frames_ = 0;
-    nextEventFrame_ = 0.f;
+    nextEventCheck_ = gWindow->currTime();
     {
         auto *tex = textureMgr[0];
         cellWidth_ = tex->width();
@@ -104,7 +104,6 @@ bool SubMap::load(std::int16_t subMapId, int initX, int initY) {
     }
 
     subMapId_ = subMapId;
-    setPosition(initX, initY);
     return true;
 }
 
@@ -231,7 +230,7 @@ void SubMap::handleKeyInput(Key key) {
     }
 }
 
-bool SubMap::tryMove(int x, int y) {
+bool SubMap::tryMove(int x, int y, bool checkEvent) {
     auto pos = y * mapWidth_ + x;
     auto &ci = cellInfo_[pos];
     if (ci.building || ci.isWater) {
@@ -257,7 +256,9 @@ bool SubMap::tryMove(int x, int y) {
             return true;
         }
     }
-    onMove();
+    if (checkEvent) {
+        onMove();
+    }
     return true;
 }
 

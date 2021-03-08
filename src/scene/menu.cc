@@ -88,6 +88,7 @@ void Menu::makeCache() {
     renderer_->setTargetTexture(cache_);
     renderer_->fill(0, 0, 0, 0);
     renderer_->fillRoundedRect(x, y, w, h, RoundedRectRad, 64, 64, 64, 160);
+    renderer_->drawRoundedRect(x, y, w, h, RoundedRectRad, 224, 224, 224, 255);
     x += SubWindowBorder; y += SubWindowBorder;
     for (int i = 0; i < lines; ++i, y += rowHeight) {
         if (i == currIndex_) {
