@@ -30,6 +30,7 @@
 #include "audio/channelwav.hh"
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
+#include "mem/action.hh"
 #include "mem/savedata.hh"
 #include "core/config.hh"
 #include "util/conv.hh"
@@ -276,15 +277,20 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->setTitle(L"生命點數");
     std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
     for (int i = 0; i < mem::TeamMemberCount; ++i) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->hp) + L'/' + std::to_wstring(charInfo->maxHp));
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' '
+                           + std::to_wstring(charInfo->hp) + L'/' + std::to_wstring(charInfo->maxHp));
+        charIdList.emplace_back(id);
     }
-    subMenu->setHandler([charId](int index) {
-        /* TODO: do heal */
+    subMenu->setHandler([charIdList, charId](int index) {
+        int res = mem::actMedic(mem::gSaveData.charInfo[charId],
+                                mem::gSaveData.charInfo[charIdList[index]], 2);
         gWindow->closePopup();
+        gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::ClickToClose);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -303,14 +309,18 @@ static void medicMenu(Node *mainMenu) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->setTitle(L"醫療能力");
     std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
     for (int i = 0; i < mem::TeamMemberCount; ++i) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->medic));
+        if (charInfo->medic > 0) {
+            names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->medic));
+            charIdList.emplace_back(id);
+        }
     }
-    subMenu->setHandler([mainMenu](int index) {
-        medicTargetMenu(mainMenu, mem::gSaveData.baseInfo->members[index]);
+    subMenu->setHandler([charIdList, mainMenu](int index) {
+        medicTargetMenu(mainMenu, charIdList[index]);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -329,15 +339,19 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->setTitle(L"中毒程度");
     std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
     for (int i = 0; i < mem::TeamMemberCount; ++i) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->poisoned));
+        charIdList.emplace_back(id);
     }
-    subMenu->setHandler([charId](int index) {
-        /* TODO: do depoison */
+    subMenu->setHandler([charIdList, charId](int index) {
+        int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
+                                   mem::gSaveData.charInfo[charIdList[index]], 0);
         gWindow->closePopup();
+        gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::ClickToClose);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -356,14 +370,18 @@ static void depoisonMenu(Node *mainMenu) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->setTitle(L"解毒能力");
     std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
     for (int i = 0; i < mem::TeamMemberCount; ++i) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->depoison));
+        if (charInfo->depoison > 0) {
+            names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->depoison));
+            charIdList.emplace_back(id);
+        }
     }
-    subMenu->setHandler([mainMenu](int index) {
-        depoisonTargetMenu(mainMenu, mem::gSaveData.baseInfo->members[index]);
+    subMenu->setHandler([charIdList, mainMenu](int index) {
+        depoisonTargetMenu(mainMenu, charIdList[index]);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -426,9 +444,9 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
 void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type) {
     MessageBox *msgBox;
     if (popup_) {
-        msgBox = new MessageBox(popup_, 50, 50, width_ - 100, height_ - 100);
+        msgBox = new MessageBox(popup_, 0, 0, width_, height_ * 2 / 5);
     } else {
-        msgBox = new MessageBox(renderer_, 50, 50, width_ - 100, height_ - 100);
+        msgBox = new MessageBox(renderer_, 0, 0, width_, height_ * 2 / 5);
         popup_ = msgBox;
         freeOnClose_ = true;
     }
