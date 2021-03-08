@@ -17,39 +17,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include "nodewithcache.hh"
+#include "statusview.hh"
 
 namespace hojy::scene {
 
-class MessageBox: public NodeWithCache {
-public:
-    enum Type {
-        Normal,
-        PressToCloseThis,
-        PressToCloseTop,
-        YesNo,
-    };
-    enum Align {
-        Center,
-        TopLeft,
-    };
+void StatusView::show(std::int16_t charId) {
+    charId_ = charId;
+}
 
-public:
-    using NodeWithCache::NodeWithCache;
-
-    void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
-    void handleKeyInput(Key key) override;
-
-private:
-    void makeCache() override;
-
-private:
-    std::vector<std::wstring> text_;
-    Node *menu_ = nullptr;
-    Type type_ = Normal;
-    Align align_ = Center;
-};
+void StatusView::makeCache() {
+    NodeWithCache::makeCache();
+}
 
 }

@@ -61,8 +61,8 @@ public:
     void playEffectSound(int idx);
 
     void newGame();
-    void loadGame(int slot);
-    void saveGame(int slot);
+    bool loadGame(int slot);
+    bool saveGame(int slot);
     void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);

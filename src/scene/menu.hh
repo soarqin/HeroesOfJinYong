@@ -29,7 +29,7 @@ public:
     using NodeWithCache::NodeWithCache;
 
     inline void setTitle(const std::wstring &title) { title_ = title; }
-    void popup(const std::vector<std::wstring> &items, int defaultIndex = 0);
+    void popup(const std::vector<std::wstring> &items, int defaultIndex = 0, bool horizonal = false);
 
     void handleKeyInput(Key key) override;
 
@@ -44,6 +44,7 @@ protected:
     std::wstring title_;
     std::vector<std::wstring> items_;
     int currIndex_ = 0;
+    bool horizonal_ = false;
 };
 
 class MenuTextList: public Menu {
@@ -68,7 +69,7 @@ class MenuYesNo: public Menu {
 public:
     using Menu::Menu;
 
-    void popupWithYesNo();
+    void popupWithYesNo(bool horizonal = false);
 
     void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
         yesHandler_ = yesHandler;

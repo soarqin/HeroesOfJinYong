@@ -35,8 +35,13 @@ void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align a
 void MessageBox::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
-        if (type_ == ClickToClose) {
+        switch (type_) {
+        case PressToCloseThis:
+            delete this;
+            break;
+        case PressToCloseTop:
             gWindow->endPopup(true);
+            break;
         }
         break;
     default:
@@ -102,7 +107,7 @@ void MessageBox::makeCache() {
         if (menu_ == nullptr) {
             auto mx = x_ + textW + 5, my = y_;
             auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
-            m->popupWithYesNo();
+            m->popupWithYesNo(true);
             m->setHandler([]{
                 gWindow->endPopup(true, true);
             }, [] {

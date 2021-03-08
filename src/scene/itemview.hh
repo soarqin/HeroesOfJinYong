@@ -23,33 +23,9 @@
 
 namespace hojy::scene {
 
-class MessageBox: public NodeWithCache {
-public:
-    enum Type {
-        Normal,
-        PressToCloseThis,
-        PressToCloseTop,
-        YesNo,
-    };
-    enum Align {
-        Center,
-        TopLeft,
-    };
-
+class ItemView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
-
-    void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
-    void handleKeyInput(Key key) override;
-
-private:
-    void makeCache() override;
-
-private:
-    std::vector<std::wstring> text_;
-    Node *menu_ = nullptr;
-    Type type_ = Normal;
-    Align align_ = Center;
 };
 
 }

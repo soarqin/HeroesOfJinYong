@@ -57,7 +57,7 @@ bool SaveData::load(int num) {
     subMapInfo.deserialize(rangerData[3]);
     skillInfo.deserialize(rangerData[4]);
     shopInfo.deserialize(rangerData[5]);
-    if (!data::GrpData::loadData(sinFile, sinData)) {
+    if (!data::GrpData::loadData(sinFile, sinData, num > 0)) {
         return false;
     }
     size_t sz = sinData.size();
@@ -68,7 +68,7 @@ bool SaveData::load(int num) {
     for (size_t i = 0; i < sz; ++i) {
         subMapLayerInfo[i].deserialize(sinData[i]);
     }
-    if (!data::GrpData::loadData(defFile, defData)) {
+    if (!data::GrpData::loadData(defFile, defData, num > 0)) {
         return false;
     }
     sz = defData.size();

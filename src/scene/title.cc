@@ -80,9 +80,13 @@ void Title::handleKeyInput(Node::Key key) {
             }
             break;
         case 1: {
-            int sel = currSel_ + 1;
-            gWindow->closePopup();
-            gWindow->loadGame(sel);
+            int sel = int(currSel_) + 1;
+            if (gWindow->loadGame(sel)) {
+                gWindow->closePopup();
+            } else {
+                auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
+                msgBox->popup({L"讀檔失敗"}, MessageBox::PressToCloseThis);
+            }
             break;
         }
         case 2:
@@ -176,16 +180,17 @@ void Title::makeCache() {
     case 3: {
         auto ttf = renderer_->ttf();
         int lineheight = ttf->fontSize() + TextLineSpacing;
-        y = height_ - lineheight * 7;
+        y = height_ - lineheight * 6;
         int hh = lineheight - TextLineSpacing / 4;
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
         auto askText = mainCharName_ + L"  這樣的屬性滿意嗎？";
         if (menu_ == nullptr) {
             renderer_->setTargetTexture(nullptr);
-            int mx = x + ttf->stringWidth(askText) + SubWindowBorder + 10, my = y - SubWindowBorder + lineheight / 2;
-            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
-            menu->popupWithYesNo();
+            int mx = x + ttf->stringWidth(askText) + SubWindowBorder + 10;
+            int my = y - SubWindowBorder;
+            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
+            menu->popupWithYesNo(true);
             menu->setHandler([this] {
                 fadeOut([] {
                     gWindow->closePopup();
@@ -199,7 +204,6 @@ void Title::makeCache() {
             renderer_->setTargetTexture(cache_);
         }
         auto *data = mem::gSaveData.charInfo[0];
-        y += lineheight;
         ttf->setColor(224, 180, 32);
         ttf->render(askText, x, y, false);
         y += lineheight * 2;

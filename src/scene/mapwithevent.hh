@@ -52,7 +52,7 @@ private:
                             std::int16_t currTex, std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay,
                             std::int16_t x, std::int16_t y);
     static int useItem(MapWithEvent *map, std::int16_t itemId);
-    static int tryStartFight(MapWithEvent *map);
+    static int wantFight(MapWithEvent *map);
     static bool changeExitMusic(MapWithEvent *map, std::int16_t music);
     static int wantJoinTeam(MapWithEvent *map);
     static bool joinTeam(MapWithEvent *map, std::int16_t charId);

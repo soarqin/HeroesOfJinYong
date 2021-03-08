@@ -23,33 +23,17 @@
 
 namespace hojy::scene {
 
-class MessageBox: public NodeWithCache {
-public:
-    enum Type {
-        Normal,
-        PressToCloseThis,
-        PressToCloseTop,
-        YesNo,
-    };
-    enum Align {
-        Center,
-        TopLeft,
-    };
-
+class StatusView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
-    void handleKeyInput(Key key) override;
+    void show(std::int16_t charId);
 
-private:
+protected:
     void makeCache() override;
 
-private:
-    std::vector<std::wstring> text_;
-    Node *menu_ = nullptr;
-    Type type_ = Normal;
-    Align align_ = Center;
+protected:
+    std::int16_t charId_;
 };
 
 }

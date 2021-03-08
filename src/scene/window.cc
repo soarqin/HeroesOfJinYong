@@ -47,6 +47,8 @@ static void medicMenu(Node *mainMenu);
 static void medicTargetMenu(Node *mainMenu, int16_t charId);
 static void depoisonMenu(Node *mainMenu);
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
+static void statusMenu(Node *mainMenu);
+static void showCharStatus(Node *mainMenu, std::int16_t charId);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
 
@@ -210,8 +212,8 @@ void Window::newGame() {
     });
 }
 
-void Window::loadGame(int slot) {
-    mem::gSaveData.load(slot);
+bool Window::loadGame(int slot) {
+    if (!mem::gSaveData.load(slot)) { return false; }
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
     if (binfo->subMap >= 0) {
@@ -227,9 +229,10 @@ void Window::loadGame(int slot) {
         map_ = globalMap_;
         map_->fadeIn(nullptr);
     }
+    return true;
 }
 
-void Window::saveGame(int slot) {
+bool Window::saveGame(int slot) {
     auto &binfo = mem::gSaveData.baseInfo;
     binfo->mainX = globalMap_->currX();
     binfo->mainY = globalMap_->currY();
@@ -239,7 +242,7 @@ void Window::saveGame(int slot) {
         binfo->subY = map_->currY();
     }
     binfo->direction = std::int16_t(map_->direction());
-    mem::gSaveData.save(slot);
+    return mem::gSaveData.save(slot);
 }
 
 void Window::forceQuit() {
@@ -307,6 +310,7 @@ void Window::showMainMenu(bool inSubMap) {
             case 2:
                 break;
             case 3:
+                statusMenu(mainMenu_);
                 break;
             case 4:
                 break;
@@ -408,7 +412,7 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
         int res = mem::actMedic(mem::gSaveData.charInfo[charId],
                                 mem::gSaveData.charInfo[charIdList[index]], 2);
         gWindow->closePopup();
-        gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::ClickToClose);
+        gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -469,12 +473,43 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
         int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
                                    mem::gSaveData.charInfo[charIdList[index]], 0);
         gWindow->closePopup();
-        gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::ClickToClose);
+        gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
         delete box;
     });
+}
+
+static void statusMenu(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"要查閱誰的狀態"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
+    for (int i = 0; i < mem::TeamMemberCount; ++i) {
+        auto id = mem::gSaveData.baseInfo->members[i];
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
+        charIdList.emplace_back(id);
+    }
+    subMenu->popup(names);
+    subMenu->setHandler([charIdList, mainMenu](int index) {
+        showCharStatus(mainMenu, charIdList[index]);
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+}
+
+static void showCharStatus(Node *mainMenu, std::int16_t charId) {
+
 }
 
 static void systemMenu(Node *mainMenu) {
@@ -511,10 +546,13 @@ static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
     subMenu->setHandler([subMenu, isSave](int index) {
         if (isSave) {
             gWindow->saveGame(index + 1);
-            gWindow->popupMessageBox({L"存檔完成"}, MessageBox::ClickToClose);
+            gWindow->popupMessageBox({L"存檔完成"}, MessageBox::PressToCloseTop);
         } else {
-            gWindow->closePopup();
-            gWindow->loadGame(index + 1);
+            if (gWindow->loadGame(index + 1)) {
+                gWindow->closePopup();
+            } else {
+                gWindow->popupMessageBox({L"讀檔失敗"}, MessageBox::PressToCloseTop);
+            }
         }
     }, [subMenu]() {
         delete subMenu;

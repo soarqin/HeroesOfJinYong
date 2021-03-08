@@ -23,30 +23,49 @@
 
 namespace hojy::scene {
 
-void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
+void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex, bool horizonal) {
     items_ = items;
     currIndex_ = defaultIndex;
+    horizonal_ = horizonal;
     update();
 }
 
 void Menu::handleKeyInput(Key key) {
     switch (key) {
     case KeyUp:
-        if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
+        if (horizonal_) {
+            if (currIndex_ == 0) { break; }
+            currIndex_ = 0;
+        } else {
+            if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
+        }
         update();
         break;
     case KeyDown:
-        if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
+        if (horizonal_) {
+            if (currIndex_ == int(items_.size()) - 1) { break; }
+            currIndex_ = int(items_.size()) - 1;
+        } else {
+            if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
+        }
         update();
         break;
     case KeyLeft:
-        if (currIndex_ == 0) { break; }
-        currIndex_ = 0;
+        if (horizonal_) {
+            if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
+        } else {
+            if (currIndex_ == 0) { break; }
+            currIndex_ = 0;
+        }
         update();
         break;
     case KeyRight:
-        if (currIndex_ == int(items_.size()) - 1) { break; }
-        currIndex_ = int(items_.size()) - 1;
+        if (horizonal_) {
+            if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
+        } else {
+            if (currIndex_ == int(items_.size()) - 1) { break; }
+            currIndex_ = int(items_.size()) - 1;
+        }
         update();
         break;
     case KeyOK: case KeySpace:
@@ -62,30 +81,46 @@ void Menu::handleKeyInput(Key key) {
 
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
-    int w = 0;
+    int x = 0, y = 0, h = 0, w = 0;
+/*
     int itemsTW = 0;
+*/
     auto lines = int(items_.size());
-    auto totalLines = lines;
-    if (!title_.empty()) {
-        ++totalLines;
-        w = itemsTW = ttf->stringWidth(title_);
-    }
-    std::vector<int> itemsW;
-    itemsW.reserve(items_.size());
-    for (auto &s: items_) {
-        auto sw = ttf->stringWidth(s);
-        itemsW.push_back(sw);
-        w = std::max(w, sw);
-    }
-    int nw = w;
-    w += SubWindowBorder * 2;
     auto rowHeight = ttf->fontSize() + TextLineSpacing;
-    auto h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
-    auto x = 0, y = 0;
+    std::vector<int> itemsOff;
+    if (horizonal_) {
+        for (auto &s: items_) {
+            itemsOff.emplace_back(w);
+            w += ttf->stringWidth(s) + SubWindowBorder;
+        }
+        w += SubWindowBorder;
+        h = rowHeight * (title_.empty() ? 1 : 2) + SubWindowBorder * 2 - TextLineSpacing;
+    } else {
+        auto totalLines = lines;
+        if (!title_.empty()) {
+            ++totalLines;
+            w/* = itemsTW*/ = ttf->stringWidth(title_);
+        }
+/*
+        itemsOff.reserve(items_.size());
+*/
+        for (auto &s: items_) {
+            auto sw = ttf->stringWidth(s);
+/*
+            itemsOff.emplace_back(sw);
+*/
+            w = std::max(w, sw);
+        }
+/*
+        int nw = w;
+*/
+        w += SubWindowBorder * 2;
+        h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
 /* TODO: support centered menu?
     x = (width_ - w) / 2;
     y = (height_ - h) / 2;
 */
+    }
     width_ = w;
     height_ = h;
 
@@ -101,13 +136,24 @@ void Menu::makeCache() {
         ttf->render(title_, x/* + (nw - itemsTW) / 2*/, y, true);
         y += rowHeight;
     }
-    for (int i = 0; i < lines; ++i, y += rowHeight) {
-        if (i == currIndex_) {
-            ttf->setColor(236, 236, 236);
-        } else {
-            ttf->setColor(252, 148, 16);
+    if (horizonal_) {
+        for (int i = 0; i < lines; ++i) {
+            if (i == currIndex_) {
+                ttf->setColor(236, 236, 236);
+            } else {
+                ttf->setColor(252, 148, 16);
+            }
+            ttf->render(items_[i], x + itemsOff[i], y, true);
         }
-        ttf->render(items_[i], x/* + (nw - itemsW[i]) / 2*/, y, true);
+    } else {
+        for (int i = 0; i < lines; ++i, y += rowHeight) {
+            if (i == currIndex_) {
+                ttf->setColor(236, 236, 236);
+            } else {
+                ttf->setColor(252, 148, 16);
+            }
+            ttf->render(items_[i], x/* + (nw - itemsOff[i]) / 2*/, y, true);
+        }
     }
     renderer_->setTargetTexture(nullptr);
 }
@@ -121,8 +167,8 @@ void MenuTextList::onCancel() {
     cancelHandler_();
 }
 
-void MenuYesNo::popupWithYesNo() {
-    popup({L"是", L"否"}, -1);
+void MenuYesNo::popupWithYesNo(bool horizonal) {
+    popup({L"是", L"否"}, -1, horizonal);
 }
 
 void MenuYesNo::onOK() {
