@@ -179,14 +179,14 @@ void TalkBox::makeCache() {
     renderer_->setTargetTexture(cache_);
     renderer_->fill(0, 0, 0, 0);
     if (headTex_) {
-        renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 160);
+        renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 224);
         renderer_->drawRoundedRect(headX, headY, headW, headH, RoundedRectRad, 224, 224, 224, 255);
         renderer_->renderTexture(headTex_, float(headX + SubWindowBorder), float(headY + SubWindowBorder), 2., true);
     }
 
     int x = SubWindowBorder + textX;
     int y = SubWindowBorder + textY;
-    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 64, 64, 64, 160);
+    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 64, 64, 64, 224);
     renderer_->drawRoundedRect(textX, textY, textW, textH, RoundedRectRad, 224, 224, 224, 255);
     ttf->setColor(220, 220, 220);
     for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight) {

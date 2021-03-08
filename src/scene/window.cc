@@ -444,9 +444,9 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
 void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type) {
     MessageBox *msgBox;
     if (popup_) {
-        msgBox = new MessageBox(popup_, 0, 0, width_, height_ * 2 / 5);
+        msgBox = new MessageBox(popup_, 0, 0, width_, height_ * 4 / 5);
     } else {
-        msgBox = new MessageBox(renderer_, 0, 0, width_, height_ * 2 / 5);
+        msgBox = new MessageBox(renderer_, 0, 0, width_, height_ * 4 / 5);
         popup_ = msgBox;
         freeOnClose_ = true;
     }
