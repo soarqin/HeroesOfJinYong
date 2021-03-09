@@ -175,7 +175,7 @@ void TalkBox::makeCache() {
     }
 
     cacheBegin();
-    renderer_->fill(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 0);
     if (headTex_) {
         renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 208);
         renderer_->drawRoundedRect(headX, headY, headW, headH, RoundedRectRad, 224, 224, 224, 255);

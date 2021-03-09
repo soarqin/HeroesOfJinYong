@@ -51,6 +51,7 @@ public:
 
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
     [[nodiscard]] TextureMgr &globalTextureMgr() { return globalTextureMgr_; }
+    [[nodiscard]] const TextureMgr &mapTextureMgr() const { return map_->textureMgr(); }
 
     bool processEvents();
     void render();

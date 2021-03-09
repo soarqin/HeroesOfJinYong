@@ -78,7 +78,7 @@ void Node::doHandleKeyInput(Node::Key key) {
         handleKeyInput(key);
         return;
     }
-    children_.back()->handleKeyInput(key);
+    children_.back()->doHandleKeyInput(key);
 }
 
 void Node::doTextInput(const std::wstring &str) {
@@ -86,7 +86,7 @@ void Node::doTextInput(const std::wstring &str) {
         handleTextInput(str);
         return;
     }
-    children_.back()->handleTextInput(str);
+    children_.back()->doTextInput(str);
 }
 
 void Node::removeAllChildren() {

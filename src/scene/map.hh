@@ -52,6 +52,8 @@ public:
     void setPosition(int x, int y, bool checkEvent = true);
     void move(Direction direction);
 
+    [[nodiscard]] const TextureMgr &textureMgr() const { return textureMgr_; }
+
     void render() override;
     void handleKeyInput(Key key) override;
 
@@ -64,7 +66,7 @@ protected:
     bool getFaceOffset(int &x, int &y);
 
 protected:
-    TextureMgr textureMgr;
+    TextureMgr textureMgr_;
     std::int16_t subMapId_ = -1;
 
     float scale_ = 1.f;

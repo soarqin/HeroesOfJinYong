@@ -43,7 +43,7 @@ bool SubMap::load(std::int16_t subMapId) {
         snprintf(idxstr, 8, "SDX%03d", subMapId);
         snprintf(grpstr, 8, "SMP%03d", subMapId);
         auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
-        if (submapData.empty() || !textureMgr.mergeFromRLE(submapData)) {
+        if (submapData.empty() || !textureMgr_.mergeFromRLE(submapData)) {
             return false;
         }
         subMapLoaded_.insert(subMapId);
@@ -55,7 +55,7 @@ bool SubMap::load(std::int16_t subMapId) {
     frames_ = 0;
     nextEventCheck_ = gWindow->currTime();
     {
-        auto *tex = textureMgr[0];
+        auto *tex = textureMgr_[0];
         cellWidth_ = tex->width();
         cellHeight_ = tex->height();
         offsetX_ = tex->originX();
@@ -81,20 +81,20 @@ bool SubMap::load(std::int16_t subMapId) {
             auto &ci = cellInfo_[pos];
             auto texId = layers[0][pos] >> 1;
             ci.isWater = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
-            ci.earth = textureMgr[texId];
+            ci.earth = textureMgr_[texId];
             texId = layers[1][pos] >> 1;
             if (texId) {
-                ci.building = textureMgr[texId];
+                ci.building = textureMgr_[texId];
             }
             texId = layers[2][pos] >> 1;
             if (texId) {
-                ci.decoration = textureMgr[texId];
+                ci.decoration = textureMgr_[texId];
             }
             auto ev = layers[3][pos];
             if (ev >= 0) {
                 texId = events[ev].currTex >> 1;
                 if (texId) {
-                    ci.event = textureMgr[texId];
+                    ci.event = textureMgr_[texId];
                 }
             }
             ci.buildingDeltaY = layers[4][pos];
@@ -108,7 +108,7 @@ bool SubMap::load(std::int16_t subMapId) {
 }
 
 void SubMap::forceMainCharTexture(std::int16_t id) {
-    mainCharTex_ = textureMgr[id];
+    mainCharTex_ = textureMgr_[id];
     drawDirty_ = true;
 }
 
@@ -129,7 +129,7 @@ void SubMap::render() {
 
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
-        renderer_->fill(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 0);
 
 /* NOTE: Do we really need to do this?
  *       Earth with height > 0 should not stack with =0 ones
@@ -188,7 +188,7 @@ void SubMap::render() {
                 if (x == curX && y == curY) {
                     renderer_->setTargetTexture(drawingTerrainTex2_);
                     renderer_->setClipRect(0, 0, 2048, 2048);
-                    renderer_->fill(0, 0, 0, 0);
+                    renderer_->clear(0, 0, 0, 0);
                     charHeight_ = h;
                 }
                 if (ci.event) {
@@ -212,7 +212,7 @@ void SubMap::render() {
         renderer_->unsetClipRect();
     }
 
-    renderer_->fill(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar(charHeight_);
     renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
@@ -264,30 +264,30 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
 
 void SubMap::updateMainCharTexture() {
     if (animEventId_ < 0) {
-        mainCharTex_ = textureMgr[animCurrTex_ >> 1];
+        mainCharTex_ = textureMgr_[animCurrTex_ >> 1];
         return;
     }
     if (resting_) {
-        mainCharTex_ = textureMgr[2501 + int(direction_) * 7];
+        mainCharTex_ = textureMgr_[2501 + int(direction_) * 7];
         return;
     }
-    mainCharTex_ = textureMgr[2501 + int(direction_) * 7 + currFrame_];
+    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currFrame_];
 }
 
 void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
     if (tex < 0) { return; }
     switch (layer) {
     case 0:
-        cellInfo_[y * mapWidth_ + x].earth = textureMgr[tex];
+        cellInfo_[y * mapWidth_ + x].earth = textureMgr_[tex];
         break;
     case 1:
-        cellInfo_[y * mapWidth_ + x].building = textureMgr[tex];
+        cellInfo_[y * mapWidth_ + x].building = textureMgr_[tex];
         break;
     case 2:
-        cellInfo_[y * mapWidth_ + x].decoration = textureMgr[tex];
+        cellInfo_[y * mapWidth_ + x].decoration = textureMgr_[tex];
         break;
     case 3:
-        cellInfo_[y * mapWidth_ + x].event = textureMgr[tex];
+        cellInfo_[y * mapWidth_ + x].event = textureMgr_[tex];
         break;
     default:
         return;
@@ -319,7 +319,7 @@ void SubMap::updateEventTextures() {
             ev.currTex += step;
         }
         auto &ci = cellInfo_[ev.y * mapWidth_ + ev.x];
-        ci.event = textureMgr[ev.currTex >> 1];
+        ci.event = textureMgr_[ev.currTex >> 1];
         drawDirty_ = true;
     }
 }

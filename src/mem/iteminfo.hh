@@ -24,6 +24,7 @@
 namespace hojy::mem {
 
 enum {
+    ItemTexIdStart = 3501,
     MakeItemCount = 5,
 };
 

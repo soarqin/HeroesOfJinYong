@@ -29,9 +29,9 @@ namespace hojy::scene {
 Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height), scale_(scale), drawDirty_(true) {
     auxWidth_ = std::uint32_t(width_ / scale + 0.5);
     auxHeight_ = std::uint32_t(height_ / scale + 0.5);
-    textureMgr.clear();
-    textureMgr.setRenderer(renderer_);
-    textureMgr.setPalette(data::gNormalPalette);
+    textureMgr_.clear();
+    textureMgr_.setRenderer(renderer_);
+    textureMgr_.setPalette(data::gNormalPalette);
     drawingTerrainTex_ = Texture::createAsTarget(renderer_, width, height);
     drawingTerrainTex_->enableBlendMode(true);
     drawDirty_ = true;

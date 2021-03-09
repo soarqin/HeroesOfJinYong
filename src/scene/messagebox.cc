@@ -88,7 +88,7 @@ void MessageBox::makeCache() {
     height_ = textH;
 
     cacheBegin();
-    renderer_->fill(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 0);
     int x = SubWindowBorder;
     int y = SubWindowBorder;
     renderer_->fillRoundedRect(0, 0, textW, textH, RoundedRectRad, 64, 64, 64, 208);

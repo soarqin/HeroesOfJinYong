@@ -39,8 +39,9 @@ public:
     void setTargetTexture(Texture *tex);
     void setClipRect(int x, int y, int w, int h);
     void unsetClipRect();
-    void fill(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    void clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    void drawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void fillRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void drawRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin = false);

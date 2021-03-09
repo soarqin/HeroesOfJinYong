@@ -19,6 +19,134 @@
 
 #include "itemview.hh"
 
+#include "window.hh"
+#include "mem/savedata.hh"
+
 namespace hojy::scene {
+
+enum {
+    ItemCellSpacing = 5,
+};
+
+void ItemView::show() {
+    for (auto &item: mem::gSaveData.baseInfo->items) {
+        if (item.id < 0 || item.count <= 0) { continue; }
+        items_.emplace_back(std::make_pair(item.id, item.count));
+    }
+    const auto &mgr = gWindow->mapTextureMgr();
+    const auto *tex = mgr[3501];
+    cellWidth_ = tex->width() * 2;
+    cellHeight_ = tex->height() * 2;
+    cols_ = (width_ + ItemCellSpacing - SubWindowBorder * 2) / (cellWidth_ + ItemCellSpacing);
+    rows_ = (height_ + ItemCellSpacing - SubWindowBorder * 2) / (cellHeight_ + ItemCellSpacing);
+    width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + SubWindowBorder * 2;
+    height_ = (cellHeight_ + ItemCellSpacing) * rows_ - ItemCellSpacing + SubWindowBorder * 2;
+}
+
+void ItemView::handleKeyInput(Node::Key key) {
+    switch (key) {
+    case KeyOK: case KeySpace: case KeyCancel:
+        delete this;
+        break;
+    case KeyUp:
+        if (currSel_ < cols_) {
+            if (currTop_ == 0) {
+                int sz = int(items_.size());
+                int totalRows = (sz + cols_ - 1) / cols_;
+                if (totalRows <= rows_) {
+                    currSel_ = currSel_ + (totalRows - 1) * cols_;
+                    if (currSel_ >= sz) currSel_ -= cols_;
+                } else {
+                    currTop_ = totalRows - rows_;
+                    currSel_ = currSel_ + (rows_ - 1) * cols_;
+                    if (currSel_ + currTop_ * cols_ >= sz) currSel_ -= cols_;
+                }
+            } else {
+                --currTop_;
+            }
+        } else {
+            currSel_ -= cols_;
+        }
+        update();
+        break;
+    case KeyLeft:
+        if (currSel_ == 0) {
+            if (currTop_ == 0) {
+                int sz = int(items_.size());
+                currSel_ = sz - 1;
+                int totalRows = (sz + cols_ - 1) / cols_;
+                if (totalRows > rows_) {
+                    currTop_ = totalRows - rows_;
+                }
+            } else {
+                --currTop_;
+                currSel_ = cols_ - 1;
+            }
+        } else {
+            --currSel_;
+        }
+        update();
+        break;
+    case KeyRight: {
+        int sz = int(items_.size());
+        if (++currSel_ >= sz) {
+            currSel_ = 0;
+            currTop_ = 0;
+        } else {
+            if (currSel_ >= (currTop_ + rows_) * cols_) {
+                ++currTop_;
+                currSel_ -= cols_;
+            }
+        }
+        update();
+        break;
+    }
+    case KeyDown: {
+        currSel_ += cols_;
+        int sz = int(items_.size());
+        if (currSel_ + currTop_ * cols_ >= sz) {
+            currSel_ %= cols_;
+            currTop_ = 0;
+        } else {
+            if (currSel_ >= (currTop_ + rows_) * cols_) {
+                ++currTop_;
+                currSel_ -= cols_;
+            }
+        }
+        update();
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void ItemView::makeCache() {
+    cacheBegin();
+    renderer_->clear(0, 0, 0, 0);
+    renderer_->fillRoundedRect(0, 0, width_, height_, RoundedRectRad, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, width_, height_, RoundedRectRad, 224, 224, 224, 255);
+    int x, y = SubWindowBorder;
+    int idx = currTop_ * cols_;
+    auto totalSz = int(items_.size());
+    if (idx >= totalSz) {
+        idx = 0;
+        currTop_ = 0;
+    }
+    const auto &mgr = gWindow->mapTextureMgr();
+    for (int j = rows_; j && idx < totalSz; --j) {
+        x = SubWindowBorder;
+        for (int i = cols_; i && idx < totalSz; --i, ++idx) {
+            auto *tex = mgr[items_[idx].first + mem::ItemTexIdStart];
+            renderer_->renderTexture(tex, x, y, cellWidth_, cellHeight_, 0, 0, cellWidth_ / 2, cellHeight_ / 2, true);
+            x += cellWidth_ + ItemCellSpacing;
+        }
+        y += cellHeight_ + ItemCellSpacing;
+    }
+    int sx = SubWindowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
+    int sy = SubWindowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
+    renderer_->drawRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 252, 252, 252, 255);
+    cacheEnd();
+}
 
 }

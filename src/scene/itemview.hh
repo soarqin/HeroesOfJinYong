@@ -21,11 +21,26 @@
 
 #include "nodewithcache.hh"
 
+#include <vector>
+#include <cstdint>
+
 namespace hojy::scene {
 
 class ItemView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
+
+    void show();
+    void handleKeyInput(Key key) override;
+
+protected:
+    void makeCache() override;
+
+protected:
+    std::vector<std::pair<std::int16_t, std::int16_t>> items_;
+    int cols_ = 0, rows_ = 0;
+    int cellWidth_ = 0, cellHeight_ = 0;
+    int currTop_ = 0, currSel_ = 0;
 };
 
 }

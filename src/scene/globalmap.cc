@@ -36,9 +36,9 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     auto &mmapData = data::gGrpData.lazyLoad("MMAP");
-    textureMgr.loadFromRLE(mmapData);
+    textureMgr_.loadFromRLE(mmapData);
     {
-        auto *tex = textureMgr[0];
+        auto *tex = textureMgr_[0];
         cellWidth_ = tex->width();
         cellHeight_ = tex->height();
         offsetX_ = tex->originX();
@@ -82,11 +82,11 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                     ci.canWalk = true;
                 }
             }
-            ci.earth = textureMgr[n];
+            ci.earth = textureMgr_[n];
             auto &n0 = surface_[pos];
             n0 >>= 1;
             if (n0) {
-                ci.surface = textureMgr[n0];
+                ci.surface = textureMgr_[n0];
             } else {
                 ci.surface = nullptr;
             }
@@ -97,7 +97,7 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                 if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
                     ci.type = 2;
                 }
-                const auto *tex2 = textureMgr[n1];
+                const auto *tex2 = textureMgr_[n1];
                 if (tex2) {
                     auto centerX = tx - tex2->originX() + tex2->width() / 2;
                     auto centerY =
@@ -141,7 +141,7 @@ void GlobalMap::render() {
         cx = curX - cx; cy = curY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
-        renderer_->fill(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 0);
         int delta = -mapWidth_ + 1;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
@@ -181,7 +181,7 @@ void GlobalMap::render() {
         auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());
         renderer_->setTargetTexture(drawingBuildingTex_[0]);
         renderer_->setClipRect(0, 0, 2048, 1024);
-        renderer_->fill(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 0);
         while (ite != ite_mid) {
             if (ite->x < l || ite->x >= r) {
                 ++ite;
@@ -192,7 +192,7 @@ void GlobalMap::render() {
         }
         renderer_->setTargetTexture(drawingBuildingTex_[1]);
         renderer_->setClipRect(0, 0, 2048, 1024);
-        renderer_->fill(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 0);
         while (ite != ite_end) {
             if (ite->x < l || ite->x >= r) {
                 ++ite;
@@ -204,7 +204,7 @@ void GlobalMap::render() {
         renderer_->setTargetTexture(nullptr);
         renderer_->unsetClipRect();
     }
-    renderer_->fill(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderer_->renderTexture(drawingBuildingTex_[0], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
@@ -259,14 +259,14 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
 
 void GlobalMap::updateMainCharTexture() {
     if (onShip_) {
-        mainCharTex_ = textureMgr[3715 + int(direction_) * 4 + currFrame_];
+        mainCharTex_ = textureMgr_[3715 + int(direction_) * 4 + currFrame_];
         return;
     }
     if (resting_) {
-        mainCharTex_ = textureMgr[2529 + int(direction_) * 6 + currFrame_];
+        mainCharTex_ = textureMgr_[2529 + int(direction_) * 6 + currFrame_];
         return;
     }
-    mainCharTex_ = textureMgr[2501 + int(direction_) * 7 + currFrame_];
+    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currFrame_];
 }
 
 void GlobalMap::resetTime() {

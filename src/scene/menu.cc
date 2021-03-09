@@ -125,7 +125,7 @@ void Menu::makeCache() {
     height_ = h;
 
     cacheBegin();
-    renderer_->fill(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 0);
     renderer_->fillRoundedRect(x, y, w, h, RoundedRectRad, 64, 64, 64, 208);
     renderer_->drawRoundedRect(x, y, w, h, RoundedRectRad, 224, 224, 224, 255);
     x += SubWindowBorder; y += SubWindowBorder;

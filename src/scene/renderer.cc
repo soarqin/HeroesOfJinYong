@@ -60,7 +60,7 @@ void Renderer::unsetClipRect() {
     SDL_RenderSetClipRect(static_cast<SDL_Renderer*>(renderer_), nullptr);
 }
 
-void Renderer::fill(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+void Renderer::clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
     auto *ren = static_cast<SDL_Renderer*>(renderer_);
     SDL_SetRenderDrawColor(ren, r, g, b, a);
     SDL_RenderClear(ren);
@@ -71,6 +71,13 @@ void Renderer::fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t
     SDL_SetRenderDrawColor(ren, r, g, b, a);
     SDL_Rect rc {x, y, w, h};
     SDL_RenderFillRect(ren, &rc);
+}
+
+void Renderer::drawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    auto *ren = static_cast<SDL_Renderer*>(renderer_);
+    SDL_SetRenderDrawColor(ren, r, g, b, a);
+    SDL_Rect rc {x, y, w, h};
+    SDL_RenderDrawRect(ren, &rc);
 }
 
 void Renderer::fillRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {

@@ -24,6 +24,7 @@
 #include "talkbox.hh"
 #include "title.hh"
 #include "menu.hh"
+#include "itemview.hh"
 #include "statusview.hh"
 
 #include "audio/mixer.hh"
@@ -49,6 +50,7 @@ static void medicMenu(Node *mainMenu);
 static void medicTargetMenu(Node *mainMenu, int16_t charId);
 static void depoisonMenu(Node *mainMenu);
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
+static void showItems(Node *mainMenu);
 static void statusMenu(Node *mainMenu);
 static void showCharStatus(Node *parent, std::int16_t charId);
 static void systemMenu(Node *mainMenu);
@@ -313,6 +315,7 @@ void Window::showMainMenu(bool inSubMap) {
                 depoisonMenu(mainMenu_);
                 break;
             case 2:
+                showItems(mainMenu_);
                 break;
             case 3:
                 statusMenu(mainMenu_);
@@ -484,6 +487,13 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
         delete subMenu;
         delete box;
     });
+}
+
+static void showItems(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - 40, gWindow->height() - y - 40);
+    iv->show();
 }
 
 static void statusMenu(Node *mainMenu) {

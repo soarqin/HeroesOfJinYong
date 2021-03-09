@@ -22,6 +22,7 @@
 #include "window.hh"
 #include "menu.hh"
 #include "mem/savedata.hh"
+#include "mem/action.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
 #include "data/colorpalette.hh"
@@ -143,7 +144,7 @@ void Title::handleTextInput(const std::wstring &str) {
 
 void Title::makeCache() {
     cacheBegin();
-    renderer_->fill(0, 0, 0, 255);
+    renderer_->clear(0, 0, 0, 255);
 
     int w = width_, h = width_ * big_->height() / big_->width();
     if (h > height_) {
@@ -275,10 +276,10 @@ void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int1
         renderer_->fillRect(x, y, ttf->stringWidth(dispString) + 2, h, 216, 20, 24, 255);
         shadow = true;
     }
-    if (mpType == 0) {
-        ttf->setColor(208, 152, 208);
-    } else if (mpType == 1) {
-        ttf->setColor(236, 200, 40);
+    if (mpType >= 0) {
+        std::uint8_t r, g, b;
+        std::tie(r, g, b) = mem::calcColorForMpType(mpType);
+        ttf->setColor(r, g, b);
     } else {
         if (value >= maxValue) {
             ttf->setColor(252, 236, 132);

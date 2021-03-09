@@ -31,6 +31,20 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
     return data::gFactors.expForLevelUp[level];
 }
 
+std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type) {
+    switch (type) {
+    case 0:
+        return std::make_tuple(208, 152, 208);
+        break;
+    case 1:
+        return std::make_tuple(236, 200, 40);
+        break;
+    default:
+        break;
+    }
+    return std::make_tuple(252, 252, 252);
+}
+
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina) {
     if (!c1 || !c2) { return 0; }
     auto oldHp = c2->hp;
