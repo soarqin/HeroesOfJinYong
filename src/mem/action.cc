@@ -31,6 +31,10 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
     return data::gFactors.expForLevelUp[level];
 }
 
+std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential) {
+    return mem::gSaveData.itemInfo[itemId]->reqExp * (level <= 0 ? 1 : level) * std::clamp<int16_t>(7 - potential / 15, 1, 5);
+}
+
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type) {
     switch (type) {
     case 0:

@@ -514,8 +514,8 @@ static void statusMenu(Node *mainMenu) {
         charIdList.emplace_back(id);
     }
     subMenu->popup(names);
-    subMenu->setHandler([charIdList, subMenu](int index) {
-        showCharStatus(subMenu, charIdList[index]);
+    subMenu->setHandler([charIdList, mainMenu](int index) {
+        showCharStatus(mainMenu, charIdList[index]);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;

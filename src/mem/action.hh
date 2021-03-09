@@ -28,6 +28,7 @@
 namespace hojy::mem {
 
 std::uint16_t getExpForLevelUp(std::int16_t level);
+std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential);
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, int16_t stamina);

@@ -50,10 +50,11 @@ void StatusView::makeCache() {
     int x1 = x0 + fontSize * 5 / 2;
     int x2 = x1 + fontSize * 9 / 2 + SubWindowBorder;
     int x3 = x2 + fontSize * 9 / 2;
-    int w = x3 + fontSize * 2 + SubWindowBorder;
+    int x4 = x3 + fontSize * 2 + SubWindowBorder;
+    int x5 = x4 + fontSize * 5;
+    int w = x5 + fontSize * 3 / 2 + SubWindowBorder;
     bool showPotential = core::config.showPotential();
-    int lines = showPotential ? 12 : 11;
-    int h = SubWindowBorder * 2 + lineheight * lines - TextLineSpacing;
+    int h = SubWindowBorder * 2 + lineheight * 15 - TextLineSpacing;
     width_ = w;
     height_ = h;
 
@@ -109,7 +110,7 @@ void StatusView::makeCache() {
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->blade), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"經驗", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->exp), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", charInfo->exp), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"特殊兵器", x2, y, true);
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->special), x3, y, true);
     y += lineheight;
@@ -117,7 +118,7 @@ void StatusView::makeCache() {
     auto exp = mem::getExpForLevelUp(charInfo->level);
     ttf->setColor(236, 200, 40);
     if (exp) {
-        ttf->render(fmt::format(L"{:>3}", exp), x1, y, true);
+        ttf->render(fmt::format(L"{:>5}", exp), x1, y, true);
     } else {
         ttf->render(L"-", x1, y, true);
     }
@@ -127,6 +128,41 @@ void StatusView::makeCache() {
         y += lineheight;
         ttf->setColor(252, 148, 16); ttf->render(L"資質", x0, y, true);
         ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->potential), x1, y, true);
+    }
+    y = SubWindowBorder;
+    ttf->setColor(252, 148, 16); ttf->render(L"所會功夫", x4, y, true);
+    std::int16_t learningSkillId = -1, learningLevel = 0;
+    if (charInfo->learningItem >= 0) {
+        learningSkillId = mem::gSaveData.itemInfo[charInfo->learningItem]->skillId;
+    }
+    for (int i = 0; i < mem::LearnSkillCount; ++i) {
+        y += lineheight;
+        if (charInfo->skillId[i] <= 0) { continue; }
+        ttf->setColor(236, 200, 40); ttf->render(util::big5Conv.toUnicode(mem::gSaveData.skillInfo[charInfo->skillId[i]]->name), x4, y, true);
+        std::int16_t level = std::clamp<int16_t>(charInfo->skillLevel[i] / 100, 0, 9) + 1;
+        ttf->setColor(236, 236, 236); ttf->render(fmt::format(L"{:>2}", level), x5, y, true);
+        if (charInfo->skillId[i] == learningSkillId) {
+            learningLevel = level;
+        }
+    }
+    y = SubWindowBorder + lineheight * 12;
+    ttf->setColor(252, 148, 16);
+    ttf->render(L"裝備物品", x0, y, true); ttf->render(L"修練物品", x2, y, true);
+    ttf->setColor(236, 200, 40);
+    y += lineheight;
+    if (charInfo->equip0 >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip0]->name), x0, y, true);
+    }
+    if (charInfo->learningItem >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->learningItem]->name), x2, y, true);
+    }
+    y += lineheight;
+    if (charInfo->equip1 >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip1]->name), x0, y, true);
+    }
+    if (charInfo->learningItem >= 0) {
+        std::uint16_t expForItem = mem::getExpForSkillLearn(charInfo->learningItem, learningLevel, charInfo->potential);
+        ttf->render(fmt::format(L"{:>5}/{:>5}", charInfo->expForItem, expForItem), x2, y, true);
     }
     cacheEnd();
 }

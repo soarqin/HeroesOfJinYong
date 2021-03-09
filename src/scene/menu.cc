@@ -86,12 +86,14 @@ void Menu::makeCache() {
     int itemsTW = 0;
 */
     auto lines = int(items_.size());
-    auto rowHeight = ttf->fontSize() + TextLineSpacing;
-    std::vector<int> itemsOff;
+    auto fontSize = ttf->fontSize();
+    auto rowHeight = fontSize + TextLineSpacing;
+    std::vector<std::pair<int, int>> itemsOff;
     if (horizonal_) {
         for (auto &s: items_) {
-            itemsOff.emplace_back(w);
-            w += ttf->stringWidth(s) + SubWindowBorder;
+            auto sw = ttf->stringWidth(s);
+            itemsOff.emplace_back(std::make_pair(w, sw));
+            w += sw + SubWindowBorder;
         }
         w += SubWindowBorder;
         h = rowHeight * (title_.empty() ? 1 : 2) + SubWindowBorder * 2 - TextLineSpacing;
@@ -138,15 +140,17 @@ void Menu::makeCache() {
         for (int i = 0; i < lines; ++i) {
             if (i == currIndex_) {
                 ttf->setColor(236, 236, 236);
+                renderer_->fillRoundedRect(x + itemsOff[i].first - 2, y - 2, itemsOff[i].second + 4, fontSize + 4, 2, 96, 96, 96, 192);
             } else {
                 ttf->setColor(252, 148, 16);
             }
-            ttf->render(items_[i], x + itemsOff[i], y, true);
+            ttf->render(items_[i], x + itemsOff[i].first, y, true);
         }
     } else {
         for (int i = 0; i < lines; ++i, y += rowHeight) {
             if (i == currIndex_) {
                 ttf->setColor(236, 236, 236);
+                renderer_->fillRoundedRect(x - 2, y - 2, w - SubWindowBorder * 2 + 4, fontSize + 4, 2, 96, 96, 96, 192);
             } else {
                 ttf->setColor(252, 148, 16);
             }
