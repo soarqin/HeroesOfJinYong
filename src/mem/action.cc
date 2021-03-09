@@ -20,9 +20,16 @@
 #include "action.hh"
 
 #include "savedata.hh"
+#include "data/factors.hh"
 #include <algorithm>
 
 namespace hojy::mem {
+
+std::uint16_t getExpForLevelUp(std::int16_t level) {
+    --level;
+    if (level >= data::gFactors.expForLevelUp.size()) { return 0;}
+    return data::gFactors.expForLevelUp[level];
+}
 
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina) {
     if (!c1 || !c2) { return 0; }

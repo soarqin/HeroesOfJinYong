@@ -17,6 +17,10 @@ else()
     set(DEPS_BUILD_STATIC ON)
 endif()
 
+set(MESSAGE_QUIET ON)
+add_subdirectory(fmt)
+set(MESSAGE_QUIET OFF)
+
 set(BUILD_TESTS OFF CACHE BOOL "Build sanity-tests." FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Build examples." FORCE)
 set(WITH_OPENMP OFF CACHE BOOL "Include OpenMP threading." FORCE)

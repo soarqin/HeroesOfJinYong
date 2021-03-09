@@ -32,7 +32,7 @@ enum {
     SkillLevelMaxDiv = 9,
 
     LevelMax = 30,
-    ExpMax = 99999,
+    ExpMax = 65000,
     HPMax = 999,
     MPMax = 999,
     StaminaMax = 100,

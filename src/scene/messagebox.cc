@@ -87,8 +87,7 @@ void MessageBox::makeCache() {
     width_ = textW;
     height_ = textH;
 
-    NodeWithCache::makeCache();
-    renderer_->setTargetTexture(cache_);
+    cacheBegin();
     renderer_->fill(0, 0, 0, 0);
     int x = SubWindowBorder;
     int y = SubWindowBorder;
@@ -99,7 +98,7 @@ void MessageBox::makeCache() {
         ttf->render(l, x, y, true);
         y += rowHeight;
     }
-    renderer_->setTargetTexture(nullptr);
+    cacheEnd();
     text_.clear();
 
     switch (type_) {

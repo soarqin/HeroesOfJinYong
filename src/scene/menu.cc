@@ -124,9 +124,7 @@ void Menu::makeCache() {
     width_ = w;
     height_ = h;
 
-    NodeWithCache::makeCache();
-
-    renderer_->setTargetTexture(cache_);
+    cacheBegin();
     renderer_->fill(0, 0, 0, 0);
     renderer_->fillRoundedRect(x, y, w, h, RoundedRectRad, 64, 64, 64, 208);
     renderer_->drawRoundedRect(x, y, w, h, RoundedRectRad, 224, 224, 224, 255);
@@ -155,7 +153,7 @@ void Menu::makeCache() {
             ttf->render(items_[i], x/* + (nw - itemsOff[i]) / 2*/, y, true);
         }
     }
-    renderer_->setTargetTexture(nullptr);
+    cacheEnd();
 }
 
 void MenuTextList::onOK() {

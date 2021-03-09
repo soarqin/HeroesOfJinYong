@@ -131,8 +131,6 @@ void TalkBox::handleKeyInput(Node::Key key) {
 }
 
 void TalkBox::makeCache() {
-    NodeWithCache::makeCache();
-
     int rowHeight;
     int headX, headY, headW = 0, headH = 0;
     int textX, textY, textW, textH;
@@ -176,7 +174,7 @@ void TalkBox::makeCache() {
         }
     }
 
-    renderer_->setTargetTexture(cache_);
+    cacheBegin();
     renderer_->fill(0, 0, 0, 0);
     if (headTex_) {
         renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 208);
@@ -192,7 +190,7 @@ void TalkBox::makeCache() {
     for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight) {
         ttf->render(text_[idx], x, y, true);
     }
-    renderer_->setTargetTexture(nullptr);
+    cacheEnd();
 }
 
 }

@@ -4,3 +4,6 @@
 [submodule "deps/libADLMIDI"]
 	path = deps/libADLMIDI
 	url = https://github.com/Wohlstand/libADLMIDI
+[submodule "deps/fmt"]
+	path = deps/fmt
+	url = https://github.com/fmtlib/fmt.git

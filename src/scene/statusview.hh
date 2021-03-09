@@ -29,6 +29,8 @@ public:
 
     void show(std::int16_t charId);
 
+    void handleKeyInput(Key key) override;
+
 protected:
     void makeCache() override;
 

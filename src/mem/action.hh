@@ -20,10 +20,13 @@
 #pragma once
 
 #include "character.hh"
+
+#include <string>
 #include <cstdint>
 
 namespace hojy::mem {
 
+std::uint16_t getExpForLevelUp(std::int16_t level);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, int16_t stamina);
 

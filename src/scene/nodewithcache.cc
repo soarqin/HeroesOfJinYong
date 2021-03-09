@@ -41,11 +41,16 @@ void NodeWithCache::render() {
     renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
 }
 
-void NodeWithCache::makeCache() {
+void NodeWithCache::cacheBegin() {
     if (!cache_) {
         cache_ = Texture::createAsTarget(renderer_, width_, height_);
         cache_->enableBlendMode(true);
     }
+    renderer_->setTargetTexture(cache_);
+}
+
+void NodeWithCache::cacheEnd() {
+    renderer_->setTargetTexture(nullptr);
 }
 
 }

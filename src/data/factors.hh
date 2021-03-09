@@ -17,19 +17,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "loader.hh"
+#pragma once
 
-#include "colorpalette.hh"
-#include "event.hh"
-#include "factors.hh"
+#include <array>
+#include <map>
+#include <string>
+#include <cstdint>
 
 namespace hojy::data {
 
-void loadData() {
-    gFactors.load("Z.DAT");
-    gNormalPalette.load("MMAP");
-    gEvent.loadEvent("KDEF");
-    gEvent.loadTalk("TALK");
-}
+struct Factors {
+    void load(const std::string &filename);
+
+    std::array<int16_t, 25> leaveTeamChars;
+    std::int16_t leaveTeamStartEvents;
+    std::int16_t initSubMapId, initSubMapX, initSubMapY, initMainCharTex;
+    std::array<std::uint16_t, 29> expForLevelUp;
+    std::array<std::int16_t, 53> effectFrames;
+    std::array<std::int16_t, 21> skillWeaponsBindings;
+};
+
+extern Factors gFactors;
 
 }

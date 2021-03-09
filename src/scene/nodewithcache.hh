@@ -36,7 +36,9 @@ public:
     void render() override;
 
 protected:
-    virtual void makeCache();
+    virtual void makeCache() = 0;
+    void cacheBegin();
+    void cacheEnd();
 
 protected:
     Texture *cache_ = nullptr;

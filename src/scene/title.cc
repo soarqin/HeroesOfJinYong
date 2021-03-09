@@ -22,11 +22,14 @@
 #include "window.hh"
 #include "menu.hh"
 #include "mem/savedata.hh"
+#include "data/factors.hh"
 #include "data/grpdata.hh"
 #include "data/colorpalette.hh"
 #include "core/config.hh"
 #include "util/random.hh"
 #include "util/file.hh"
+#include "util/conv.hh"
+#include <cstring>
 
 namespace hojy::scene {
 
@@ -139,8 +142,7 @@ void Title::handleTextInput(const std::wstring &str) {
 }
 
 void Title::makeCache() {
-    NodeWithCache::makeCache();
-    renderer_->setTargetTexture(cache_);
+    cacheBegin();
     renderer_->fill(0, 0, 0, 255);
 
     int w = width_, h = width_ * big_->height() / big_->width();
@@ -169,12 +171,14 @@ void Title::makeCache() {
             renderer_->renderTexture(titleTextureMgr_[4], x0, offsetY[4].first, scale);
             renderer_->renderTexture(titleTextureMgr_[5 + currSel_], x0, offsetY[5 + currSel_].first, scale);
         }
+        cacheEnd();
         break;
     }
     case 2: {
         auto *ttf = renderer_->ttf();
         y = height_ - (ttf->fontSize() + TextLineSpacing) * 5;
         ttf->render(L"請輸入姓名：" + mainCharName_, width_ / 4, y, false);
+        cacheEnd();
         break;
     }
     case 3: {
@@ -184,25 +188,8 @@ void Title::makeCache() {
         int hh = lineheight - TextLineSpacing / 4;
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
+        int ox = x, oy = y;
         auto askText = mainCharName_ + L"  這樣的屬性滿意嗎？";
-        if (menu_ == nullptr) {
-            renderer_->setTargetTexture(nullptr);
-            int mx = x + ttf->stringWidth(askText) + SubWindowBorder + 10;
-            int my = y - SubWindowBorder;
-            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
-            menu->popupWithYesNo(true);
-            menu->setHandler([this] {
-                fadeOut([] {
-                    gWindow->closePopup();
-                    gWindow->newGame();
-                });
-            }, [this] {
-                doRandomBaseInfo();
-                update();
-            });
-            menu_ = menu;
-            renderer_->setTargetTexture(cache_);
-        }
         auto *data = mem::gSaveData.charInfo[0];
         ttf->setColor(224, 180, 32);
         ttf->render(askText, x, y, false);
@@ -224,9 +211,37 @@ void Title::makeCache() {
         if (core::config.showPotential()) {
             drawProperty(L"資質", data->potential, 100, x + colwidth * 4, y, hh);
         }
+        cacheEnd();
+        if (mode_ == 3 && menu_ == nullptr) {
+            int mx = ox + ttf->stringWidth(askText) + SubWindowBorder + 10;
+            int my = oy - SubWindowBorder;
+            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
+            menu->popupWithYesNo(true);
+            menu->setHandler([this] {
+                auto big5Name = util::big5Conv.fromUnicode(mainCharName_);
+                while (big5Name.length() > 8) {
+                    mainCharName_.pop_back();
+                    big5Name = util::big5Conv.fromUnicode(mainCharName_);
+                }
+                memset(mem::gSaveData.charInfo[0]->name, 0, 10);
+                memcpy(mem::gSaveData.charInfo[0]->name, big5Name.data(), big5Name.length());
+                auto *subMap = mem::gSaveData.subMapInfo[data::gFactors.initSubMapId];
+                auto tailName = util::big5Conv.fromUnicode(L"居");
+                memset(subMap->name, 0, 10);
+                memcpy(subMap->name, big5Name.data(), big5Name.length());
+                memcpy(subMap->name + big5Name.length(), tailName.data(), tailName.length());
+                fadeOut([] {
+                    gWindow->closePopup();
+                    gWindow->newGame();
+                });
+            }, [this] {
+                doRandomBaseInfo();
+                update();
+            });
+            menu_ = menu;
+        }
     }
     }
-    renderer_->setTargetTexture(nullptr);
 }
 
 void Title::doRandomBaseInfo() {

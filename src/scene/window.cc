@@ -24,10 +24,12 @@
 #include "talkbox.hh"
 #include "title.hh"
 #include "menu.hh"
+#include "statusview.hh"
 
 #include "audio/mixer.hh"
 #include "audio/channelmidi.hh"
 #include "audio/channelwav.hh"
+#include "data/factors.hh"
 #include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/action.hh"
@@ -36,7 +38,7 @@
 #include "util/conv.hh"
 
 #include <SDL.h>
-
+#include <fmt/format.h>
 #include <stdexcept>
 
 namespace hojy::scene {
@@ -48,7 +50,7 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId);
 static void depoisonMenu(Node *mainMenu);
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
 static void statusMenu(Node *mainMenu);
-static void showCharStatus(Node *mainMenu, std::int16_t charId);
+static void showCharStatus(Node *parent, std::int16_t charId);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
 
@@ -203,12 +205,12 @@ void Window::playEffectSound(int idx) {
 void Window::newGame() {
     map_ = subMap_;
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
-    dynamic_cast<SubMap*>(subMap_)->load(70);
-    subMap_->setPosition(19, 20, false);
-    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
+    dynamic_cast<SubMap*>(subMap_)->load(data::gFactors.initSubMapId);
+    subMap_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY, false);
+    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
     map_->fadeIn([this] {
-        map_->setPosition(19, 20);
-        dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(3445);
+        map_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
+        dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
     });
 }
 
@@ -254,8 +256,8 @@ void Window::forceQuit() {
 void Window::exitToGlobalMap(int direction) {
     map_->fadeOut([this, direction]() {
         map_ = globalMap_;
-        globalMap_->setDirection(Map::Direction(direction));
-        globalMap_->fadeIn(nullptr);
+        map_->setDirection(Map::Direction(direction));
+        map_->fadeIn(nullptr);
     });
 }
 
@@ -263,11 +265,14 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
     map_->fadeOut([this, subMapId, direction]() {
         map_ = subMap_;
         subMap_->setDirection(Map::Direction(direction));
-        const auto &smi = mem::gSaveData.subMapInfo[subMapId];
-        dynamic_cast<SubMap *>(subMap_)->load(subMapId);
+        const auto *smi = mem::gSaveData.subMapInfo[subMapId];
+        dynamic_cast<SubMap *>(map_)->load(subMapId);
         auto x = smi->enterX, y = smi->enterY;
-        subMap_->setPosition(x, y, false);
-        map_->fadeIn([this, x, y] {
+        map_->setPosition(x, y, false);
+        auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
+        tips->popup({util::big5Conv.toUnicode(smi->name)}, MessageBox::Normal);
+        map_->fadeIn([this, tips, x, y] {
+            delete tips;
             map_->setPosition(x, y);
         });
     });
@@ -374,7 +379,7 @@ static void medicMenu(Node *mainMenu) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (charInfo->medic > 0) {
-            names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->medic));
+            names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->medic)));
             charIdList.emplace_back(id);
         }
     }
@@ -403,8 +408,8 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' '
-                               + std::to_wstring(charInfo->hp) + L'/' + std::to_wstring(charInfo->maxHp));
+        names.emplace_back(fmt::format(L"{:10} {:>3}/{:>3}", util::big5Conv.toUnicode(charInfo->name),
+                                       std::to_wstring(charInfo->hp), std::to_wstring(charInfo->maxHp)));
         charIdList.emplace_back(id);
     }
     subMenu->popup(names);
@@ -436,7 +441,7 @@ static void depoisonMenu(Node *mainMenu) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (charInfo->depoison > 0) {
-            names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->depoison));
+            names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->depoison)));
             charIdList.emplace_back(id);
         }
     }
@@ -465,7 +470,7 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
         auto id = mem::gSaveData.baseInfo->members[i];
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name) + L' ' + std::to_wstring(charInfo->poisoned));
+        names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->poisoned)));
         charIdList.emplace_back(id);
     }
     subMenu->popup(names);
@@ -499,8 +504,8 @@ static void statusMenu(Node *mainMenu) {
         charIdList.emplace_back(id);
     }
     subMenu->popup(names);
-    subMenu->setHandler([charIdList, mainMenu](int index) {
-        showCharStatus(mainMenu, charIdList[index]);
+    subMenu->setHandler([charIdList, subMenu](int index) {
+        showCharStatus(subMenu, charIdList[index]);
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -508,8 +513,11 @@ static void statusMenu(Node *mainMenu) {
     });
 }
 
-static void showCharStatus(Node *mainMenu, std::int16_t charId) {
-
+static void showCharStatus(Node *parent, std::int16_t charId) {
+    auto x = parent->x() + parent->width() + SubWindowBorder;
+    auto y = parent->y();
+    auto *sv = new StatusView(parent, x, y, gWindow->width() - x, gWindow->height() - y);
+    sv->show(charId);
 }
 
 static void systemMenu(Node *mainMenu) {
