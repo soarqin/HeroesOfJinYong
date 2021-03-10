@@ -62,7 +62,7 @@ bool Config::load(const std::string &filename) {
         auto fonts = main["fonts"];
         if (fonts.is_string()) {
             fonts_ = {fonts.value_or<std::string>("")};
-        } else {
+        } else if (fonts.is_array()) {
             for (auto &p: *fonts.as_array()) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }

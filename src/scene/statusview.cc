@@ -127,7 +127,7 @@ void StatusView::makeCache() {
     if (showPotential) {
         y += lineheight;
         ttf->setColor(252, 148, 16); ttf->render(L"資質", x0, y, true);
-        ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->potential), x1, y, true);
+        ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", charInfo->potential), x1, y, true);
     }
     y = SubWindowBorder;
     ttf->setColor(252, 148, 16); ttf->render(L"所會功夫", x4, y, true);

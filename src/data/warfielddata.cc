@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "wardata.hh"
+#include "warfielddata.hh"
 
 #include "grpdata.hh"
 #include "core/config.hh"
@@ -25,28 +25,28 @@
 
 namespace hojy::data {
 
-WarData gWarData;
+WarFieldData gWarFieldData;
 
-void WarData::load(const std::string &warsta, const std::string &warfld) {
+void WarFieldData::load(const std::string &warsta, const std::string &warfld) {
     util::File::getFileContent(core::config.dataFilePath(warsta), info_);
     GrpData::DataSet dset;
     if (GrpData::loadData(warfld, dset)) {
         layers_.resize(dset.size());
         for (size_t i = 0; i < dset.size(); ++i) {
-            auto sz = std::min(sizeof(layers_[i].layers_), dset[i].size());
-            memcpy(layers_[i].layers_, dset[i].data(), sz);
+            auto sz = std::min(sizeof(layers_[i].layers), dset[i].size());
+            memcpy(layers_[i].layers, dset[i].data(), sz);
         }
     }
 }
 
-const WarFieldInfo *WarData::info(std::int16_t id) const {
+const WarFieldInfo *WarFieldData::info(std::int16_t id) const {
     if (id < 0 || id >= info_.size()) {
         return nullptr;
     }
     return &info_[id];
 }
 
-const WarFieldLayers *WarData::layers(std::int16_t id) const {
+const WarFieldLayers *WarFieldData::layers(std::int16_t id) const {
     if (id < 0 || id >= layers_.size()) {
         return nullptr;
     }

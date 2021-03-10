@@ -26,7 +26,7 @@ namespace hojy::scene {
 
 Mask::Mask(Node *parent, Mask::Type type, int interval):
     Node(parent, parent->x(), parent->y(), parent->width(), parent->height()),
-    type_(type), interval_(interval), start_(std::chrono::steady_clock::now()) {
+    type_(type), interval_(interval), start_(gWindow->currTime()) {
 }
 
 void Mask::render() {

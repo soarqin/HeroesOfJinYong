@@ -81,13 +81,14 @@ private:
     int width_, height_;
     void *win_ = nullptr;
     Renderer *renderer_ = nullptr;
-    MapWithEvent *map_ = nullptr;
+    Map *map_ = nullptr;
     Node *popup_ = nullptr;
     Node *mainMenu_ = nullptr;
     bool freeOnClose_ = false;
 
     MapWithEvent *globalMap_ = nullptr;
     MapWithEvent *subMap_ = nullptr;
+    Map *warMap_ = nullptr;
     Node *talkBox_ = nullptr;
     TextureMgr globalTextureMgr_, headTextureMgr_;
 

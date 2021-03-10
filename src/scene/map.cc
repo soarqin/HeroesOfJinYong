@@ -21,6 +21,7 @@
 
 #include "window.hh"
 #include "data/colorpalette.hh"
+#include "core/config.hh"
 
 #include <chrono>
 #include <cmath>
@@ -71,10 +72,20 @@ void Map::move(Map::Direction direction) {
     updateMainCharTexture();
 }
 
+void Map::resetFrame() {
+    frames_ = 0;
+    nextFrameTime_ = gWindow->currTime();
+    resetTime();
+}
+
 void Map::render() {
     if (checkTime()) {
         updateMainCharTexture();
     }
+    ++frames_;
+    if (gWindow->currTime() < nextFrameTime_) { return; }
+    nextFrameTime_ += std::chrono::microseconds(int(100000.f / core::config.animationSpeed()));
+    frameUpdate();
 }
 
 void Map::handleKeyInput(Node::Key key) {
@@ -102,28 +113,29 @@ void Map::handleKeyInput(Node::Key key) {
 
 void Map::resetTime() {
     resting_ = false;
-    nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(currFrame_ > 0 ? 2 : 5);
+    nextRestTexTime_ = gWindow->currTime() + std::chrono::seconds(currFrame_ > 0 ? 2 : 5);
 }
 
 bool Map::checkTime() {
+    auto now = gWindow->currTime();
     if (resting_) {
-        if (std::chrono::steady_clock::now() < nextTime_) {
+        if (now < nextRestTexTime_) {
             return false;
         }
         currFrame_ = (currFrame_ + 1) % 6;
-        nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        nextRestTexTime_ = now + std::chrono::milliseconds(500);
         return true;
     }
-    if (std::chrono::steady_clock::now() < nextTime_) {
+    if (now < nextRestTexTime_) {
         return false;
     }
     if (currFrame_ > 0) {
         currFrame_ = 0;
-        nextTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        nextRestTexTime_ = now + std::chrono::seconds(5);
     } else {
         currFrame_ = 0;
         resting_ = true;
-        nextTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        nextRestTexTime_ = now + std::chrono::milliseconds(500);
     }
     return true;
 }

@@ -52,8 +52,6 @@ bool SubMap::load(std::int16_t subMapId) {
     eventDelay_.clear();
     eventLoop_.resize(data::SubMapEventCount);
     eventDelay_.resize(data::SubMapEventCount);
-    frames_ = 0;
-    nextEventCheck_ = gWindow->currTime();
     {
         auto *tex = textureMgr_[0];
         cellWidth_ = tex->width();
@@ -303,8 +301,8 @@ void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
     drawDirty_ = true;
 }
 
-void SubMap::updateEventTextures() {
-    MapWithEvent::updateEventTextures();
+void SubMap::frameUpdate() {
+    MapWithEvent::frameUpdate();
     auto &evlist = mem::gSaveData.subMapEventInfo[subMapId_];
     for (auto &ev: evlist->events) {
         if (ev.x <= 0) { break; }

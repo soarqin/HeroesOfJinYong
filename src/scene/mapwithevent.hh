@@ -22,7 +22,6 @@
 #include "map.hh"
 
 #include <functional>
-#include <chrono>
 #include <list>
 
 namespace hojy::scene {
@@ -31,7 +30,6 @@ class MapWithEvent: public Map {
 public:
     using Map::Map;
 
-    void render() override;
     void continueEvents(bool result = true);
     void runEvent(std::int16_t evt);
     void onUseItem(std::int16_t itemId);
@@ -42,8 +40,8 @@ protected:
     void checkEvent(int type, int x, int y);
 
     bool checkTime() override;
+    void frameUpdate() override;
     virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
-    virtual void updateEventTextures();
 
 private:
     static bool doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position);
@@ -53,9 +51,9 @@ private:
                             std::int16_t currTex, std::int16_t endTex, std::int16_t begTex, std::int16_t texDelay,
                             std::int16_t x, std::int16_t y);
     static int useItem(MapWithEvent *map, std::int16_t itemId);
-    static int wantFight(MapWithEvent *map);
+    static int askForWar(MapWithEvent *map);
     static bool changeExitMusic(MapWithEvent *map, std::int16_t music);
-    static int wantJoinTeam(MapWithEvent *map);
+    static int askForJoinTeam(MapWithEvent *map);
     static bool joinTeam(MapWithEvent *map, std::int16_t charId);
     static int wantSleep(MapWithEvent *map);
     static bool sleep(MapWithEvent *map);
@@ -129,8 +127,6 @@ protected:
     std::int16_t currEventItem_ = -1;
     const std::vector<std::int16_t> *currEventList_ = nullptr;
 
-    std::uint64_t frames_ = 0;
-    std::chrono::steady_clock::time_point nextEventCheck_;
     std::int16_t animEventId_ = 0, animCurrTex_ = 0, animEndTex_ = 0;
 
     std::list<std::function<bool()>> pendingSubEvents_;

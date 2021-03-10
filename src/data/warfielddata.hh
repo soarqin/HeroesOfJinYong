@@ -36,11 +36,11 @@ struct WarFieldInfo {
 } ATTR_PACKED2;
 
 struct WarFieldLayers {
-    std::int16_t layers_[data::WarFieldLayerCount][data::WarFieldWidth *data::WarFieldHeight];
+    std::int16_t layers[data::WarFieldLayerCount][data::WarFieldWidth *data::WarFieldHeight];
 } ATTR_PACKED2;
 #pragma pack(pop)
 
-class WarData {
+class WarFieldData {
 public:
     void load(const std::string &warsta, const std::string &warfld);
     [[nodiscard]] const WarFieldInfo *info(std::int16_t id) const;
@@ -51,6 +51,6 @@ private:
     std::vector<WarFieldLayers> layers_;
 };
 
-extern WarData gWarData;
+extern WarFieldData gWarFieldData;
 
 }

@@ -19,24 +19,34 @@
 
 #pragma once
 
-#include "mapwithevent.hh"
+#include "map.hh"
 
+#include <vector>
 #include <set>
 
 namespace hojy::scene {
 
-class SubMap final: public MapWithEvent {
+class WarField: public Map {
     struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
+        const Texture *earth = nullptr, *building = nullptr, *charTex = nullptr;
+        std::int16_t charId = -1;
         bool isWater = false;
     };
+    struct CharInfo {
+        std::int16_t id;
+        std::int16_t x, y;
+        std::int16_t speed;
+        std::int16_t hp, mp;
+        std::int16_t stamina;
+        std::uint16_t exp;
+    };
 public:
-    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);
-    ~SubMap() override;
+    WarField(Renderer *renderer, int x, int y, int width, int height, float scale);
+    ~WarField() override;
 
-    bool load(std::int16_t subMapId);
-    void forceMainCharTexture(std::int16_t id);
+    bool load(std::int16_t warId);
+    void getDefaultChars(std::set<std::int16_t> &chars, std::set<std::int16_t> &autoChars) const;
+    void putChars(const std::vector<std::int16_t> &chars);
 
     void render() override;
     void handleKeyInput(Key key) override;
@@ -44,15 +54,15 @@ public:
 protected:
     bool tryMove(int x, int y, bool checkEvent) override;
     void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, int layer, std::int16_t tex) override;
-    void frameUpdate() override;
 
 private:
-    std::int16_t charHeight_ = 0;
+    std::int16_t warId_ = -1;
     std::vector<CellInfo> cellInfo_;
     Texture *drawingTerrainTex2_ = nullptr;
-    std::set<std::int16_t> subMapLoaded_;
-    std::vector<std::int16_t> eventLoop_, eventDelay_;
+    std::set<std::int16_t> warMapLoaded_;
+
+    std::vector<CharInfo> charQueue_;
+    size_t activeChar_ = 0;
 };
 
 }

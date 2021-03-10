@@ -214,6 +214,7 @@ void Window::newGame() {
     map_->fadeIn([this] {
         map_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
         dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
+        map_->resetFrame();
     });
 }
 
@@ -221,18 +222,21 @@ bool Window::loadGame(int slot) {
     if (!mem::gSaveData.load(slot)) { return false; }
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
-    if (binfo->subMap >= 0) {
+    if (binfo->subMap > 0) {
         map_ = subMap_;
-        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap);
+        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap - 1);
         subMap_->setPosition(binfo->subX, binfo->subY, false);
         subMap_->setDirection(Map::Direction(binfo->direction));
         map_->fadeIn([this]() {
             map_->setPosition(binfo->subX, binfo->subY);
+            map_->resetFrame();
         });
     } else {
         globalMap_->setDirection(Map::Direction(binfo->direction));
         map_ = globalMap_;
-        map_->fadeIn(nullptr);
+        map_->fadeIn([this]() {
+            map_->resetFrame();
+        });
     }
     return true;
 }
@@ -241,8 +245,8 @@ bool Window::saveGame(int slot) {
     auto &binfo = mem::gSaveData.baseInfo;
     binfo->mainX = globalMap_->currX();
     binfo->mainY = globalMap_->currY();
-    binfo->subMap = map_->subMapId();
-    if (binfo->subMap >= 0) {
+    binfo->subMap = map_->subMapId() + 1;
+    if (binfo->subMap > 0) {
         binfo->subX = map_->currX();
         binfo->subY = map_->currY();
     }
@@ -260,7 +264,9 @@ void Window::exitToGlobalMap(int direction) {
     map_->fadeOut([this, direction]() {
         map_ = globalMap_;
         map_->setDirection(Map::Direction(direction));
-        map_->fadeIn(nullptr);
+        map_->fadeIn([this]() {
+            map_->resetFrame();
+        });
     });
 }
 
@@ -287,16 +293,20 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
         map_->fadeIn([this, tips, x, y] {
             delete tips;
             map_->setPosition(x, y);
+            map_->resetFrame();
         });
     });
 }
 
 void Window::useQuestItem(std::int16_t itemId) {
-    map_->onUseItem(itemId);
+    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    if (mapev) mapev->onUseItem(itemId);
 }
 
 void Window::forceEvent(std::int16_t eventId) {
-    map_->runEvent(eventId);
+    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    if (mapev) mapev->runEvent(eventId);
+    else if (subMap_) subMap_->runEvent(eventId);
 }
 
 void Window::closePopup() {
@@ -313,9 +323,8 @@ void Window::endPopup(bool close, bool result) {
     if (close) {
         closePopup();
     }
-    if (map_) {
-        map_->continueEvents(result);
-    }
+    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    if (mapev) mapev->continueEvents(result);
 }
 
 void Window::showMainMenu(bool inSubMap) {
@@ -364,7 +373,8 @@ void Window::showMainMenu(bool inSubMap) {
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
     if (popup_) {
-        map_->continueEvents(false);
+        auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+        if (mapev) mapev->continueEvents(false);
         return;
     }
     if (!talkBox_) {

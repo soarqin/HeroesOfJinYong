@@ -22,7 +22,7 @@
 #include "colorpalette.hh"
 #include "event.hh"
 #include "factors.hh"
-#include "wardata.hh"
+#include "warfielddata.hh"
 
 namespace hojy::data {
 
@@ -32,7 +32,7 @@ void loadData() {
     gEndPalette.load("ENDCOL");
     gEvent.loadEvent("KDEF");
     gEvent.loadTalk("TALK");
-    gWarData.load("WAR.STA", "WARFLD");
+    gWarFieldData.load("WAR.STA", "WARFLD");
 }
 
 }

@@ -29,14 +29,6 @@
 
 namespace hojy::scene {
 
-void MapWithEvent::render() {
-    Map::render();
-    ++frames_;
-    if (gWindow->currTime() < nextEventCheck_) { return; }
-    nextEventCheck_ += std::chrono::microseconds(int(100000.f / core::config.animationSpeed()));
-    updateEventTextures();
-}
-
 template <class R, class... Args>
 constexpr auto argCounter(std::function<R(Args...)>) {
     return sizeof...(Args);
@@ -157,16 +149,16 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(2, addItem);
         OpRun(3, modifyEvent);
         OpRun(4, useItem);
-        OpRun(5, wantFight);
+        OpRun(5, askForWar);
         case 6:
             currEventAdvTrue_ = evlist[currEventIndex_ + 1];
             currEventAdvFalse_ = evlist[currEventIndex_ + 2];
-            /* TODO: Fight with parameter evlist[currEventIndex_] and evlist[currEventIndex_ + 3] */
+            /* TODO: Enter war with parameter evlist[currEventIndex_] and evlist[currEventIndex_ + 3] */
             currEventIndex_ += 4;
             /* currEventPaused_ = true; */
             break;
         OpRun(8, changeExitMusic);
-        OpRun(9, wantJoinTeam);
+        OpRun(9, askForJoinTeam);
         OpRun(10, joinTeam);
         OpRun(11, wantSleep);
         OpRun(12, sleep);
@@ -293,7 +285,7 @@ bool MapWithEvent::checkTime() {
     return Map::checkTime();
 }
 
-void MapWithEvent::updateEventTextures() {
+void MapWithEvent::frameUpdate() {
     if (animCurrTex_ == 0) { return; }
     if (animCurrTex_ == animEndTex_) {
         animEventId_ = 0;
@@ -360,7 +352,7 @@ int MapWithEvent::useItem(MapWithEvent *map, std::int16_t itemId) {
     return itemId == map->currEventItem_ ? 1 : 0;
 }
 
-int MapWithEvent::wantFight(MapWithEvent *map) {
+int MapWithEvent::askForWar(MapWithEvent *map) {
     gWindow->popupMessageBox({L"是否與之過招？"}, MessageBox::YesNo);
     return -1;
 }
@@ -370,7 +362,7 @@ bool MapWithEvent::changeExitMusic(MapWithEvent *map, std::int16_t music) {
     return true;
 }
 
-int MapWithEvent::wantJoinTeam(MapWithEvent *map) {
+int MapWithEvent::askForJoinTeam(MapWithEvent *map) {
     gWindow->popupMessageBox({L"是否要求加入？"}, MessageBox::YesNo);
     return -1;
 }
