@@ -52,6 +52,7 @@ static void depoisonMenu(Node *mainMenu);
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
 static void showItems(Node *mainMenu);
 static void statusMenu(Node *mainMenu);
+static void leaveTeamMenu(Node *mainMenu);
 static void showCharStatus(Node *parent, std::int16_t charId);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
@@ -264,12 +265,22 @@ void Window::exitToGlobalMap(int direction) {
 }
 
 void Window::enterSubMap(std::int16_t subMapId, int direction) {
-    map_->fadeOut([this, subMapId, direction]() {
-        map_ = subMap_;
-        subMap_->setDirection(Map::Direction(direction));
+    bool switching = map_->subMapId() >= 0;
+    map_->fadeOut([this, subMapId, direction, switching]() {
+        if (!switching) {
+            map_ = subMap_;
+            subMap_->setDirection(Map::Direction(direction));
+        }
         const auto *smi = mem::gSaveData.subMapInfo[subMapId];
         dynamic_cast<SubMap *>(map_)->load(subMapId);
-        auto x = smi->enterX, y = smi->enterY;
+        std::int16_t x, y;
+        if (switching && smi->globalEnterX1 == 0) {
+            x = smi->subMapEnterX;
+            y = smi->subMapEnterY;
+        } else {
+            x = smi->enterX;
+            y = smi->enterY;
+        }
         map_->setPosition(x, y, false);
         auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
         tips->popup({util::big5Conv.toUnicode(smi->name)}, MessageBox::Normal);
@@ -278,6 +289,14 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
             map_->setPosition(x, y);
         });
     });
+}
+
+void Window::useQuestItem(std::int16_t itemId) {
+    map_->onUseItem(itemId);
+}
+
+void Window::forceEvent(std::int16_t eventId) {
+    map_->runEvent(eventId);
 }
 
 void Window::closePopup() {
@@ -321,9 +340,12 @@ void Window::showMainMenu(bool inSubMap) {
                 statusMenu(mainMenu_);
                 break;
             case 4:
+                leaveTeamMenu(mainMenu_);
                 break;
             case 5:
                 systemMenu(mainMenu_);
+                break;
+            default:
                 break;
             }
         }, [this]() {
@@ -365,7 +387,6 @@ void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::
     msgBox->popup(text, type);
 }
 
-
 static void medicMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
@@ -377,8 +398,7 @@ static void medicMenu(Node *mainMenu) {
     subMenu->setTitle(L"醫療能力");
     std::vector<std::wstring> names;
     std::vector<int16_t> charIdList;
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (charInfo->medic > 0) {
@@ -407,8 +427,7 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
     subMenu->setTitle(L"生命點數");
     std::vector<std::wstring> names;
     std::vector<int16_t> charIdList;
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         names.emplace_back(fmt::format(L"{:10} {:>3}/{:>3}", util::big5Conv.toUnicode(charInfo->name),
@@ -439,8 +458,7 @@ static void depoisonMenu(Node *mainMenu) {
     subMenu->setTitle(L"解毒能力");
     std::vector<std::wstring> names;
     std::vector<int16_t> charIdList;
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (charInfo->depoison > 0) {
@@ -469,8 +487,7 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     subMenu->setTitle(L"中毒程度");
     std::vector<std::wstring> names;
     std::vector<int16_t> charIdList;
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->poisoned)));
@@ -493,7 +510,9 @@ static void showItems(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - 40, gWindow->height() - y - 40);
-    iv->show();
+    iv->show([](std::int16_t itemId) {
+        gWindow->useQuestItem(itemId);
+    });
 }
 
 static void statusMenu(Node *mainMenu) {
@@ -506,8 +525,7 @@ static void statusMenu(Node *mainMenu) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     std::vector<std::wstring> names;
     std::vector<int16_t> charIdList;
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
@@ -516,6 +534,42 @@ static void statusMenu(Node *mainMenu) {
     subMenu->popup(names);
     subMenu->setHandler([charIdList, mainMenu](int index) {
         showCharStatus(mainMenu, charIdList[index]);
+    }, [msgBox, subMenu]() {
+        auto *box = msgBox;
+        delete subMenu;
+        delete box;
+    });
+}
+
+static void leaveTeamMenu(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    msgBox->popup({L"要求誰離隊"}, MessageBox::Normal, MessageBox::TopLeft);
+    msgBox->forceUpdate();
+    y = y + msgBox->height() + 10;
+    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    std::vector<std::wstring> names;
+    std::vector<int16_t> charIdList;
+    for (auto id: mem::gSaveData.baseInfo->members) {
+        if (id < 0) { continue; }
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
+        charIdList.emplace_back(id);
+    }
+    subMenu->popup(names);
+    subMenu->setHandler([charIdList](int index) {
+        if (charIdList[index] == 0) {
+            gWindow->popupMessageBox({L"抱歉，沒有你遊戲進行不下去"}, MessageBox::PressToCloseThis);
+            return;
+        }
+        if (mem::leaveTeam(charIdList[index])) {
+            auto eventId = mem::getLeaveEventId(charIdList[index]);
+            gWindow->closePopup();
+            if (eventId >= 0) {
+                gWindow->forceEvent(eventId);
+            }
+        }
     }, [msgBox, subMenu]() {
         auto *box = msgBox;
         delete subMenu;
@@ -552,6 +606,8 @@ static void systemMenu(Node *mainMenu) {
             yesNo->popupWithYesNo();
             break;
         }
+        default:
+            break;
         }
     }, [subMenu]() {
         delete subMenu;
@@ -561,7 +617,7 @@ static void systemMenu(Node *mainMenu) {
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->popup({L"一", L"二", L"三"});
-    subMenu->setHandler([subMenu, isSave](int index) {
+    subMenu->setHandler([isSave](int index) {
         if (isSave) {
             gWindow->saveGame(index + 1);
             gWindow->popupMessageBox({L"存檔完成"}, MessageBox::PressToCloseTop);

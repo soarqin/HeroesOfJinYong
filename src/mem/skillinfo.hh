@@ -20,14 +20,11 @@
 #pragma once
 
 #include "serializable.hh"
+#include "data/consts.hh"
 
 namespace hojy::mem {
 
-enum {
-    SkillCheckCount = 10,
-};
-
-#pragma pack(push, 1)
+#pragma pack(push, 2)
 struct SkillData {
     std::int16_t id;
     char name[10];
@@ -38,8 +35,8 @@ struct SkillData {
     std::int16_t damageType;        //0Normal 1Drain MP
     std::int16_t attackAreaType;    //0single 1line 2cross 3area
     std::int16_t reqMp, addPoison;
-    std::int16_t attack[SkillCheckCount], selDistance[SkillCheckCount], attackDistance[SkillCheckCount], addMp[SkillCheckCount], drainMp[SkillCheckCount];
-} ATTR_PACKED;
+    std::int16_t attack[data::SkillCheckCount], selDistance[data::SkillCheckCount], attackDistance[data::SkillCheckCount], addMp[data::SkillCheckCount], drainMp[data::SkillCheckCount];
+} ATTR_PACKED2;
 #pragma pack(pop)
 
 using SkillInfo = SerializableStructVec<SkillData>;

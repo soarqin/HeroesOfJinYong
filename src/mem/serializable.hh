@@ -23,12 +23,6 @@
 #include <vector>
 #include <iostream>
 
-#ifdef __GNUC__
-#define ATTR_PACKED __attribute__((packed))
-#else
-#define ATTR_PACKED
-#endif
-
 namespace hojy::mem {
 
 class Serializable {

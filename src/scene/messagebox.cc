@@ -42,6 +42,8 @@ void MessageBox::handleKeyInput(Node::Key key) {
         case PressToCloseTop:
             gWindow->endPopup(true);
             break;
+        default:
+            break;
         }
         break;
     default:
@@ -114,6 +116,8 @@ void MessageBox::makeCache() {
             });
             menu_ = m;
         }
+        break;
+    default:
         break;
     }
 }

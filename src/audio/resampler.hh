@@ -43,7 +43,6 @@ private:
     void *resampler_ = nullptr;
     InputCallback inputCB_;
     util::FIFOBuffer buffer_;
-    std::uint32_t channels_ = 0;
     double rate_ = 0.;
     size_t sampleSizeIn_ = 0, sampleSizeOut_ = 0;
 };

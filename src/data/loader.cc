@@ -22,14 +22,17 @@
 #include "colorpalette.hh"
 #include "event.hh"
 #include "factors.hh"
+#include "wardata.hh"
 
 namespace hojy::data {
 
 void loadData() {
     gFactors.load("Z.DAT");
     gNormalPalette.load("MMAP");
+    gEndPalette.load("ENDCOL");
     gEvent.loadEvent("KDEF");
     gEvent.loadTalk("TALK");
+    gWarData.load("WAR.STA", "WARFLD");
 }
 
 }

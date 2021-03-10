@@ -67,6 +67,8 @@ public:
     void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
+    void useQuestItem(std::int16_t itemId);
+    void forceEvent(std::int16_t eventId);
 
     void closePopup();
     void endPopup(bool close = false, bool result = true);

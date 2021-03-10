@@ -104,14 +104,7 @@ runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_
 }
 
 void MapWithEvent::continueEvents(bool result) {
-    if (!pendingSubEvents_.empty()) {
-        currEventPaused_ = false;
-        auto func = std::move(pendingSubEvents_.front());
-        pendingSubEvents_.pop_front();
-        func();
-        return;
-    }
-    if (!currEventList_) { return; }
+    if (pendingSubEvents_.empty() && !currEventList_) { return; }
     currEventPaused_ = false;
     currEventIndex_ += result ? currEventAdvTrue_ : currEventAdvFalse_;
     currEventAdvTrue_ = currEventAdvFalse_ = 0;
@@ -125,7 +118,19 @@ void MapWithEvent::continueEvents(bool result) {
         break
 
     const auto &evlist = *currEventList_;
-    while (!currEventPaused_ && currEventIndex_ < currEventSize_) {
+    while (!currEventPaused_) {
+        while (!pendingSubEvents_.empty()) {
+            currEventPaused_ = false;
+            auto func = std::move(pendingSubEvents_.front());
+            pendingSubEvents_.pop_front();
+            if (func()) {
+                currEventPaused_ = true;
+                return;
+            }
+        }
+        if (currEventIndex_ >= currEventSize_) {
+            break;
+        }
         auto op = evlist[currEventIndex_++];
 #ifndef NDEBUG
         fprintf(stdout, "%2d: ", op);
@@ -231,6 +236,23 @@ void MapWithEvent::continueEvents(bool result) {
 #undef OpRun
 }
 
+void MapWithEvent::runEvent(std::int16_t evt) {
+    currEventList_ = &data::gEvent.event(evt);
+    currEventSize_ = currEventList_->size();
+    currEventIndex_ = 0;
+
+    continueEvents();
+}
+
+void MapWithEvent::onUseItem(std::int16_t itemId) {
+    currEventItem_ = itemId;
+    int x, y;
+    if (!getFaceOffset(x, y)) {
+        return;
+    }
+    checkEvent(1, x, y);
+}
+
 void MapWithEvent::doInteract() {
     currEventItem_ = -1;
     int x, y;
@@ -240,17 +262,16 @@ void MapWithEvent::doInteract() {
     checkEvent(0, x, y);
 }
 
-void MapWithEvent::onUseItem(std::int16_t itemId) {
-    currEventItem_ = itemId;
-    checkEvent(1, currX_, currY_);
-}
-
 void MapWithEvent::onMove() {
     currEventItem_ = -1;
     checkEvent(2, currX_, currY_);
 }
 
 void MapWithEvent::checkEvent(int type, int x, int y) {
+    if (subMapId_ < 0) {
+        currEventItem_ = -1;
+        return;
+    }
     auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;
     auto eventId = layers[3][y * mapWidth_ + x];
     if (eventId < 0) { return; }
@@ -259,16 +280,12 @@ void MapWithEvent::checkEvent(int type, int x, int y) {
     auto evt = events[eventId].event[type];
     if (evt <= 0) { return; }
 
-    currEventId_ = eventId;
-    currEventList_ = &data::gEvent.event(evt);
-    currEventSize_ = currEventList_->size();
-    currEventIndex_ = 0;
-
     resetTime();
     currFrame_ = 0;
     updateMainCharTexture();
 
-    continueEvents();
+    currEventId_ = eventId;
+    runEvent(evt);
 }
 
 bool MapWithEvent::checkTime() {
@@ -359,11 +376,11 @@ int MapWithEvent::wantJoinTeam(MapWithEvent *map) {
 }
 
 bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
-    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
-        if (mem::gSaveData.baseInfo->members[i] < 0) {
-            mem::gSaveData.baseInfo->members[i] = charId;
+    for (auto &id: mem::gSaveData.baseInfo->members) {
+        if (id < 0) {
+            id = charId;
             auto *charInfo = mem::gSaveData.charInfo[charId];
-            for (size_t j = 0; j < mem::CarryItemCount; ++j) {
+            for (size_t j = 0; j < data::CarryItemCount; ++j) {
                 if (charInfo->item[j] >= 0) {
                     if (charInfo->itemCount[j] == 0) { charInfo->itemCount[j] = 1; }
                     auto itemId = charInfo->item[j];
@@ -388,11 +405,10 @@ int MapWithEvent::wantSleep(MapWithEvent *map) {
 }
 
 bool MapWithEvent::sleep(MapWithEvent *map) {
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id <= 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
-        charInfo->stamina = mem::StaminaMax;
+        charInfo->stamina = data::StaminaMax;
         charInfo->hp = charInfo->maxHp;
         charInfo->mp = charInfo->maxMp;
         charInfo->hurt = 0;
@@ -421,8 +437,8 @@ bool MapWithEvent::die(MapWithEvent *map) {
 }
 
 int MapWithEvent::checkTeamMember(MapWithEvent *map, std::int16_t charId) {
-    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
-        if (mem::gSaveData.baseInfo->members[i] == charId) {
+    for (auto id: mem::gSaveData.baseInfo->members) {
+        if (id == charId) {
             return 1;
         }
     }
@@ -446,8 +462,8 @@ bool MapWithEvent::setCameraPosition(MapWithEvent *map, std::int16_t x, std::int
 }
 
 int MapWithEvent::checkTeamFull(MapWithEvent *map) {
-    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
-        if (mem::gSaveData.baseInfo->members[i] < 0) {
+    for (auto id: mem::gSaveData.baseInfo->members) {
+        if (id < 0) {
             return 0;
         }
     }
@@ -455,12 +471,12 @@ int MapWithEvent::checkTeamFull(MapWithEvent *map) {
 }
 
 bool MapWithEvent::leaveTeam(MapWithEvent *map, std::int16_t charId) {
-    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
+    for (size_t i = 0; i < data::TeamMemberCount; ++i) {
         if (mem::gSaveData.baseInfo->members[i] == charId) {
-            for (size_t j = i; j < mem::TeamMemberCount - 1; ++j) {
+            for (size_t j = i; j < data::TeamMemberCount - 1; ++j) {
                 mem::gSaveData.baseInfo->members[j] = mem::gSaveData.baseInfo->members[j + 1];
             }
-            mem::gSaveData.baseInfo->members[mem::TeamMemberCount - 1] = -1;
+            mem::gSaveData.baseInfo->members[data::TeamMemberCount - 1] = -1;
             break;
         }
     }
@@ -468,8 +484,7 @@ bool MapWithEvent::leaveTeam(MapWithEvent *map, std::int16_t charId) {
 }
 
 bool MapWithEvent::emptyAllMP(MapWithEvent *map) {
-    for (size_t i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) {
             continue;
         }
@@ -521,7 +536,7 @@ bool MapWithEvent::walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0,
 }
 
 int MapWithEvent::checkMoney(MapWithEvent *map, std::int16_t amount) {
-    return mem::gBag[mem::ItemIDMoney] >= amount;
+    return mem::gBag[data::ItemIDMoney] >= amount;
 }
 
 bool MapWithEvent::addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
@@ -535,10 +550,10 @@ bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16
 
     int found = -1;
     auto learnId = skillInfo->id;
-    for (int i = 0; i < mem::LearnSkillCount; ++i) {
+    for (int i = 0; i < data::LearnSkillCount; ++i) {
         auto thisId = charInfo->skillId[i];
         if (thisId == skillInfo->id) {
-            if (charInfo->skillLevel[i] < mem::SkillLevelMaxDiv * 100) {
+            if (charInfo->skillLevel[i] < data::SkillLevelMaxDiv * 100) {
                 charInfo->skillLevel[i] += 100;
             }
             found = -1;
@@ -563,7 +578,7 @@ bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16
 
 bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
-    charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, mem::PotentialMax);
+    charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, data::PotentialMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 資質增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
@@ -582,7 +597,7 @@ int MapWithEvent::checkSex(MapWithEvent *map, std::int16_t sex) {
 
 bool MapWithEvent::addIntegrity(MapWithEvent *map, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[0];
-    charInfo->integrity = std::clamp<std::int16_t>(charInfo->integrity + value, 0, mem::IntegrityMax);
+    charInfo->integrity = std::clamp<std::int16_t>(charInfo->integrity + value, 0, data::IntegrityMax);
     return true;
 }
 
@@ -591,8 +606,8 @@ bool MapWithEvent::modifySubMapLayerTex(MapWithEvent *map, std::int16_t subMapId
     auto &l = mem::gSaveData.subMapLayerInfo[subMapId < 0 ? map->subMapId_ : subMapId]->data[layer];
     auto pos = 0;
     bool currentMap = subMapId == map->subMapId_;
-    for (int y = 0; y < mem::SubMapHeight; ++y) {
-        for (int x = 0; x < mem::SubMapWidth; ++x) {
+    for (int y = 0; y < data::SubMapHeight; ++y) {
+        for (int x = 0; x < data::SubMapWidth; ++x) {
             if (l[pos] == oldTex) {
                 l[pos] = newTex;
                 if (currentMap) {
@@ -620,7 +635,7 @@ bool MapWithEvent::forceDirection(MapWithEvent *map, std::int16_t direction) {
 bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
     int firstEmpty = -1;
-    for (int i = 0; i < mem::CarryItemCount; ++i) {
+    for (int i = 0; i < data::CarryItemCount; ++i) {
         if (charInfo->item[i] < 0) {
             firstEmpty = i;
             continue;
@@ -639,8 +654,7 @@ bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::in
 }
 
 int MapWithEvent::checkFemaleInTeam(MapWithEvent *map) {
-    for (int i = 0; i < mem::TeamMemberCount; ++i) {
-        auto id = mem::gSaveData.baseInfo->members[i];
+    for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
         if (mem::gSaveData.charInfo[id]->sex == 1) {
             return 1;
@@ -664,28 +678,28 @@ bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int1
 
 bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
-    charInfo->speed = std::clamp<std::int16_t>(charInfo->speed + value, 0, mem::SpeedMax);
+    charInfo->speed = std::clamp<std::int16_t>(charInfo->speed + value, 0, data::SpeedMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 輕功增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
-    charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, mem::MPMax);
+    charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, data::MPMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 內力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
-    charInfo->attack = std::clamp<std::int16_t>(charInfo->attack + value, 0, mem::AttackMax);
+    charInfo->attack = std::clamp<std::int16_t>(charInfo->attack + value, 0, data::AttackMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 武力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
-    charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, mem::HPMax);
+    charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, data::HPMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 生命增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
@@ -758,7 +772,7 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
 }
 
 bool MapWithEvent::disbandTeam(MapWithEvent *map) {
-    for (int i = 1; i < mem::TeamMemberCount; ++i) {
+    for (int i = 1; i < data::TeamMemberCount; ++i) {
         mem::gSaveData.baseInfo->members[i] = -1;
     }
     return true;

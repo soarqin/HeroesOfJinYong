@@ -19,16 +19,11 @@
 
 #pragma once
 
+#include "data/consts.hh"
 #include <map>
 #include <cstdint>
 
 namespace hojy::mem {
-
-enum {
-    ItemIDMoney = 174,
-    ItemIDCompass = 182,
-    BagItemCount = 200,
-};
 
 class Bag {
 public:
@@ -36,6 +31,7 @@ public:
     void syncToSave();
     void add(std::int16_t id, std::int16_t count);
     bool remove(std::int16_t id, std::int16_t count);
+    [[nodiscard]] const std::map<std::int16_t, std::int16_t> &items() const { return items_; }
     [[nodiscard]] inline std::int16_t operator[](std::int16_t id) const {
         auto ite = items_.find(id);
         if (ite == items_.end()) return 0;

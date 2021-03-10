@@ -105,7 +105,7 @@ void StatusView::makeCache() {
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->sword), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"體力", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->stamina, mem::StaminaMax), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->stamina, data::StaminaMax), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"耍刀技巧", x2, y, true);
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->blade), x3, y, true);
     y += lineheight;
@@ -135,7 +135,7 @@ void StatusView::makeCache() {
     if (charInfo->learningItem >= 0) {
         learningSkillId = mem::gSaveData.itemInfo[charInfo->learningItem]->skillId;
     }
-    for (int i = 0; i < mem::LearnSkillCount; ++i) {
+    for (int i = 0; i < data::LearnSkillCount; ++i) {
         y += lineheight;
         if (charInfo->skillId[i] <= 0) { continue; }
         ttf->setColor(236, 200, 40); ttf->render(util::big5Conv.toUnicode(mem::gSaveData.skillInfo[charInfo->skillId[i]]->name), x4, y, true);

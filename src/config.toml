@@ -2,8 +2,8 @@
 data_path = ["data", "."]
 music_path = "data"
 sound_path = "data"
-font_path = "data"
 save_path = "data"
+fonts = ["data/font/english.ttf", "data/font/chinese.ttf"]
 
 [window]
 width = 640

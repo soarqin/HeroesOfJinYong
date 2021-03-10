@@ -36,7 +36,6 @@ size_t Channel::readData(void *data, size_t size) {
         return resampler_->read(data, size);
     }
     const void *pcmdata;
-    size_t totalsz = 0;
     auto res = readPCMData(&pcmdata, size);
     if (res) {
         memcpy(data, pcmdata, size);

@@ -20,7 +20,7 @@
 #include "renderer.hh"
 
 #include "texture.hh"
-
+#include "core/config.hh"
 #include <SDL2_gfxPrimitives.h>
 
 namespace hojy::scene {
@@ -29,13 +29,16 @@ Renderer::Renderer(void *win, int w, int h):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
     ttf_(new TTF(renderer_)) {
     SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
+    int fontSize;
     if (w * 3 > h * 4) {
-        ttf_->init(h / 48 * 2);
+        fontSize = h / 48 * 2;
     } else {
-        ttf_->init(w * 3 / 4 / 48 * 2);
+        fontSize = w * 3 / 4 / 48 * 2;
     }
-    ttf_->add("mono.ttf");
-    ttf_->add("cjk.ttf");
+    ttf_->init(fontSize);
+    for (const auto &f: core::config.fonts()) {
+        ttf_->add(f);
+    }
 }
 
 Renderer::~Renderer() {
@@ -44,6 +47,7 @@ Renderer::~Renderer() {
 }
 
 void Renderer::enableLinear(bool linear) {
+    (void)this;
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, linear ? "linear" : "nearest");
 }
 

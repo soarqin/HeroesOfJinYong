@@ -30,7 +30,7 @@ public:
     using IntType = std::mt19937_64::result_type;
     using RealType = std::uniform_real_distribution<>::result_type;
 
-    Random();
+    Random() noexcept;
     IntType operator()();
     IntType operator()(IntType modulo);
     IntType operator()(IntType min, IntType max);

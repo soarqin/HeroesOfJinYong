@@ -20,15 +20,11 @@
 #pragma once
 
 #include "serializable.hh"
+#include "data/consts.hh"
 
 namespace hojy::mem {
 
-enum {
-    ItemTexIdStart = 3501,
-    MakeItemCount = 5,
-};
-
-#pragma pack(push, 1)
+#pragma pack(push, 2)
 struct ItemData {
     std::int16_t id;
     char name[20], name2[20];
@@ -42,8 +38,8 @@ struct ItemData {
     std::int16_t charOnly, reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
     std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
     std::int16_t reqExp, reqExpForMakeItem, reqMaterial;
-    std::int16_t madeItem[MakeItemCount], madeItemCount[MakeItemCount];
-} ATTR_PACKED;
+    std::int16_t madeItem[data::MakeItemCount], madeItemCount[data::MakeItemCount];
+} ATTR_PACKED2;
 #pragma pack(pop)
 
 using ItemInfo = SerializableStructVec<ItemData>;

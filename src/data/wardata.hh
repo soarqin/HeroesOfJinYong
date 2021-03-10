@@ -19,26 +19,38 @@
 
 #pragma once
 
-#include "serializable.hh"
-
-#include "bag.hh"
-#include "data/consts.hh"
-
+#include "consts.hh"
+#include <string>
+#include <vector>
 #include <cstdint>
 
-namespace hojy::mem {
+namespace hojy::data {
 
 #pragma pack(push, 2)
-struct BaseData {
-    struct ItemInfo {
-        std::int16_t id, count;
-    };
-    std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
-    std::int16_t members[data::TeamMemberCount];
-    ItemInfo items[data::BagItemCount];
+struct WarFieldInfo {
+    std::int16_t id;
+    char name[10];
+    std::int16_t warFieldId, exp, music;
+    std::int16_t ally[TeamMemberCount], autoAlly[TeamMemberCount], allyX[TeamMemberCount], allyY[TeamMemberCount];
+    std::int16_t enemy[WarFieldEnemyCount], enemyX[WarFieldEnemyCount], enemyY[WarFieldEnemyCount];
+} ATTR_PACKED2;
+
+struct WarFieldLayers {
+    std::int16_t layers_[data::WarFieldLayerCount][data::WarFieldWidth *data::WarFieldHeight];
 } ATTR_PACKED2;
 #pragma pack(pop)
 
-using BaseInfo = SerializableStruct<BaseData>;
+class WarData {
+public:
+    void load(const std::string &warsta, const std::string &warfld);
+    [[nodiscard]] const WarFieldInfo *info(std::int16_t id) const;
+    [[nodiscard]] const WarFieldLayers *layers(std::int16_t id) const;
+
+private:
+    std::vector<WarFieldInfo> info_;
+    std::vector<WarFieldLayers> layers_;
+};
+
+extern WarData gWarData;
 
 }

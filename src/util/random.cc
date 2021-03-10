@@ -23,7 +23,7 @@ namespace hojy::util {
 
 Random gRandom;
 
-Random::Random(): rand_(std::random_device()()), dist_(0., 1.) {
+Random::Random() noexcept: rand_(std::random_device()()), dist_(0., 1.) {
 
 }
 

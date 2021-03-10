@@ -19,7 +19,6 @@
 
 #include "ttf.hh"
 
-#include "core/config.hh"
 #include "util/file.hh"
 
 #define STB_RECT_PACK_IMPLEMENTATION
@@ -89,15 +88,13 @@ bool TTF::add(const std::string &filename, int index) {
     FontInfo fi;
 #ifdef USE_FREETYPE
     if (FT_New_Face(ftLib_, filename.c_str(), index, &fi.face)) return false;
-    FT_Set_Pixel_Sizes(fi.face, 0, font_size);
     fonts.emplace_back(fi);
 #else
-    if (!util::File::getFileContent(core::config.fontFilePath(filename), fi.ttf_buffer)) {
+    if (!util::File::getFileContent(filename, fi.ttf_buffer)) {
         return false;
     }
     auto *info = new stbtt_fontinfo;
     stbtt_InitFont(info, &fi.ttf_buffer[0], stbtt_GetFontOffsetForIndex(&fi.ttf_buffer[0], index));
-    fi.font_scale = stbtt_ScaleForMappingEmToPixels(info, static_cast<float>(fontSize_));
     fi.font = info;
     fonts_.emplace_back(std::move(fi));
 #endif
@@ -105,11 +102,13 @@ bool TTF::add(const std::string &filename, int index) {
     return true;
 }
 
-void TTF::charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b) {
+void TTF::charDimension(std::uint32_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b, int fontSize) {
+    if (fontSize < 0) fontSize = fontSize_;
     const FontData *fd;
-    auto ite = fontCache_.find(ch);
+    std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+    auto ite = fontCache_.find(key);
     if (ite == fontCache_.end()) {
-        fd = makeCache(ch);
+        fd = makeCache(ch, fontSize);
         if (!fd) {
             width = t = b = 0;
             return;
@@ -129,12 +128,12 @@ void TTF::charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, s
     b = fd->iy0 + fd->h;
 }
 
-int TTF::stringWidth(const std::wstring &str) {
+int TTF::stringWidth(const std::wstring &str, int fontSize) {
     std::uint8_t w;
     std::int8_t t, b;
     int res = 0;
     for (auto &ch: str) {
-        charDimension(ch, w, t, b);
+        charDimension(ch, w, t, b, fontSize);
         res += int(std::uint32_t(w));
     }
     return res;
@@ -144,13 +143,15 @@ void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     r_ = r; g_ = g; b_ = b;
 }
 
-void TTF::render(std::wstring_view str, int x, int y, bool shadow) {
+void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
+    if (fontSize < 0) fontSize = fontSize_;
     auto *renderer = static_cast<SDL_Renderer*>(renderer_);
     for (auto ch: str) {
         const FontData *fd;
-        auto ite = fontCache_.find(ch);
+        std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        auto ite = fontCache_.find(key);
         if (ite == fontCache_.end()) {
-            fd = makeCache(ch);
+            fd = makeCache(ch, fontSize);
             if (!fd) {
                 continue;
             }
@@ -185,7 +186,8 @@ void TTF::newRectPack() {
     rectpackData_.push_back(rpd);
 }
 
-const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
+const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
+    if (fontSize < 0) fontSize = fontSize_;
     FontInfo *fi = nullptr;
 #ifndef USE_FREETYPE
     stbtt_fontinfo *info;
@@ -203,13 +205,15 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
         if (index != 0) break;
 #endif
     }
-    FontData *fd = &fontCache_[ch];
+    std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+    FontData *fd = &fontCache_[key];
     if (fi == nullptr) {
         memset(fd, 0, sizeof(FontData));
         return nullptr;
     }
 
 #ifdef USE_FREETYPE
+    FT_Set_Pixel_Sizes(fi.face, 0, fontSize);
     unsigned char *srcPtr;
     int bitmapPitch;
     if (FT_Render_Glyph(fi->face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
@@ -224,12 +228,13 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
 #else
     /* Read font data to cache */
     int advW, leftB;
+    float fontScale = stbtt_ScaleForMappingEmToPixels(info, static_cast<float>(fontSize));
     stbtt_GetGlyphHMetrics(info, index, &advW, &leftB);
-    fd->advW = static_cast<std::uint8_t>(fi->font_scale * advW + 0.5f);
+    fd->advW = std::uint8_t(std::lround(fontScale * float(advW)));
     int ix0, iy0, ix1, iy1;
-    stbtt_GetGlyphBitmapBoxSubpixel(info, index, fi->font_scale, fi->font_scale, 0, 0, &ix0, &iy0, &ix1, &iy1);
+    stbtt_GetGlyphBitmapBoxSubpixel(info, index, fontScale, fontScale, 0, 0, &ix0, &iy0, &ix1, &iy1);
     fd->ix0 = ix0;
-    fd->iy0 = fontSize_ * 7 / 8 + iy0;
+    fd->iy0 = fontSize * 7 / 8 + iy0;
     fd->w = ix1 - ix0;
     fd->h = iy1 - iy0;
 #endif
@@ -262,7 +267,7 @@ const TTF::FontData *TTF::makeCache(std::uint16_t ch) {
         dstPtr += dstPitch;
     }
 #else
-    stbtt_MakeGlyphBitmapSubpixel(info, dst, fd->w, fd->h, dstPitch, fi->font_scale, fi->font_scale, 3, 3, index);
+    stbtt_MakeGlyphBitmapSubpixel(info, dst, fd->w, fd->h, dstPitch, fontScale, fontScale, 3, 3, index);
 #endif
 
     if (rpidx >= textures_.size()) {

@@ -57,10 +57,16 @@ bool Config::load(const std::string &filename) {
         fixPath(musicPath_);
         soundPath_ = main["sound_path"].value_or("");
         fixPath(soundPath_);
-        fontPath_ = main["font_path"].value_or("");
-        fixPath(fontPath_);
         savePath_ = main["save_path"].value_or("");
         fixPath(savePath_);
+        auto fonts = main["fonts"];
+        if (fonts.is_string()) {
+            fonts_ = {fonts.value_or<std::string>("")};
+        } else {
+            for (auto &p: *fonts.as_array()) {
+                fonts_.emplace_back(p.value_or<std::string>(""));
+            }
+        }
     }
     auto window = tbl["window"];
     if (window) {
@@ -98,10 +104,6 @@ std::string Config::musicFilePath(const std::string &filename) const {
 
 std::string Config::soundFilePath(const std::string &filename) const {
     return soundPath_.empty() ? dataFilePathFirst(filename) : soundPath_ + filename;
-}
-
-std::string Config::fontFilePath(const std::string &filename) const {
-    return fontPath_.empty() ? dataFilePathFirst(filename) : fontPath_ + filename;
 }
 
 std::string Config::saveFilePath(const std::string &filename) const {

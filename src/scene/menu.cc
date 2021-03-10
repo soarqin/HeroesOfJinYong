@@ -81,7 +81,7 @@ void Menu::handleKeyInput(Key key) {
 
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
-    int x = 0, y = 0, h = 0, w = 0;
+    int x = 0, y = 0, h, w = 0;
 /*
     int itemsTW = 0;
 */

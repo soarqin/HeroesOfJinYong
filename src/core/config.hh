@@ -33,8 +33,8 @@ public:
 
     [[nodiscard]] std::string musicFilePath(const std::string &filename) const;
     [[nodiscard]] std::string soundFilePath(const std::string &filename) const;
-    [[nodiscard]] std::string fontFilePath(const std::string &filename) const;
     [[nodiscard]] std::string saveFilePath(const std::string &filename) const;
+    [[nodiscard]] const std::vector<std::string> &fonts() const { return fonts_; }
 
     [[nodiscard]] int windowWidth() const { return windowWidth_; }
     [[nodiscard]] int windowHeight() const { return windowHeight_; }
@@ -45,8 +45,8 @@ public:
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
 
 private:
-    std::vector<std::string> dataPath_;
-    std::string musicPath_, soundPath_, fontPath_, savePath_;
+    std::vector<std::string> dataPath_, fonts_;
+    std::string musicPath_, soundPath_, savePath_;
     int windowWidth_ = 640, windowHeight_ = 480;
     bool showPotential_ = false;
     float scale_ = 2.f;

@@ -23,18 +23,17 @@
 #include "data/colorpalette.hh"
 
 #include <chrono>
+#include <cmath>
 
 namespace hojy::scene {
 
-Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height), scale_(scale), drawDirty_(true) {
-    auxWidth_ = std::uint32_t(width_ / scale + 0.5);
-    auxHeight_ = std::uint32_t(height_ / scale + 0.5);
+Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height),
+    scale_(scale), auxWidth_(std::lround(float(width_) / scale)), auxHeight_(std::lround(float(height_) / scale)),
+    drawDirty_(true), drawingTerrainTex_(Texture::createAsTarget(renderer_, width, height)) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
     textureMgr_.setPalette(data::gNormalPalette);
-    drawingTerrainTex_ = Texture::createAsTarget(renderer_, width, height);
     drawingTerrainTex_->enableBlendMode(true);
-    drawDirty_ = true;
 }
 
 Map::~Map() {
@@ -130,7 +129,7 @@ bool Map::checkTime() {
 }
 
 void Map::renderChar(int deltaY) {
-    renderer_->renderTexture(mainCharTex_, float(x_ + int(width_) / 2), float(y_ + int(height_) / 2 - deltaY), scale_);
+    renderer_->renderTexture(mainCharTex_, float(x_ + (width_ >> 1)), float(y_ + (height_ >> 1) - deltaY), scale_);
 }
 
 bool Map::getFaceOffset(int &x, int &y) {

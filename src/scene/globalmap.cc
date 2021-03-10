@@ -135,7 +135,7 @@ void GlobalMap::render() {
         int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
-        int hcount = (ny * 2 + int(2 * cellHeight_ * scale_)) / cellDiffY;
+        int hcount = (ny * 2 + int(float(2 * cellHeight_) * scale_)) / cellDiffY;
         int tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
         int ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
@@ -226,16 +226,26 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     }
     auto ite = subMapEntries_.find(std::make_pair(std::int16_t(x), std::int16_t(y)));
     if (ite != subMapEntries_.end()) {
-        auto *smi = mem::gSaveData.subMapInfo[ite->second];
-        if (smi->enterCondition == 1) {
+        auto *subMapInfo = mem::gSaveData.subMapInfo[ite->second];
+        if (subMapInfo->enterCondition == 1) {
             return true;
         }
-        /* TODO: check speed */
-        if (smi->enterCondition == 2) {
-            return true;
+        if (subMapInfo->enterCondition == 2) {
+            bool allow = false;
+            for (auto id: mem::gSaveData.baseInfo->members) {
+                if (id < 0) { continue; }
+                /* TODO: get this limit value from Z.DAT? */
+                if (mem::gSaveData.charInfo[id]->speed >= 70) {
+                    allow = true;
+                    break;
+                }
+            }
+            if (!allow) {
+                return true;
+            }
         }
         gWindow->enterSubMap(ite->second, int(direction_));
-        auto music = smi->enterMusic;
+        auto music = subMapInfo->enterMusic;
         if (music >= 0) {
             gWindow->playMusic(music);
         }

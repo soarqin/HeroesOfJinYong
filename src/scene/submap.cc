@@ -37,8 +37,8 @@ SubMap::~SubMap() {
 
 bool SubMap::load(std::int16_t subMapId) {
     if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
-        mapWidth_ = mem::SubMapWidth;
-        mapHeight_ = mem::SubMapHeight;
+        mapWidth_ = data::SubMapWidth;
+        mapHeight_ = data::SubMapHeight;
         char idxstr[8], grpstr[8];
         snprintf(idxstr, 8, "SDX%03d", subMapId);
         snprintf(grpstr, 8, "SMP%03d", subMapId);
@@ -50,8 +50,8 @@ bool SubMap::load(std::int16_t subMapId) {
     }
     eventLoop_.clear();
     eventDelay_.clear();
-    eventLoop_.resize(mem::SubMapEventCount);
-    eventDelay_.resize(mem::SubMapEventCount);
+    eventLoop_.resize(data::SubMapEventCount);
+    eventDelay_.resize(data::SubMapEventCount);
     frames_ = 0;
     nextEventCheck_ = gWindow->currTime();
     {
@@ -123,7 +123,7 @@ void SubMap::render() {
         int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
         int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
         int wcount = nx * 2 / cellWidth_;
-        int hcount = (ny * 2 + int(2 * cellHeight_ * scale_)) / cellDiffY;
+        int hcount = (ny * 2 + int(float(2 * cellHeight_) * scale_)) / cellDiffY;
         int cx, cy, tx, ty;
         int delta = -mapWidth_ + 1;
 
@@ -144,7 +144,7 @@ void SubMap::render() {
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= mem::SubMapWidth || y < 0 || y >= mem::SubMapHeight) {
+                if (x < 0 || x >= data::SubMapWidth || y < 0 || y >= data::SubMapHeight) {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
@@ -174,7 +174,7 @@ void SubMap::render() {
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= mem::SubMapWidth || y < 0 || y >= mem::SubMapHeight) {
+                if (x < 0 || x >= data::SubMapWidth || y < 0 || y >= data::SubMapHeight) {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
@@ -255,6 +255,14 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
             }
             return true;
         }
+    }
+    if (subMapInfo->switchSubMap >= 0 && subMapInfo->switchSubMapX == currX_ && subMapInfo->switchSubMapY == currY_) {
+        gWindow->enterSubMap(subMapInfo->switchSubMap, int(direction_));
+        auto music = subMapInfo->enterMusic;
+        if (music >= 0) {
+            gWindow->playMusic(music);
+        }
+        return true;
     }
     if (checkEvent) {
         onMove();

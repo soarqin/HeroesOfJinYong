@@ -20,39 +20,33 @@
 #pragma once
 
 #include "serializable.hh"
+#include "data/consts.hh"
 
 namespace hojy::mem {
 
-enum {
-    SubMapWidth = 64,
-    SubMapHeight = 64,
-    SubMapLayerCount = 6,
-    SubMapEventCount = 200,
-};
-
-#pragma pack(push, 1)
+#pragma pack(push, 2)
 struct SubMapData {
     std::int16_t id;
     char name[10];
     std::int16_t exitMusic, enterMusic;
-    std::int16_t jumpSubMap, enterCondition;
+    std::int16_t switchSubMap, enterCondition;
     std::int16_t globalEnterX1, globalEnterY1, globalEnterX2, globalEnterY2;
     std::int16_t enterX, enterY;
     std::int16_t exitX[3], exitY[3];
-    std::int16_t jumpX, jumpY, jumpReturnX, jumpReturnY;
-} ATTR_PACKED;
+    std::int16_t switchSubMapX, switchSubMapY, subMapEnterX, subMapEnterY;
+} ATTR_PACKED2;
 
 struct SubMapEvent {
     std::int16_t blocked, index, event[3], currTex, endTex, begTex, texDelay, x, y;
-};
+} ATTR_PACKED2;
 
 struct SubMapLayerData {
-    std::int16_t data[SubMapLayerCount][SubMapWidth * SubMapHeight];
-};
+    std::int16_t data[data::SubMapLayerCount][data::SubMapWidth * data::SubMapHeight];
+} ATTR_PACKED2;
 
 struct SubMapEventData {
-    SubMapEvent events[SubMapEventCount];
-};
+    SubMapEvent events[data::SubMapEventCount];
+} ATTR_PACKED2;
 #pragma pack(pop)
 
 using SubMapInfo = SerializableStructVec<SubMapData>;

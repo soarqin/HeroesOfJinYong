@@ -193,7 +193,7 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
 }
 
 Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height) {
-    Texture *tex = new Texture;
+    auto *tex = new Texture;
     if (!tex->loadFromRAW(renderer_, data, width, height, palette_)) {
         delete tex;
         return nullptr;

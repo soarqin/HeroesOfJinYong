@@ -54,7 +54,6 @@ protected:
 #ifdef USE_FREETYPE
         FT_Face face = nullptr;
 #else
-        float font_scale = 0.f;
         void *font = nullptr;
         std::vector<std::uint8_t> ttf_buffer;
 #endif
@@ -66,27 +65,22 @@ public:
     void init(int size, std::uint8_t width = 0);
     void deinit();
     bool add(const std::string& filename, int index = 0);
-    void charDimension(std::uint16_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b);
-    int stringWidth(const std::wstring &str);
+    void charDimension(std::uint32_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b, int fontSize = -1);
+    int stringWidth(const std::wstring &str, int fontSize = -1);
 
     inline int fontSize() const { return fontSize_; }
     void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
-    void render(std::wstring_view str, int x, int y, bool shadow);
+    void render(std::wstring_view str, int x, int y, bool shadow, int fontSize = -1);
 
 private:
     void newRectPack();
-    const FontData *makeCache(std::uint16_t ch);
-    inline const FontData *getCache(std::uint16_t ch) {
-        auto ite = fontCache_.find(ch);
-        if (ite != fontCache_.end()) return &ite->second;
-        return makeCache(ch);
-    }
+    const FontData *makeCache(std::uint32_t ch, int fontSize = - 1);
 
 protected:
     int fontSize_ = 16;
     std::vector<FontInfo> fonts_;
-    std::unordered_map<std::uint16_t, FontData> fontCache_;
+    std::unordered_map<std::uint64_t, FontData> fontCache_;
     std::uint8_t monoWidth_ = 0;
 
 private:

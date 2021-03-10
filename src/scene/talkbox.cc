@@ -29,7 +29,7 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     size_t idx = 0;
     std::wstring line;
     std::vector<std::wstring> lines;
-    size_t tlen = text.length();;
+    size_t tlen = text.length();
     while (idx < tlen) {
         auto pos = text.find(L'*', idx);
         if (pos == std::wstring::npos) {

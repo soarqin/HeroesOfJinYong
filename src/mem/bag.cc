@@ -48,13 +48,13 @@ void Bag::syncToSave() {
         item.count = p.second;
     }
     auto items = gSaveData.baseInfo->items;
-    for (; index < BagItemCount; ++index) {
+    for (; index < data::BagItemCount; ++index) {
         items[index] = {-1, 0};
     }
 }
 
 void Bag::add(std::int16_t id, std::int16_t count) {
-    if (count == 0 || id < 0 || id >= BagItemCount) { return; }
+    if (count == 0 || id < 0 || id >= data::BagItemCount) { return; }
     auto &cnt = items_[id];
     cnt += count;
     if (cnt <= 0) {
@@ -64,7 +64,7 @@ void Bag::add(std::int16_t id, std::int16_t count) {
 }
 
 bool Bag::remove(std::int16_t id, std::int16_t count) {
-    if (id < 0 || id >= BagItemCount) { return false; }
+    if (id < 0 || id >= data::BagItemCount) { return false; }
     if (count <= 0) { return true; }
     auto ite = items_.find(id);
     if (ite == items_.end()) { return false; }

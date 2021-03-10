@@ -38,15 +38,18 @@ void DataTypeToSize(Mixer::DataType type, size_t &size) {
     case Mixer::I16:
         size = 2;
         break;
+    default:
+        size = 1;
+        break;
     }
 }
 
-Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, Mixer::DataType typeIn, Mixer::DataType typeOut) {
+Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut,
+                     Mixer::DataType typeIn, Mixer::DataType typeOut):
+                     rate_(sampleRateOut / sampleRateIn) {
     auto io_spec = soxr_io_spec(soxr_datatype_t(typeIn), soxr_datatype_t(typeOut));
     auto *resampler = soxr_create(sampleRateIn, sampleRateOut, channels, nullptr, &io_spec, nullptr, nullptr);
     resampler_ = resampler;
-    channels_ = channels;
-    rate_ = sampleRateOut / sampleRateIn;
     DataTypeToSize(typeIn, sampleSizeIn_);
     DataTypeToSize(typeOut, sampleSizeOut_);
     sampleSizeIn_ *= channels;

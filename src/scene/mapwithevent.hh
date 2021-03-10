@@ -33,10 +33,11 @@ public:
 
     void render() override;
     void continueEvents(bool result = true);
+    void runEvent(std::int16_t evt);
+    void onUseItem(std::int16_t itemId);
 
 protected:
     void doInteract();
-    void onUseItem(std::int16_t itemId);
     void onMove();
     void checkEvent(int type, int x, int y);
 

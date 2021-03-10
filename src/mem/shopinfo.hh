@@ -20,17 +20,14 @@
 #pragma once
 
 #include "serializable.hh"
+#include "data/consts.hh"
 
 namespace hojy::mem {
 
-enum {
-    ShopItemCount = 5,
-};
-
-#pragma pack(push, 1)
+#pragma pack(push, 2)
 struct ShopData {
-    std::int16_t id[ShopItemCount], total[ShopItemCount], price[ShopItemCount];
-} ATTR_PACKED;
+    std::int16_t id[data::ShopItemCount], total[data::ShopItemCount], price[data::ShopItemCount];
+} ATTR_PACKED2;
 #pragma pack(pop)
 
 using ShopInfo = SerializableStructVec<ShopData>;
