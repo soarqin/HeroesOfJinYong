@@ -28,9 +28,17 @@ class Menu: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
+    [[nodiscard]] int currIndex() const { return currIndex_; }
     inline void setTitle(const std::wstring &title) { title_ = title; }
-    void popup(const std::vector<std::wstring> &items, int defaultIndex = 0, bool horizonal = false);
-    void popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex = 0, bool horizonal = false);
+    inline void enableCheckBox(bool b, const std::function<bool(int)> &onCheckBoxToggle = nullptr) {
+        checkbox_ = b;
+        onCheckBoxToggle_ = b ? onCheckBoxToggle : nullptr;
+    }
+    inline void enableHorizonal(bool b) { horizonal_ = b; }
+    void popup(const std::vector<std::wstring> &items, int defaultIndex = 0);
+    void popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex = 0);
+    void checkItem(size_t index, bool check);
+    [[nodiscard]] bool itemChecked(size_t index) const;
 
     void handleKeyInput(Key key) override;
 
@@ -45,15 +53,18 @@ protected:
     std::wstring title_;
     std::vector<std::wstring> items_;
     std::vector<std::wstring> values_;
+    std::vector<bool> selected_;
     int currIndex_ = 0;
+    bool checkbox_ = false;
     bool horizonal_ = false;
+    std::function<bool(int)> onCheckBoxToggle_;
 };
 
 class MenuTextList: public Menu {
 public:
     using Menu::Menu;
 
-    inline void setHandler(const std::function<void(int)> &okHandler, const std::function<bool()> &cancelHandler) {
+    inline void setHandler(const std::function<void()> &okHandler, const std::function<bool()> &cancelHandler) {
         okHandler_ = okHandler;
         cancelHandler_ = cancelHandler;
     }
@@ -63,7 +74,7 @@ protected:
     void onCancel() override;
 
 protected:
-    std::function<void(int)> okHandler_;
+    std::function<void()> okHandler_;
     std::function<bool()> cancelHandler_;
 };
 
@@ -71,7 +82,7 @@ class MenuYesNo: public Menu {
 public:
     using Menu::Menu;
 
-    void popupWithYesNo(bool horizonal = false);
+    void popupWithYesNo();
 
     void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
         yesHandler_ = yesHandler;

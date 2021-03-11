@@ -37,7 +37,10 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
             while (!line.empty() && line.back() == 0) {
                 line.erase(line.end() - 1);
             }
-            lines.emplace_back(line);
+            if (!line.empty()) {
+                lines.emplace_back(line);
+                line.clear();
+            }
             break;
         }
         auto len = pos - idx;
@@ -51,8 +54,10 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
         line.append(seg);
         /* Break lines, on either real line end or period */
         if (len < 12 || (line.back() == L'．' && *(line.end() - 2) != L'．' && (idx + 2 >= tlen || text[idx + 1] != L'．'))) {
-            lines.emplace_back(line);
-            line.clear();
+            if (!line.empty()) {
+                lines.emplace_back(line);
+                line.clear();
+            }
         }
         idx = pos + 1;
         while (idx < tlen && text[idx] == 12288/*space*/) {

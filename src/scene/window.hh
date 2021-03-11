@@ -67,6 +67,7 @@ public:
     void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
+    void enterWar(std::int16_t warId, bool getExpOnLose);
     void useQuestItem(std::int16_t itemId);
     void forceEvent(std::int16_t eventId);
 
@@ -88,7 +89,7 @@ private:
 
     MapWithEvent *globalMap_ = nullptr;
     MapWithEvent *subMap_ = nullptr;
-    Map *warMap_ = nullptr;
+    Map *warfield_ = nullptr;
     Node *talkBox_ = nullptr;
     TextureMgr globalTextureMgr_, headTextureMgr_;
 

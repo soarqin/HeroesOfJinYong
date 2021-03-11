@@ -153,9 +153,9 @@ void MapWithEvent::continueEvents(bool result) {
         case 6:
             currEventAdvTrue_ = evlist[currEventIndex_ + 1];
             currEventAdvFalse_ = evlist[currEventIndex_ + 2];
-            /* TODO: Enter war with parameter evlist[currEventIndex_] and evlist[currEventIndex_ + 3] */
+            gWindow->enterWar(evlist[currEventIndex_], evlist[currEventIndex_ + 3] > 0);
             currEventIndex_ += 4;
-            /* currEventPaused_ = true; */
+            currEventPaused_ = true;
             break;
         OpRun(8, changeExitMusic);
         OpRun(9, askForJoinTeam);

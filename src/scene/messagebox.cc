@@ -108,7 +108,8 @@ void MessageBox::makeCache() {
         if (menu_ == nullptr) {
             auto mx = x_ + textW + 5, my = y_;
             auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
-            m->popupWithYesNo(true);
+            m->enableHorizonal(true);
+            m->popupWithYesNo();
             m->setHandler([]{
                 gWindow->endPopup(true, true);
             }, [] {

@@ -91,16 +91,13 @@ bool WarField::load(std::int16_t warId) {
     return true;
 }
 
-bool WarField::needSelectChar() const {
+bool WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
     const auto *info = data::gWarFieldData.info(warId_);
-    return info->autoAlly[0] >= 0;
-}
-
-void WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
-    const auto *info = data::gWarFieldData.info(warId_);
+    if (info->autoAlly[0] >= 0) { return false; }
     for (auto &id: info->ally) {
         if (id >= 0) { chars.insert(id); }
     }
+    return true;
 }
 
 void WarField::putChars(const std::vector<std::int16_t> &chars) {
@@ -125,7 +122,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
             const auto *charInfo = mem::gSaveData.charInfo[id];
             auto ite = charMap.find(id);
             size_t index;
-            if (ite == charMap.end()) {
+            if (ite != charMap.end()) {
                 index = ite->second;
             } else {
                 index = *indices.begin();
@@ -150,6 +147,8 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
         cell.charId = ci.id;
         cell.charTex = textureMgr_[2553 + 4 * ci.id];
     }
+    currX_ = charQueue_[0].x;
+    currY_ = charQueue_[0].y;
 }
 
 void WarField::render() {

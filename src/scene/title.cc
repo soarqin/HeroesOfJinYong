@@ -217,7 +217,8 @@ void Title::makeCache() {
             int mx = ox + ttf->stringWidth(askText) + SubWindowBorder + 10;
             int my = oy - SubWindowBorder;
             auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
-            menu->popupWithYesNo(true);
+            menu->enableHorizonal(true);
+            menu->popupWithYesNo();
             menu->setHandler([this] {
                 auto big5Name = util::big5Conv.fromUnicode(mainCharName_);
                 while (big5Name.length() > 8) {

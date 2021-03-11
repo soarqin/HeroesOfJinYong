@@ -23,20 +23,40 @@
 
 namespace hojy::scene {
 
-void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex, bool horizonal) {
+void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
     items_ = items;
     currIndex_ = defaultIndex;
-    horizonal_ = horizonal;
+    if (checkbox_) {
+        selected_.clear();
+        selected_.resize(items_.size(), false);
+        items_.emplace_back(L"結束");
+    }
     update();
 }
 
-void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values,
-                 int defaultIndex, bool horizonal) {
+void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex) {
     items_ = items;
     values_ = values;
     currIndex_ = defaultIndex;
-    horizonal_ = horizonal;
+    if (checkbox_) {
+        selected_.clear();
+        selected_.resize(items_.size(), false);
+        items_.emplace_back(L"結束");
+        values_.emplace_back(L"");
+    }
     update();
+}
+
+void Menu::checkItem(size_t index, bool check) {
+    if (!checkbox_) { return; }
+    if (index >= selected_.size()) { return; }
+    selected_[index] = check;
+}
+
+bool Menu::itemChecked(size_t index) const {
+    if (!checkbox_) { return false; }
+    if (index >= selected_.size()) { return false; }
+    return selected_[index];
 }
 
 void Menu::handleKeyInput(Key key) {
@@ -78,7 +98,19 @@ void Menu::handleKeyInput(Key key) {
         update();
         break;
     case KeyOK: case KeySpace:
-        onOK();
+        if (checkbox_) {
+            if (currIndex_ < 0) { break; }
+            if (currIndex_ >= selected_.size()) {
+                onOK();
+                break;
+            }
+            if (!onCheckBoxToggle_ || onCheckBoxToggle_(currIndex_)) {
+                selected_[currIndex_] = !selected_[currIndex_];
+            }
+            update();
+        } else {
+            onOK();
+        }
         break;
     case KeyCancel:
         onCancel();
@@ -90,7 +122,7 @@ void Menu::handleKeyInput(Key key) {
 
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
-    int x = 0, y = 0, h, w = 0, x2 = 0, w2 = 0;
+    int x = SubWindowBorder, y = SubWindowBorder, h, w = 0, wfill = 0, x2 = 0, w2 = 0;
     auto lines = int(items_.size());
     auto fontSize = ttf->fontSize();
     auto rowHeight = fontSize + TextLineSpacing;
@@ -111,7 +143,7 @@ void Menu::makeCache() {
         }
         if (!values_.empty()) {
             drawValue = true;
-            x2 = x + w + SubWindowBorder * 2;
+            x2 = x + w + SubWindowBorder;
             for (auto &s: values_) {
                 auto sw = ttf->stringWidth(s);
                 w2 = std::max(w2, sw);
@@ -123,6 +155,13 @@ void Menu::makeCache() {
             ++totalLines;
             w = std::max(w, ttf->stringWidth(title_));
         }
+        wfill = w;
+        if (checkbox_) {
+            auto checkBoxW = ttf->stringWidth(L"*");
+            x += checkBoxW;
+            x2 += checkBoxW;
+            w += checkBoxW;
+        }
         w += SubWindowBorder * 2;
         h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
     }
@@ -131,9 +170,8 @@ void Menu::makeCache() {
 
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
-    renderer_->fillRoundedRect(x, y, w, h, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(x, y, w, h, RoundedRectRad, 224, 224, 224, 255);
-    x += SubWindowBorder; y += SubWindowBorder;
+    renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
     if (!title_.empty()) {
         ttf->setColor(236, 200, 40);
         ttf->render(title_, x, y, true);
@@ -153,9 +191,12 @@ void Menu::makeCache() {
         for (int i = 0; i < lines; ++i, y += rowHeight) {
             if (i == currIndex_) {
                 ttf->setColor(236, 236, 236);
-                renderer_->fillRoundedRect(x - 2, y - 2, w - SubWindowBorder * 2 + 4, fontSize + 4, 2, 96, 96, 96, 192);
+                renderer_->fillRoundedRect(x - 2, y - 2, wfill + 4, fontSize + 4, 2, 96, 96, 96, 192);
             } else {
                 ttf->setColor(252, 148, 16);
+            }
+            if (checkbox_ && i < selected_.size() && selected_[i]) {
+                ttf->render(L"*", SubWindowBorder, y, true);
             }
             ttf->render(items_[i], x, y, true);
             if (drawValue) {
@@ -168,7 +209,7 @@ void Menu::makeCache() {
 
 void MenuTextList::onOK() {
     if (currIndex_ < 0) { return; }
-    if (okHandler_) { okHandler_(currIndex_); }
+    if (okHandler_) { okHandler_(); }
 }
 
 void MenuTextList::onCancel() {
@@ -177,8 +218,8 @@ void MenuTextList::onCancel() {
     }
 }
 
-void MenuYesNo::popupWithYesNo(bool horizonal) {
-    popup({L"是", L"否"}, -1, horizonal);
+void MenuYesNo::popupWithYesNo() {
+    popup({L"是", L"否"}, -1);
 }
 
 void MenuYesNo::onOK() {

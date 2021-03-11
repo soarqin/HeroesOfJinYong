@@ -131,13 +131,32 @@ void listNamesFromTypeList(const std::vector<std::int16_t> &charIdList,
     }
 }
 
+CharListMenu::~CharListMenu() {
+    delete msgBox_;
+}
+
+std::vector<std::int16_t> CharListMenu::getSelectedCharIds() const {
+    std::vector<std::int16_t> res;
+    if (checkbox_) {
+        for (size_t i = 0; i < selected_.size(); ++i) {
+            if (selected_[i]) {
+                res.emplace_back(charIdList_[i]);
+            }
+        }
+    } else {
+        if (currIndex_ >= 0) {
+            res.emplace_back(charIdList_[currIndex_]);
+        }
+    }
+    return res;
+}
+
 void CharListMenu::init(const std::vector<std::wstring> &title, const std::vector<std::int16_t> &charIds,
                         const std::vector<ValueType> &valueTypes,
-                        const std::function<void(std::int16_t)> &okHandler, const std::function<void()> &cancelHandler,
+                        const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler,
                         const std::function<bool(ValueType, std::int16_t)> &filterFunc) {
-    std::vector<std::int16_t> charIdList;
     if (!valueTypes.empty() && filterFunc) {
-        charIdList.clear();
+        charIdList_.clear();
         for (auto id: charIds) {
             auto *charInfo = mem::gSaveData.charInfo[id];
             if (!charInfo) { continue; }
@@ -149,42 +168,45 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
                 }
             }
             if (add) {
-                charIdList.emplace_back(id);
+                charIdList_.emplace_back(id);
             }
         }
     } else {
-        charIdList = charIds;
+        charIdList_ = charIds;
     }
     MessageBox *msgBox = nullptr;
     if (!title.empty()) {
-        msgBox = new MessageBox(renderer_, x_, y_, parent_->width() - x_, parent_->height() - y_);
-        parent_->addAtFront(msgBox);
+        msgBox = new MessageBox(renderer_, x_, y_, gWindow->width() - x_, gWindow->height() - y_);
+        msgBox_ = msgBox;
         msgBox->popup(title, MessageBox::Normal, MessageBox::TopLeft);
         msgBox->forceUpdate();
         y_ += msgBox->height() + 10;
     }
     std::vector<std::wstring> names, values;
-    listNamesFromTypeList(charIdList, valueTypes, names, values);
+    listNamesFromTypeList(charIdList_, valueTypes, names, values);
     if (!valueTypes.empty()) {
         std::wstring subTitle;
         getNameFromTypeList(valueTypes, subTitle);
         setTitle(subTitle);
     }
     popup(names, values);
-    setHandler([charIdList, okHandler](int index) {
-        if (index >= 0) {
-            if (okHandler) { okHandler(charIdList[index]); }
+    setHandler([this, okHandler]() {
+        if (!okHandler) { return; }
+        if (checkbox_) {
+            okHandler(0);
         }
-    }, [msgBox, cancelHandler]()->bool {
-        delete msgBox;
-        if (cancelHandler) { cancelHandler(); }
+        if (currIndex_ >= 0) {
+            okHandler(charIdList_[currIndex_]);
+        }
+    }, [this, cancelHandler]()->bool {
+        if (cancelHandler) { return cancelHandler(); }
         return true;
     });
 }
 
 void CharListMenu::initWithTeamMembers(const std::vector<std::wstring> &title, const std::vector<ValueType> &valueTypes,
                                        const std::function<void(std::int16_t)> &okHandler,
-                                       const std::function<void()> &cancelHandler,
+                                       const std::function<bool()> &cancelHandler,
                                        const std::function<bool(ValueType, std::int16_t)> &filterFunc) {
     std::vector<std::int16_t> charIds;
     for (auto id: mem::gSaveData.baseInfo->members) {
@@ -193,6 +215,23 @@ void CharListMenu::initWithTeamMembers(const std::vector<std::wstring> &title, c
         }
     }
     init(title, charIds, valueTypes, okHandler, cancelHandler, filterFunc);
+}
+
+void CharListMenu::enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) {
+    if (!b) {
+        Menu::enableCheckBox(false);
+    } else {
+        onCheckBoxToggle2_ = onCheckBoxToggle;
+        Menu::enableCheckBox(true, [this](int index)->bool {
+            if (index < 0) { return false; }
+            return onCheckBoxToggle2_(charIdList_[index]);
+        });
+    }
+}
+
+void CharListMenu::render() {
+    msgBox_->render();
+    NodeWithCache::render();
 }
 
 }

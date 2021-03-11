@@ -21,6 +21,7 @@
 
 #include "globalmap.hh"
 #include "submap.hh"
+#include "warfield.hh"
 #include "talkbox.hh"
 #include "title.hh"
 #include "menu.hh"
@@ -40,7 +41,6 @@
 #include "util/conv.hh"
 
 #include <SDL.h>
-#include <fmt/format.h>
 #include <stdexcept>
 
 namespace hojy::scene {
@@ -92,6 +92,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
 
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
+    warfield_ = new WarField(renderer_, 0, 0, w, h, core::config.scale());
 
     auto *title = new Title(renderer_, 0, 0, w, h);
     title->init();
@@ -299,6 +300,32 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
     });
 }
 
+void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
+    auto *wf = dynamic_cast<WarField*>(warfield_);
+    wf->setGetExpOnLose(getExpOnLose);
+    wf->load(warId);
+    std::set<std::int16_t> defaultChars;
+    if (wf->getDefaultChars(defaultChars)) {
+        int x = width_ / 3, y = height_ * 2 / 7;
+        auto *clm = new CharListMenu(renderer_, x, y, width_ - x, height_ - y);
+        clm->enableCheckBox(true, [defaultChars](std::int16_t charId)->bool {
+            return defaultChars.find(charId) == defaultChars.end();
+        });
+        clm->initWithTeamMembers({L"請選擇參與戰鬥之人物"}, {CharListMenu::LEVEL}, [this, clm, wf](std::int16_t) {
+            wf->putChars(clm->getSelectedCharIds());
+            map_ = warfield_;
+            closePopup();
+        }, []()->bool { return false; });
+        for (size_t i = 0; i < clm->charCount(); ++i) {
+            if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
+                clm->checkItem(i, true);
+            }
+        }
+        popup_ = clm;
+        freeOnClose_ = true;
+    }
+}
+
 void Window::useQuestItem(std::int16_t itemId) {
     auto *mapev = dynamic_cast<MapWithEvent*>(map_);
     if (mapev) mapev->onUseItem(itemId);
@@ -335,8 +362,8 @@ void Window::showMainMenu(bool inSubMap) {
     if (mainMenu_ == nullptr) {
         auto *menu = new MenuTextList(renderer_, 40, 40, width_ - 80, height_ - 80);
         mainMenu_ = menu;
-        menu->setHandler([this](int index) {
-            switch (index) {
+        menu->setHandler([this]() {
+            switch (dynamic_cast<Menu*>(mainMenu_)->currIndex()) {
             case 0:
                 medicMenu(mainMenu_);
                 break;
@@ -414,7 +441,7 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({L"要醫治誰"}, {CharListMenu::HP},
-                              [mainMenu, charId](std::int16_t toCharId) {
+                              [charId](std::int16_t toCharId) {
                                   int res = mem::actMedic(mem::gSaveData.charInfo[charId],
                                                           mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
@@ -437,7 +464,7 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({L"替誰解毒"}, {CharListMenu::HP},
-                              [mainMenu, charId](std::int16_t toCharId) {
+                              [charId](std::int16_t toCharId) {
                                   int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
                                                           mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
@@ -476,7 +503,7 @@ static void leaveTeamMenu(Node *mainMenu) {
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({L"要求誰離隊"}, {CharListMenu::LEVEL},
-                              [mainMenu](std::int16_t charId) {
+                              [](std::int16_t charId) {
                                   if (charId == 0) {
                                       gWindow->popupMessageBox({L"抱歉，沒有你遊戲進行不下去"}, MessageBox::PressToCloseThis);
                                       return;
@@ -498,8 +525,8 @@ static void systemMenu(Node *mainMenu) {
     subMenu->popup({L"讀檔", L"存檔", L"離開"});
     subMenu->forceUpdate();
     x += subMenu->width() + 10;
-    subMenu->setHandler([mainMenu, x, y](int index) {
-        switch (index) {
+    subMenu->setHandler([mainMenu, subMenu, x, y]() {
+        switch (subMenu->currIndex()) {
         case 0:
             selectSaveSlotMenu(mainMenu, x, y, false);
             break;
@@ -522,7 +549,8 @@ static void systemMenu(Node *mainMenu) {
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->popup({L"一", L"二", L"三"});
-    subMenu->setHandler([isSave](int index) {
+    subMenu->setHandler([subMenu, isSave]() {
+        auto index = subMenu->currIndex();
         if (isSave) {
             gWindow->saveGame(index + 1);
             gWindow->popupMessageBox({L"存檔完成"}, MessageBox::PressToCloseTop);
