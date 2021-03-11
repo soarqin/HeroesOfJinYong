@@ -25,8 +25,8 @@
 
 namespace hojy::scene {
 
-Node::Node(Node *parent, int x, int y, int width, int height) : parent_(parent), renderer_(parent->renderer_), x_(x), y_(y), width_(width), height_(height) {
-    if (parent_) { parent_->add(this); }
+Node::Node(Node *parent, int x, int y, int width, int height): x_(x), y_(y), width_(width), height_(height) {
+    if (parent) { parent->add(this); }
 }
 
 Node::~Node() {
@@ -35,7 +35,15 @@ Node::~Node() {
 }
 
 void Node::add(Node *child) {
+    child->parent_ = this;
+    child->renderer_ = renderer_;
     children_.push_back(child);
+}
+
+void Node::addAtFront(Node *child) {
+    child->parent_ = this;
+    child->renderer_ = renderer_;
+    children_.insert(children_.begin(), child);
 }
 
 void Node::remove(Node *child) {

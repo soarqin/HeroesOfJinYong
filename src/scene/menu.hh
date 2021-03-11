@@ -30,6 +30,7 @@ public:
 
     inline void setTitle(const std::wstring &title) { title_ = title; }
     void popup(const std::vector<std::wstring> &items, int defaultIndex = 0, bool horizonal = false);
+    void popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex = 0, bool horizonal = false);
 
     void handleKeyInput(Key key) override;
 
@@ -43,6 +44,7 @@ private:
 protected:
     std::wstring title_;
     std::vector<std::wstring> items_;
+    std::vector<std::wstring> values_;
     int currIndex_ = 0;
     bool horizonal_ = false;
 };

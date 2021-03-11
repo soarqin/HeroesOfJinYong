@@ -31,7 +31,7 @@ class ItemView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    void show(const std::function<void(std::int16_t)> &resultFunc);
+    void show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc);
     void handleKeyInput(Key key) override;
 
 protected:
@@ -39,6 +39,7 @@ protected:
 
 protected:
     std::vector<std::pair<std::int16_t, std::int16_t>> items_;
+    bool inBattle_ = false;
     int cols_ = 0, rows_ = 0;
     int scale_ = 1, cellWidth_ = 0, cellHeight_ = 0;
     int currTop_ = 0, currSel_ = 0;

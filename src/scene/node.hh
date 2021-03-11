@@ -45,6 +45,7 @@ public:
     Node(const Node&) = delete;
     virtual ~Node();
     void add(Node *child);
+    void addAtFront(Node *child);
     void remove(Node *child);
 
     [[nodiscard]] inline int x() const { return x_; }
@@ -68,8 +69,8 @@ protected:
     void removeAllChildren();
 
 protected:
-    Node *parent_;
-    Renderer *renderer_;
+    Node *parent_ = nullptr;
+    Renderer *renderer_ = nullptr;
 
     int x_, y_, width_, height_;
     bool visible_ = true;

@@ -30,6 +30,15 @@ void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex, bool 
     update();
 }
 
+void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values,
+                 int defaultIndex, bool horizonal) {
+    items_ = items;
+    values_ = values;
+    currIndex_ = defaultIndex;
+    horizonal_ = horizonal;
+    update();
+}
+
 void Menu::handleKeyInput(Key key) {
     switch (key) {
     case KeyUp:
@@ -81,14 +90,12 @@ void Menu::handleKeyInput(Key key) {
 
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
-    int x = 0, y = 0, h, w = 0;
-/*
-    int itemsTW = 0;
-*/
+    int x = 0, y = 0, h, w = 0, x2 = 0, w2 = 0;
     auto lines = int(items_.size());
     auto fontSize = ttf->fontSize();
     auto rowHeight = fontSize + TextLineSpacing;
     std::vector<std::pair<int, int>> itemsOff;
+    bool drawValue = false;
     if (horizonal_) {
         for (auto &s: items_) {
             auto sw = ttf->stringWidth(s);
@@ -98,30 +105,26 @@ void Menu::makeCache() {
         w += SubWindowBorder;
         h = rowHeight * (title_.empty() ? 1 : 2) + SubWindowBorder * 2 - TextLineSpacing;
     } else {
+        for (auto &s: items_) {
+            auto sw = ttf->stringWidth(s);
+            w = std::max(w, sw);
+        }
+        if (!values_.empty()) {
+            drawValue = true;
+            x2 = x + w + SubWindowBorder * 2;
+            for (auto &s: values_) {
+                auto sw = ttf->stringWidth(s);
+                w2 = std::max(w2, sw);
+            }
+            w += w2 + SubWindowBorder;
+        }
         auto totalLines = lines;
         if (!title_.empty()) {
             ++totalLines;
-            w/* = itemsTW*/ = ttf->stringWidth(title_);
+            w = std::max(w, ttf->stringWidth(title_));
         }
-/*
-        itemsOff.reserve(items_.size());
-*/
-        for (auto &s: items_) {
-            auto sw = ttf->stringWidth(s);
-/*
-            itemsOff.emplace_back(sw);
-*/
-            w = std::max(w, sw);
-        }
-/*
-        int nw = w;
-*/
         w += SubWindowBorder * 2;
         h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
-/* TODO: support centered menu?
-    x = (width_ - w) / 2;
-    y = (height_ - h) / 2;
-*/
     }
     width_ = w;
     height_ = h;
@@ -133,7 +136,7 @@ void Menu::makeCache() {
     x += SubWindowBorder; y += SubWindowBorder;
     if (!title_.empty()) {
         ttf->setColor(236, 200, 40);
-        ttf->render(title_, x/* + (nw - itemsTW) / 2*/, y, true);
+        ttf->render(title_, x, y, true);
         y += rowHeight;
     }
     if (horizonal_) {
@@ -154,7 +157,10 @@ void Menu::makeCache() {
             } else {
                 ttf->setColor(252, 148, 16);
             }
-            ttf->render(items_[i], x/* + (nw - itemsOff[i]) / 2*/, y, true);
+            ttf->render(items_[i], x, y, true);
+            if (drawValue) {
+                ttf->render(values_[i], x2, y, true);
+            }
         }
     }
     cacheEnd();

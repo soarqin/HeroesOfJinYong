@@ -24,6 +24,7 @@
 #include "talkbox.hh"
 #include "title.hh"
 #include "menu.hh"
+#include "charlistmenu.hh"
 #include "itemview.hh"
 #include "statusview.hh"
 
@@ -52,8 +53,8 @@ static void depoisonMenu(Node *mainMenu);
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
 static void showItems(Node *mainMenu);
 static void statusMenu(Node *mainMenu);
-static void leaveTeamMenu(Node *mainMenu);
 static void showCharStatus(Node *parent, std::int16_t charId);
+static void leaveTeamMenu(Node *mainMenu);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
 
@@ -400,127 +401,54 @@ void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::
 static void medicMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"誰要使用醫術"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->setTitle(L"醫療能力");
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        if (charInfo->medic > 0) {
-            names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->medic)));
-            charIdList.emplace_back(id);
-        }
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList, mainMenu](int index) {
-        medicTargetMenu(mainMenu, charIdList[index]);
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"誰要使用醫術"}, {CharListMenu::MEDIC},
+                              [mainMenu](std::int16_t charId) {
+                                  medicTargetMenu(mainMenu, charId);
+                              }, nullptr);
 }
 
 static void medicTargetMenu(Node *mainMenu, int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"要醫治誰"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->setTitle(L"生命點數");
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(fmt::format(L"{:10} {:>3}/{:>3}", util::big5Conv.toUnicode(charInfo->name),
-                                       std::to_wstring(charInfo->hp), std::to_wstring(charInfo->maxHp)));
-        charIdList.emplace_back(id);
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList, charId](int index) {
-        int res = mem::actMedic(mem::gSaveData.charInfo[charId],
-                                mem::gSaveData.charInfo[charIdList[index]], 2);
-        gWindow->closePopup();
-        gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"要醫治誰"}, {CharListMenu::HP},
+                              [mainMenu, charId](std::int16_t toCharId) {
+                                  int res = mem::actMedic(mem::gSaveData.charInfo[charId],
+                                                          mem::gSaveData.charInfo[toCharId], 2);
+                                  gWindow->closePopup();
+                                  gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                              }, nullptr);
 }
 
 static void depoisonMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"誰要幫人解毒"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->setTitle(L"解毒能力");
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        if (charInfo->depoison > 0) {
-            names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->depoison)));
-            charIdList.emplace_back(id);
-        }
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList, mainMenu](int index) {
-        depoisonTargetMenu(mainMenu, charIdList[index]);
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"誰要幫人解毒"}, {CharListMenu::MEDIC},
+                              [mainMenu](std::int16_t charId) {
+                                  depoisonTargetMenu(mainMenu, charId);
+                              }, nullptr);
 }
 
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"替誰解毒"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->setTitle(L"中毒程度");
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(fmt::format(L"{:10} {:>3}", util::big5Conv.toUnicode(charInfo->name), std::to_wstring(charInfo->poisoned)));
-        charIdList.emplace_back(id);
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList, charId](int index) {
-        int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
-                                   mem::gSaveData.charInfo[charIdList[index]], 0);
-        gWindow->closePopup();
-        gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"替誰解毒"}, {CharListMenu::HP},
+                              [mainMenu, charId](std::int16_t toCharId) {
+                                  int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
+                                                          mem::gSaveData.charInfo[toCharId], 2);
+                                  gWindow->closePopup();
+                                  gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                              }, nullptr);
 }
 
 static void showItems(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - 40, gWindow->height() - y - 40);
-    iv->show([](std::int16_t itemId) {
+    iv->show(false, [](std::int16_t itemId) {
         gWindow->useQuestItem(itemId);
     });
 }
@@ -528,63 +456,11 @@ static void showItems(Node *mainMenu) {
 static void statusMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"要查閱誰的狀態"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
-        charIdList.emplace_back(id);
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList, mainMenu](int index) {
-        showCharStatus(mainMenu, charIdList[index]);
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
-}
-
-static void leaveTeamMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
-    auto y = mainMenu->y();
-    auto *msgBox = new MessageBox(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    msgBox->popup({L"要求誰離隊"}, MessageBox::Normal, MessageBox::TopLeft);
-    msgBox->forceUpdate();
-    y = y + msgBox->height() + 10;
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    std::vector<std::wstring> names;
-    std::vector<int16_t> charIdList;
-    for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id < 0) { continue; }
-        auto *charInfo = mem::gSaveData.charInfo[id];
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
-        charIdList.emplace_back(id);
-    }
-    subMenu->popup(names);
-    subMenu->setHandler([charIdList](int index) {
-        if (charIdList[index] == 0) {
-            gWindow->popupMessageBox({L"抱歉，沒有你遊戲進行不下去"}, MessageBox::PressToCloseThis);
-            return;
-        }
-        if (mem::leaveTeam(charIdList[index])) {
-            auto eventId = mem::getLeaveEventId(charIdList[index]);
-            gWindow->closePopup();
-            if (eventId >= 0) {
-                gWindow->forceEvent(eventId);
-            }
-        }
-    }, [msgBox, subMenu]() {
-        auto *box = msgBox;
-        delete subMenu;
-        delete box;
-    });
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"要查閱誰的狀態"}, {CharListMenu::LEVEL},
+                              [mainMenu](std::int16_t charId) {
+                                  showCharStatus(mainMenu, charId);
+                              }, nullptr);
 }
 
 static void showCharStatus(Node *parent, std::int16_t charId) {
@@ -592,6 +468,26 @@ static void showCharStatus(Node *parent, std::int16_t charId) {
     auto y = parent->y();
     auto *sv = new StatusView(parent, x, y, gWindow->width() - x, gWindow->height() - y);
     sv->show(charId);
+}
+
+static void leaveTeamMenu(Node *mainMenu) {
+    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto y = mainMenu->y();
+    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    menu->initWithTeamMembers({L"要求誰離隊"}, {CharListMenu::LEVEL},
+                              [mainMenu](std::int16_t charId) {
+                                  if (charId == 0) {
+                                      gWindow->popupMessageBox({L"抱歉，沒有你遊戲進行不下去"}, MessageBox::PressToCloseThis);
+                                      return;
+                                  }
+                                  if (mem::leaveTeam(charId)) {
+                                      auto eventId = mem::getLeaveEventId(charId);
+                                      gWindow->closePopup();
+                                      if (eventId >= 0) {
+                                          gWindow->forceEvent(eventId);
+                                      }
+                                  }
+                              }, nullptr);
 }
 
 static void systemMenu(Node *mainMenu) {

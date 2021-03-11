@@ -30,7 +30,8 @@ enum {
     ItemCellSpacing = 5,
 };
 
-void ItemView::show(const std::function<void(std::int16_t)> &resultFunc) {
+void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc) {
+    inBattle_ = inBattle;
     resultFunc_ = resultFunc;
     for (auto &p: mem::gBag.items()) {
         items_.emplace_back(std::make_pair(p.first, p.second));
@@ -50,8 +51,23 @@ void ItemView::show(const std::function<void(std::int16_t)> &resultFunc) {
 void ItemView::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: {
-        auto func = std::move(resultFunc_);
         std::int16_t id = items_[currSel_ + currTop_ * cols_].first;
+        auto type = mem::gSaveData.itemInfo[id]->itemType;
+        if (inBattle_) {
+            if (type != 3 && type != 4) {
+                return;
+            }
+        } else {
+            switch (type) {
+            case 0:
+                break;
+            case 1:
+
+            default:
+                break;
+            }
+        }
+        auto func = std::move(resultFunc_);
         gWindow->closePopup();
         if (func) { func(id); }
         return;
