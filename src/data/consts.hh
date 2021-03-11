@@ -35,7 +35,7 @@ enum {
     BagItemCount = 200,
 
     /* Char Info */
-    CharFrameCount = 15,
+    CharFrameCount = 5,
     LearnSkillCount = 10,
     CarryItemCount = 4,
 

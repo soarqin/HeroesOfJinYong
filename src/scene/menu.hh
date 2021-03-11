@@ -53,7 +53,7 @@ class MenuTextList: public Menu {
 public:
     using Menu::Menu;
 
-    inline void setHandler(const std::function<void(int)> &okHandler, const std::function<void()> &cancelHandler) {
+    inline void setHandler(const std::function<void(int)> &okHandler, const std::function<bool()> &cancelHandler) {
         okHandler_ = okHandler;
         cancelHandler_ = cancelHandler;
     }
@@ -64,7 +64,7 @@ protected:
 
 protected:
     std::function<void(int)> okHandler_;
-    std::function<void()> cancelHandler_;
+    std::function<bool()> cancelHandler_;
 };
 
 class MenuYesNo: public Menu {

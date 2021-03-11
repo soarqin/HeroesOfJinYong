@@ -202,7 +202,7 @@ Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height)
 }
 
 const Texture *TextureMgr::operator[](std::int32_t id) const {
-    if (id >= textures_.size()) { return nullptr; }
+    if (id < 0 || id >= textures_.size()) { return nullptr; }
     return &textures_[id];
 }
 

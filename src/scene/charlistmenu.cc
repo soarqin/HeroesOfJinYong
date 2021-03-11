@@ -175,12 +175,10 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
         if (index >= 0) {
             if (okHandler) { okHandler(charIdList[index]); }
         }
-    }, [this, cancelHandler, msgBox]() {
-        auto *box = msgBox;
-        auto fn = cancelHandler;
-        delete this;
-        delete box;
-        if (fn) { fn(); }
+    }, [msgBox, cancelHandler]()->bool {
+        delete msgBox;
+        if (cancelHandler) { cancelHandler(); }
+        return true;
     });
 }
 

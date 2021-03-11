@@ -33,8 +33,12 @@ class WarField: public Map {
         bool isWater = false;
     };
     struct CharInfo {
+        std::uint32_t side; /* bit0: 0-self 1-enemy
+                            * bit1: auto-battle
+                            */
         std::int16_t id;
         std::int16_t x, y;
+        Direction direction;
         std::int16_t speed;
         std::int16_t hp, mp;
         std::int16_t stamina;
@@ -45,7 +49,8 @@ public:
     ~WarField() override;
 
     bool load(std::int16_t warId);
-    void getDefaultChars(std::set<std::int16_t> &chars, std::set<std::int16_t> &autoChars) const;
+    [[nodiscard]] bool needSelectChar() const;
+    void getDefaultChars(std::set<std::int16_t> &chars) const;
     void putChars(const std::vector<std::int16_t> &chars);
 
     void render() override;

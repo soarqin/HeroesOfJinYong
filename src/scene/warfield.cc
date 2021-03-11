@@ -91,43 +91,124 @@ bool WarField::load(std::int16_t warId) {
     return true;
 }
 
-void WarField::getDefaultChars(std::set<std::int16_t> &chars, std::set<std::int16_t> &autoChars) const {
+bool WarField::needSelectChar() const {
+    const auto *info = data::gWarFieldData.info(warId_);
+    return info->autoAlly[0] >= 0;
+}
+
+void WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
     const auto *info = data::gWarFieldData.info(warId_);
     for (auto &id: info->ally) {
         if (id >= 0) { chars.insert(id); }
-    }
-    for (auto &id: info->autoAlly) {
-        if (id >= 0) { autoChars.insert(id); }
     }
 }
 
 void WarField::putChars(const std::vector<std::int16_t> &chars) {
     const auto *info = data::gWarFieldData.info(warId_);
-    std::map<std::int16_t, size_t> charMap;
-    std::set<size_t> indices;
-    for (size_t i = 0; i < data::TeamMemberCount; ++i) {
-        auto id = info->ally[i];
-        if (id >= 0) { charMap[id] = i; }
-        else { indices.insert(i); }
-    }
-    for (auto id: chars) {
-        const auto *charInfo = mem::gSaveData.charInfo[id];
-        auto ite = charMap.find(id);
-        size_t index;
-        if (ite == charMap.end()) {
-            index = ite->second;
-        } else {
-            index = *indices.begin();
-            indices.erase(indices.begin());
+    if (info->autoAlly[0] >= 0) {
+        for (size_t i = 0; i < data::TeamMemberCount; ++i) {
+            auto id = info->autoAlly[i];
+            if (id < 0) { continue; }
+            const auto *charInfo = mem::gSaveData.charInfo[id];
+            charQueue_.emplace_back(CharInfo {0, id, info->allyX[i], info->allyY[i], DirLeft,
+                                              charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
         }
-        std::int16_t x = info->allyX[index], y = info->allyY[index];
-        charQueue_.emplace_back(CharInfo {id, charInfo->speed, x, y, charInfo->hp, charInfo->mp,
-                                          charInfo->stamina, 0});
+    } else {
+        std::map<std::int16_t, size_t> charMap;
+        std::set<size_t> indices;
+        for (size_t i = 0; i < data::TeamMemberCount; ++i) {
+            auto id = info->ally[i];
+            if (id >= 0) { charMap[id] = i; }
+            else { indices.insert(i); }
+        }
+        for (auto id: chars) {
+            const auto *charInfo = mem::gSaveData.charInfo[id];
+            auto ite = charMap.find(id);
+            size_t index;
+            if (ite == charMap.end()) {
+                index = ite->second;
+            } else {
+                index = *indices.begin();
+                indices.erase(indices.begin());
+            }
+            charQueue_.emplace_back(CharInfo{0, id, info->allyX[index], info->allyY[index], DirLeft,
+                                             charInfo->speed, charInfo->hp, charInfo->mp, charInfo->stamina, 0});
+        }
+    }
+    for (size_t i = 0; i < data::WarFieldEnemyCount; ++i) {
+        auto id = info->enemy[i];
+        if (id < 0) { continue; }
+        const auto *charInfo = mem::gSaveData.charInfo[id];
+        charQueue_.emplace_back(CharInfo {1, id, info->enemyX[i], info->enemyY[i], DirRight,
+                                          charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
+    }
+    std::sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo &c0, const CharInfo &c1) {
+        return c0.speed > c1.speed;
+    });
+    for (auto &ci: charQueue_) {
+        auto &cell = cellInfo_[ci.y * mapWidth_ + ci.x];
+        cell.charId = ci.id;
+        cell.charTex = textureMgr_[2553 + 4 * ci.id];
     }
 }
 
 void WarField::render() {
     Map::render();
+
+    if (drawDirty_) {
+        drawDirty_ = false;
+        int cellDiffX = cellWidth_ / 2;
+        int cellDiffY = cellHeight_ / 2;
+        int curX = currX_, curY = currY_;
+        int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
+        int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
+        int wcount = nx * 2 / cellWidth_;
+        int hcount = (ny * 2 + int(float(2 * cellHeight_) * scale_)) / cellDiffY;
+        int cx, cy, tx, ty;
+        int delta = -mapWidth_ + 1;
+
+        renderer_->setTargetTexture(drawingTerrainTex_);
+        renderer_->setClipRect(0, 0, 2048, 2048);
+        renderer_->clear(0, 0, 0, 0);
+
+        cx = (nx / cellDiffX + ny / cellDiffY) / 2;
+        cy = (ny / cellDiffY - nx / cellDiffX) / 2;
+        tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
+        ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
+        cx = curX - cx; cy = curY - cy;
+        for (int j = hcount; j; --j) {
+            int x = cx, y = cy;
+            int dx = tx;
+            int offset = y * mapWidth_ + x;
+            for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
+                if (x < 0 || x >= data::WarFieldWidth || y < 0 || y >= data::WarFieldHeight) {
+                    continue;
+                }
+                auto &ci = cellInfo_[offset];
+                renderer_->renderTexture(ci.earth, dx, ty);
+                if (ci.building) {
+                    renderer_->renderTexture(ci.building, dx, ty);
+                }
+                if (ci.charTex) {
+                    renderer_->renderTexture(ci.charTex, dx, ty);
+                }
+            }
+            if (j % 2) {
+                ++cx;
+                tx += cellDiffX;
+                ty += cellDiffY;
+            } else {
+                ++cy;
+                tx -= cellDiffX;
+                ty += cellDiffY;
+            }
+        }
+        renderer_->setTargetTexture(nullptr);
+        renderer_->unsetClipRect();
+    }
+
+    renderer_->clear(0, 0, 0, 0);
+    renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
 void WarField::handleKeyInput(Node::Key key) {

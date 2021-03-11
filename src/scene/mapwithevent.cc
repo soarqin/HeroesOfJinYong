@@ -115,7 +115,7 @@ void MapWithEvent::continueEvents(bool result) {
             currEventPaused_ = false;
             auto func = std::move(pendingSubEvents_.front());
             pendingSubEvents_.pop_front();
-            if (func()) {
+            if (!func()) {
                 currEventPaused_ = true;
                 return;
             }
@@ -378,8 +378,7 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
                     auto itemId = charInfo->item[j];
                     std::int16_t itemCount = charInfo->itemCount[j] == 0 ? 1 : charInfo->itemCount[j];
                     map->pendingSubEvents_.emplace_back([map, itemId, itemCount]()->bool {
-                        addItem(map, itemId, itemCount);
-                        return false;
+                        return addItem(map, itemId, itemCount);
                     });
                     charInfo->item[j] = -1;
                     charInfo->itemCount[j] = 0;
@@ -388,7 +387,7 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
             break;
         }
     }
-    return map->pendingSubEvents_.empty();
+    return true;
 }
 
 int MapWithEvent::wantSleep(MapWithEvent *map) {

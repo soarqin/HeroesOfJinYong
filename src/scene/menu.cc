@@ -168,11 +168,13 @@ void Menu::makeCache() {
 
 void MenuTextList::onOK() {
     if (currIndex_ < 0) { return; }
-    okHandler_(currIndex_);
+    if (okHandler_) { okHandler_(currIndex_); }
 }
 
 void MenuTextList::onCancel() {
-    cancelHandler_();
+    if (!cancelHandler_ || cancelHandler_()) {
+        delete this;
+    }
 }
 
 void MenuYesNo::popupWithYesNo(bool horizonal) {

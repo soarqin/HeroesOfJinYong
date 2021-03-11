@@ -36,6 +36,8 @@ struct CharacterData {
     std::uint16_t expForMakeItem;
     std::int16_t equip0, equip1;
     std::int16_t frame[data::CharFrameCount];
+    std::int16_t frameDelay[data::CharFrameCount];
+    std::int16_t frameSoundDelay[data::CharFrameCount];
     std::int16_t mpType, mp, maxMp;
     std::int16_t attack, speed, defence, medic, poison, depoison, antipoison, fist, sword, blade, special, throwing;
     std::int16_t knowledge, integrity, poisonAmp, doubleAttack, reputation, potential;

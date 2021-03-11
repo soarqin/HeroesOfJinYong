@@ -281,7 +281,6 @@ void SubMap::updateMainCharTexture() {
 }
 
 void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
-    if (tex < 0) { return; }
     switch (layer) {
     case 0:
         cellInfo_[y * mapWidth_ + x].earth = textureMgr_[tex];

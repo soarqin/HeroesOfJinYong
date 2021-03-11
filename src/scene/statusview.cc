@@ -63,13 +63,13 @@ void StatusView::makeCache() {
     renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
     renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
     int y = SubWindowBorder;
-    const auto *headTex = gWindow->headTexture(charId_);
+    const auto *charInfo = mem::gSaveData.charInfo[charId_];
+    const auto *headTex = gWindow->headTexture(charInfo->headId);
     if (headTex) {
         auto height = float(headTex->height());
         float scale = float(lineheight * 4 - TextLineSpacing) / height;
         renderer_->renderTexture(headTex, (float(x2) - float(headTex->width()) * scale) / 2.f, float(y + lineheight * 4 - TextLineSpacing) - height * scale, scale, true);
     }
-    const auto *charInfo = mem::gSaveData.charInfo[charId_];
     ttf->setColor(236, 236, 236); ttf->render(L"攻擊力", x2, y, true);
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->attack), x3, y, true);
     y += lineheight;

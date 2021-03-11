@@ -358,8 +358,9 @@ void Window::showMainMenu(bool inSubMap) {
             default:
                 break;
             }
-        }, [this]() {
+        }, [this]()->bool {
             closePopup();
+            return false;
         });
         dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態", L"離隊", L"系統"});
     }
@@ -515,9 +516,7 @@ static void systemMenu(Node *mainMenu) {
         default:
             break;
         }
-    }, [subMenu]() {
-        delete subMenu;
-    });
+    }, nullptr);
 }
 
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
@@ -534,9 +533,7 @@ static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
                 gWindow->popupMessageBox({L"讀檔失敗"}, MessageBox::PressToCloseTop);
             }
         }
-    }, [subMenu]() {
-        delete subMenu;
-    });
+    }, nullptr);
 }
 
 }
