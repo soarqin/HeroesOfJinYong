@@ -194,6 +194,7 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
         if (!okHandler) { return; }
         if (checkbox_) {
             okHandler(0);
+            return;
         }
         if (currIndex_ >= 0) {
             okHandler(charIdList_[currIndex_]);

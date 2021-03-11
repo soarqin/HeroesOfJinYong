@@ -49,9 +49,10 @@ public:
     [[nodiscard]] std::int32_t originY() const { return originY_; }
 
     void enableBlendMode(bool r);
+    void setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
 
-    bool loadFromRLE(Renderer *renderer, const std::string &data, void *palette);
-    bool loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, void *palette);
+    bool loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
+    bool loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
 
 private:
     void *data_ = nullptr;
@@ -71,7 +72,7 @@ public:
 private:
     std::vector<Texture> textures_;
     Renderer *renderer_ = nullptr;
-    void *palette_ = nullptr;
+    const ColorPalette *palette_ = nullptr;
 };
 
 }

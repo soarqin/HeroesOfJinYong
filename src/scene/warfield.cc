@@ -53,7 +53,7 @@ bool WarField::load(std::int16_t warId) {
         warMapLoaded_.insert(warMapId);
         if (!maskTex_) {
             maskTex_ = new Texture;
-            maskTex_->loadFromRLE(renderer_, warMapData[0], gMaskPalette.obj());
+            maskTex_->loadFromRLE(renderer_, warMapData[0], gMaskPalette);
             maskTex_->enableBlendMode(true);
         }
     }
@@ -189,6 +189,10 @@ void WarField::render() {
                 }
                 auto &ci = cellInfo_[offset];
                 renderer_->renderTexture(ci.earth, dx, ty);
+                if (ci.charTex) {
+                    maskTex_->setBlendColor(192, 192, 192, 204);
+                    renderer_->renderTexture(maskTex_, dx, ty);
+                }
                 if (ci.building) {
                     renderer_->renderTexture(ci.building, dx, ty);
                 }

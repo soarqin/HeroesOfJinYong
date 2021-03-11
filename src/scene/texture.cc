@@ -75,7 +75,13 @@ void Texture::enableBlendMode(bool r) {
     SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
 }
 
-bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *palette) {
+void Texture::setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    auto *tex = static_cast<SDL_Texture*>(data_);
+    SDL_SetTextureColorMod(tex, r, g, b);
+    SDL_SetTextureAlphaMod(tex, a);
+}
+
+bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette) {
     size_t left = data.size();
     if (left < 8) {
         return false;
@@ -123,7 +129,7 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *pal
     if (!surface) {
         return false;
     }
-    SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
+    SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette.obj()));
     data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer->renderer_), surface);
     SDL_FreeSurface(surface);
     if (!data_) {
@@ -137,12 +143,12 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, void *pal
     return true;
 }
 
-bool Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, void *palette) {
+bool Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette) {
     auto *surface = SDL_CreateRGBSurfaceWithFormatFrom(const_cast<char*>(data.data()), width, height, 8, width, SDL_PIXELFORMAT_INDEX8);
     if (!surface) {
         return false;
     }
-    SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette));
+    SDL_SetSurfacePalette(surface, static_cast<SDL_Palette*>(palette.obj()));
     data_ = SDL_CreateTextureFromSurface(static_cast<SDL_Renderer*>(renderer->renderer_), surface);
     SDL_FreeSurface(surface);
     if (!data_) {
@@ -157,7 +163,7 @@ bool Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width
 }
 
 void TextureMgr::setPalette(const ColorPalette &col) {
-    palette_ = col.obj();
+    palette_ = &col;
 }
 
 bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
@@ -165,7 +171,7 @@ bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
     textures_.resize(sz);
     for (size_t i = 0; i < sz; ++i) {
         Texture tex;
-        if (!tex.loadFromRLE(renderer_, data[i], palette_)) {
+        if (!tex.loadFromRLE(renderer_, data[i], *palette_)) {
             continue;
         }
         textures_[i] = std::move(tex);
@@ -181,7 +187,7 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
             continue;
         }
         Texture tex;
-        if (!tex.loadFromRLE(renderer_, data[i], palette_)) {
+        if (!tex.loadFromRLE(renderer_, data[i], *palette_)) {
             continue;
         }
         textures_[i] = std::move(tex);
@@ -191,7 +197,7 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
 
 Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height) {
     auto *tex = new Texture;
-    if (!tex->loadFromRAW(renderer_, data, width, height, palette_)) {
+    if (!tex->loadFromRAW(renderer_, data, width, height, *palette_)) {
         delete tex;
         return nullptr;
     }
