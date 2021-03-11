@@ -24,13 +24,10 @@
 
 #include <cstdint>
 
-namespace hojy::data {
-class ColorPalette;
-}
-
 namespace hojy::scene {
 
 class Renderer;
+class ColorPalette;
 
 class Texture final {
     friend class TextureMgr;
@@ -53,7 +50,6 @@ public:
 
     void enableBlendMode(bool r);
 
-private:
     bool loadFromRLE(Renderer *renderer, const std::string &data, void *palette);
     bool loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, void *palette);
 
@@ -65,7 +61,7 @@ private:
 class TextureMgr final {
 public:
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
-    void setPalette(const data::ColorPalette &col);
+    void setPalette(const ColorPalette &col);
     bool loadFromRLE(const std::vector<std::string> &data);
     bool mergeFromRLE(const std::vector<std::string> &data);
     Texture *loadFromRAW(const std::string &data, int width, int height);

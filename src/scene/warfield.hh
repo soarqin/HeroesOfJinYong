@@ -64,7 +64,7 @@ private:
     std::int16_t warId_ = -1;
     bool getExpOnLose_ = false;
     std::vector<CellInfo> cellInfo_;
-    Texture *drawingTerrainTex2_ = nullptr;
+    Texture *maskTex_ = nullptr;
     std::set<std::int16_t> warMapLoaded_;
 
     std::vector<CharInfo> charQueue_;

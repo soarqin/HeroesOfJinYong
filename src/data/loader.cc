@@ -19,7 +19,6 @@
 
 #include "loader.hh"
 
-#include "colorpalette.hh"
 #include "event.hh"
 #include "factors.hh"
 #include "warfielddata.hh"
@@ -28,8 +27,6 @@ namespace hojy::data {
 
 void loadData() {
     gFactors.load("Z.DAT");
-    gNormalPalette.load("MMAP");
-    gEndPalette.load("ENDCOL");
     gEvent.loadEvent("KDEF");
     gEvent.loadTalk("TALK");
     gWarFieldData.load("WAR.STA", "WARFLD");

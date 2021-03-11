@@ -20,7 +20,7 @@
 #include "map.hh"
 
 #include "window.hh"
-#include "data/colorpalette.hh"
+#include "colorpalette.hh"
 #include "core/config.hh"
 
 #include <chrono>
@@ -33,7 +33,7 @@ Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): 
     drawDirty_(true), drawingTerrainTex_(Texture::createAsTarget(renderer_, width, height)) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
-    textureMgr_.setPalette(data::gNormalPalette);
+    textureMgr_.setPalette(gNormalPalette);
     drawingTerrainTex_->enableBlendMode(true);
 }
 

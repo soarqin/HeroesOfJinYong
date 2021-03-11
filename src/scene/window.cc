@@ -19,6 +19,7 @@
 
 #include "window.hh"
 
+#include "colorpalette.hh"
 #include "globalmap.hh"
 #include "submap.hh"
 #include "warfield.hh"
@@ -33,7 +34,6 @@
 #include "audio/channelmidi.hh"
 #include "audio/channelwav.hh"
 #include "data/factors.hh"
-#include "data/colorpalette.hh"
 #include "data/grpdata.hh"
 #include "mem/action.hh"
 #include "mem/savedata.hh"
@@ -73,15 +73,24 @@ Window::Window(int w, int h): width_(w), height_(h) {
     renderer_ = new Renderer(win_, w, h);
     renderer_->enableLinear(false);
 
+    gNormalPalette.load("MMAP");
+    gEndPalette.load("ENDCOL");
+    {
+        std::array<std::uint32_t, 256> n {};
+        n.fill(0xFFFFFFFFu);
+        n[0] = 0;
+        gMaskPalette.create(n);
+    }
+
     SDL_ShowWindow(win);
 
     audio::gMixer.init(2);
     playMusic(16);
     audio::gMixer.pause(false);
 
-    globalTextureMgr_.setPalette(data::gNormalPalette);
+    globalTextureMgr_.setPalette(gNormalPalette);
     globalTextureMgr_.setRenderer(renderer_);
-    headTextureMgr_.setPalette(data::gNormalPalette);
+    headTextureMgr_.setPalette(gNormalPalette);
     headTextureMgr_.setRenderer(renderer_);
     data::GrpData::DataSet dset;
     renderer_->enableLinear(true);

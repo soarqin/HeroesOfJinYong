@@ -20,7 +20,7 @@
 #include "texture.hh"
 
 #include "renderer.hh"
-#include "data/colorpalette.hh"
+#include "colorpalette.hh"
 
 #include <SDL.h>
 
@@ -156,11 +156,8 @@ bool Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width
     return true;
 }
 
-void TextureMgr::setPalette(const data::ColorPalette &col) {
-    auto sz = col.size();
-    auto *palette = SDL_AllocPalette(sz);
-    SDL_SetPaletteColors(palette, reinterpret_cast<const SDL_Color*>(col.colors()), 0, sz);
-    palette_ = palette;
+void TextureMgr::setPalette(const ColorPalette &col) {
+    palette_ = col.obj();
 }
 
 bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {

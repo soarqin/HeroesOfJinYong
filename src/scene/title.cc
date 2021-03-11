@@ -19,13 +19,13 @@
 
 #include "title.hh"
 
+#include "colorpalette.hh"
 #include "window.hh"
 #include "menu.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
-#include "data/colorpalette.hh"
 #include "core/config.hh"
 #include "util/random.hh"
 #include "util/file.hh"
@@ -39,7 +39,7 @@ Title::~Title() {
 }
 
 void Title::init() {
-    titleTextureMgr_.setPalette(data::gNormalPalette);
+    titleTextureMgr_.setPalette(gNormalPalette);
     titleTextureMgr_.setRenderer(renderer_);
 
     renderer_->enableLinear(true);

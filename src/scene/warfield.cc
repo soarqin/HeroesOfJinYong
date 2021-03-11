@@ -19,6 +19,7 @@
 
 #include "warfield.hh"
 
+#include "colorpalette.hh"
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
@@ -27,13 +28,11 @@
 namespace hojy::scene {
 
 WarField::WarField(Renderer *renderer, int x, int y, int width, int height, float scale):
-    Map(renderer, x, y, width, height, scale),
-    drawingTerrainTex2_(Texture::createAsTarget(renderer_, width, height)) {
-    drawingTerrainTex2_->enableBlendMode(true);
+    Map(renderer, x, y, width, height, scale) {
 }
 
 WarField::~WarField() {
-    delete drawingTerrainTex2_;
+    delete maskTex_;
 }
 
 bool WarField::load(std::int16_t warId) {
@@ -52,6 +51,11 @@ bool WarField::load(std::int16_t warId) {
             return false;
         }
         warMapLoaded_.insert(warMapId);
+        if (!maskTex_) {
+            maskTex_ = new Texture;
+            maskTex_->loadFromRLE(renderer_, warMapData[0], gMaskPalette.obj());
+            maskTex_->enableBlendMode(true);
+        }
     }
     {
         auto *tex = textureMgr_[0];
