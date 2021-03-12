@@ -53,6 +53,8 @@ public:
     [[nodiscard]] TextureMgr &globalTextureMgr() { return globalTextureMgr_; }
     [[nodiscard]] const TextureMgr &mapTextureMgr() const { return map_->textureMgr(); }
 
+    [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
+
     bool processEvents();
     void render();
     void flush();

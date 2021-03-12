@@ -102,7 +102,7 @@ void StatusView::makeCache() {
     ttf->setColor(252, 148, 16); ttf->render(L"內力", x0, y, true);
     std::uint8_t r, g, b;
     std::tie(r, g, b) = mem::calcColorForMpType(charInfo->mpType);
-    ttf->setColor(r, g, b); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->mp, charInfo->maxHp), x1, y, true);
+    ttf->setColor(r, g, b); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->mp, charInfo->maxMp), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"御劍能力", x2, y, true);
     ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->sword), x3, y, true);
     y += lineheight;
@@ -152,15 +152,15 @@ void StatusView::makeCache() {
     ttf->render(L"裝備物品", x0, y, true); ttf->render(L"修練物品", x2, y, true);
     ttf->setColor(236, 200, 40);
     y += lineheight;
-    if (charInfo->equip0 >= 0) {
-        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip0]->name), x0, y, true);
+    if (charInfo->equip[0] >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip[0]]->name), x0, y, true);
     }
     if (charInfo->learningItem >= 0) {
         ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->learningItem]->name), x2, y, true);
     }
     y += lineheight;
-    if (charInfo->equip1 >= 0) {
-        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip1]->name), x0, y, true);
+    if (charInfo->equip[1] >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip[1]]->name), x0, y, true);
     }
     if (charInfo->learningItem >= 0) {
         std::uint16_t expForItem = mem::getExpForSkillLearn(charInfo->learningItem, learningLevel, charInfo->potential);

@@ -28,14 +28,18 @@ struct ItemData {
     std::int16_t id;
     char name[20], name2[20];
     char desc[30];
-    std::int16_t skillId, hiddenWeaponEffectId, user, equipType, showDesc;
-    std::int16_t itemType;    //0Special 1Equip 2Skill 3Heal 4Attack
+    std::int16_t skillId, hiddenWeaponEffectId;
+    std::int16_t user;      /* current equipped user */
+    std::int16_t equipType; /* 0Weapon 1Armor */
+    std::int16_t showDesc;
+    std::int16_t itemType;  /* 0Special 1Equip 2Skill 3Heal 4Attack */
     std::int16_t padding[3];
     std::int16_t addHp, addMaxHp, addPoisoned, addStamina, changeMpType, addMp, addMaxMp;
     std::int16_t addAttack, addSpeed, addDefence, addMedic, addPoison, addDepoison, addAntipoison;
-    std::int16_t addFist, addSword, addBlade, addSpecial, addHiddenWeapon, addKnowledge, addIntegrity, addDoubleAttack, addPoisonAmp;
-    std::int16_t charOnly, reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
-    std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
+    std::int16_t addFist, addSword, addBlade, addSpecial, addThrowing, addKnowledge, addIntegrity, addDoubleAttack, addPoisonAmp;
+    std::int16_t charOnly;  /* for equip and skill book: only this char can equip/learn it */
+    std::int16_t reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
+    std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqThrowing, reqPotential;
     std::int16_t reqExp, reqExpForMakeItem, reqMaterial;
     std::int16_t madeItem[data::MakeItemCount], madeItemCount[data::MakeItemCount];
 };

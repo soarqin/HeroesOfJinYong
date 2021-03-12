@@ -33,7 +33,7 @@ struct CharacterData {
     std::uint16_t exp;
     std::int16_t hp, maxHp, hurt, poisoned, stamina;
     std::uint16_t expForMakeItem;
-    std::int16_t equip0, equip1;
+    std::int16_t equip[2];
     std::int16_t frame[data::CharFrameCount];
     std::int16_t frameDelay[data::CharFrameCount];
     std::int16_t frameSoundDelay[data::CharFrameCount];

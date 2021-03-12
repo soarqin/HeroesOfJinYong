@@ -28,6 +28,7 @@ public:
     enum Type {
         Normal,
         PressToCloseThis,
+        PressToCloseParent,
         PressToCloseTop,
         YesNo,
     };
@@ -39,6 +40,10 @@ public:
 public:
     using NodeWithCache::NodeWithCache;
 
+    inline void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
+        yesHandler_ = yesHandler;
+        noHandler_ = noHandler;
+    }
     void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
     void handleKeyInput(Key key) override;
 
@@ -50,6 +55,7 @@ private:
     Node *menu_ = nullptr;
     Type type_ = Normal;
     Align align_ = Center;
+    std::function<void()> yesHandler_, noHandler_;
 };
 
 }

@@ -806,7 +806,7 @@ bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t
 bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
-    charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, data::MPMax);
+    charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, data::MpMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 內力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
@@ -822,7 +822,7 @@ bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_
 bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
-    charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, data::HPMax);
+    charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, data::HpMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 生命增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }

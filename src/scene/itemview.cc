@@ -20,7 +20,9 @@
 #include "itemview.hh"
 
 #include "window.hh"
+#include "charlistmenu.hh"
 #include "mem/savedata.hh"
+#include "mem/action.hh"
 #include "util/conv.hh"
 #include <fmt/format.h>
 
@@ -51,8 +53,11 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
 void ItemView::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: {
-        std::int16_t id = items_[currSel_ + currTop_ * cols_].first;
-        auto type = mem::gSaveData.itemInfo[id]->itemType;
+        auto &ipair = items_[currSel_ + currTop_ * cols_];
+        std::int16_t id = ipair.first;
+        const auto *itemInfo = mem::gSaveData.itemInfo[id];
+        if (!itemInfo) { break; }
+        auto type = itemInfo->itemType;
         if (inBattle_) {
             if (type != 3 && type != 4) {
                 return;
@@ -60,7 +65,60 @@ void ItemView::handleKeyInput(Node::Key key) {
         } else {
             switch (type) {
             case 1:
-                break;
+            case 2: {
+                int x = width_ / 3, y = height_ * 2 / 7;
+                auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
+                clm->initWithTeamMembers({type == 1 ? L"誰要配備 " : L"誰要修練 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+                                         [this, itemInfo, id, type, clm](std::int16_t charId) {
+                                             if (type == 2 && itemInfo->user >= 0) {
+                                                 auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
+                                                 msgBox->setHandler([this, id, charId, clm]() {
+                                                     if (!mem::equipItem(charId, id)) {
+                                                         auto *msgBox = new MessageBox(parent_, 0, 0, gWindow->width(), gWindow->height());
+                                                         msgBox->popup({L"此人不適合修練此物品"}, MessageBox::PressToCloseThis);
+                                                     } else {
+                                                         update();
+                                                     }
+                                                     delete clm;
+                                                 }, [clm]() {
+                                                     delete clm;
+                                                 });
+                                                 msgBox->popup({L"此物品現在已經有人修練了", L"是否要換人修練？"}, MessageBox::YesNo);
+                                             } else {
+                                                 if (!mem::equipItem(charId, id)) {
+                                                     auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
+                                                     msgBox->popup({L"此人不適合配備此物品"}, MessageBox::PressToCloseThis);
+                                                 } else {
+                                                     update();
+                                                 }
+                                                 delete clm;
+                                             }
+                                         });
+                return;
+            }
+            case 3: {
+                int x = width_ / 3, y = height_ * 2 / 7;
+                auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
+                clm->initWithTeamMembers({L"誰要使用 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+                                         [this, &ipair, itemInfo, id, type, clm](std::int16_t charId) {
+                                             std::map<mem::PropType, std::int16_t> changes;
+                                             if (ipair.second && mem::useItem(charId, id, changes)) {
+                                                 std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+                                                 for (auto &c: changes) {
+                                                     if (c.second) {
+                                                         messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
+                                                     } else {
+                                                         messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
+                                                     }
+                                                     auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
+                                                     msgBox->popup(messages, MessageBox::PressToCloseParent);
+                                                 }
+                                             } else {
+                                                 delete this;
+                                             }
+                                         });
+                return;
+            }
             default:
                 break;
             }
@@ -161,6 +219,7 @@ void ItemView::makeCache() {
     auto *ttf = renderer_->ttf();
     int smallFontSize = (ttf->fontSize() * 2 / 3 + 1) & ~1;
     const auto &mgr = gWindow->mapTextureMgr();
+    ttf->setColor(236, 236, 236);
     for (int j = rows_; j && idx < totalSz; --j) {
         x = SubWindowBorder;
         for (int i = cols_; i && idx < totalSz; --i, ++idx) {
@@ -174,31 +233,49 @@ void ItemView::makeCache() {
         y += cellHeight_ + ItemCellSpacing;
     }
 
-    /* show description */
     idx = currTop_ * cols_ + currSel_;
     const auto *itemInfo = mem::gSaveData.itemInfo[items_[idx].first];
-    auto display = fmt::format(L"{} x{}", util::big5Conv.toUnicode(itemInfo->name), items_[idx].second);
-    auto desc = util::big5Conv.toUnicode(itemInfo->desc);
-    auto lineheight = ttf->fontSize() + TextLineSpacing;
-    int dx, dy;
-    dx = SubWindowBorder;
-    if (currSel_ / cols_ * 2 < rows_) {
-        /* draw on bottom side */
-        dy = height_ - SubWindowBorder * 3 - lineheight * 2 + TextLineSpacing;
-    } else {
-        /* draw on top side */
-        dy = SubWindowBorder;
+    if (itemInfo) {
+        /* show description */
+        std::wstring display;
+        if (items_[idx].second > 1) {
+            display = fmt::format(L"{} x{}", util::big5Conv.toUnicode(itemInfo->name), items_[idx].second);
+        } else {
+            display = fmt::format(L"{}", util::big5Conv.toUnicode(itemInfo->name), items_[idx].second);
+        }
+        std::wstring desc;
+        if (items_[idx].first == data::ItemIDCompass) {
+            auto *map = gWindow->globalMap();
+            desc = fmt::format(L"人 ({},{})  船 ({},{})", map->currX(), map->currY(), mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
+        } else {
+            desc = util::big5Conv.toUnicode(itemInfo->desc);
+        }
+        auto lineheight = ttf->fontSize() + TextLineSpacing;
+        int dx, dy;
+        dx = SubWindowBorder;
+        if (currSel_ / cols_ * 2 < rows_) {
+            /* draw on bottom side */
+            dy = height_ - SubWindowBorder * 3 - lineheight * 2 + TextLineSpacing;
+        } else {
+            /* draw on top side */
+            dy = SubWindowBorder;
+        }
+        int dw = width_ - SubWindowBorder * 2, dh = SubWindowBorder * 2 + lineheight * 2 - TextLineSpacing;
+        renderer_->fillRoundedRect(dx, dy, dw, dh, RoundedRectRad, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(dx, dy, dw, dh, RoundedRectRad, 224, 224, 224, 255);
+        dx += SubWindowBorder;
+        dy += SubWindowBorder;
+        dw -= SubWindowBorder * 2;
+        ttf->setColor(236, 200, 40);
+        if (itemInfo->user < 0 || mem::gSaveData.charInfo[itemInfo->user] == nullptr) {
+            ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
+        } else {
+            ttf->render(display + L"  (" + util::big5Conv.toUnicode(mem::gSaveData.charInfo[itemInfo->user]->name) + L')', dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
+        }
+        dy += lineheight;
+        ttf->setColor(252, 148, 16);
+        ttf->render(desc, dx + (dw - ttf->stringWidth(desc)) / 2, dy, true);
     }
-    int dw = width_ - SubWindowBorder * 2, dh = SubWindowBorder * 2 + lineheight * 2 - TextLineSpacing;
-    renderer_->fillRoundedRect(dx, dy, dw, dh, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(dx, dy, dw, dh, RoundedRectRad, 224, 224, 224, 255);
-    dx += SubWindowBorder;
-    dy += SubWindowBorder;
-    dw -= SubWindowBorder * 2;
-    ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
-    dy += lineheight;
-    ttf->render(desc, dx + (dw - ttf->stringWidth(desc)) / 2, dy, true);
-
     int sx = SubWindowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
     int sy = SubWindowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
     renderer_->drawRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 252, 252, 252, 255);

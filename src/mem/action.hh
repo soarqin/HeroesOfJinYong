@@ -20,16 +20,28 @@
 #pragma once
 
 #include "character.hh"
+#include "iteminfo.hh"
 
 #include <string>
 #include <tuple>
+#include <map>
 #include <cstdint>
 
 namespace hojy::mem {
 
+enum class PropType {
+    Hp = 0, MaxHp, Poisoned, Stamina, MpType, Mp, MaxMp,
+    Attack, Speed, Defence, Medic, Poison, Depoison, Antipoison,
+    Fist, Sword, Blade, Special, HiddenWeapon, Knowledge, Integrity, DoubleAttack, PoisonAmp,
+};
+const std::wstring &propToName(PropType type);
 std::uint16_t getExpForLevelUp(std::int16_t level);
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential);
 bool leaveTeam(std::int16_t id);
+bool equipItem(std::int16_t charId, std::int16_t itemId);
+bool useItem(std::int16_t charId, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
+bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
+bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);
 std::int16_t getLeaveEventId(std::int16_t id);
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina);

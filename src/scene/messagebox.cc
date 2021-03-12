@@ -39,6 +39,9 @@ void MessageBox::handleKeyInput(Node::Key key) {
         case PressToCloseThis:
             delete this;
             break;
+        case PressToCloseParent:
+            delete parent_;
+            break;
         case PressToCloseTop:
             gWindow->endPopup(true);
             break;
@@ -110,10 +113,18 @@ void MessageBox::makeCache() {
             auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
             m->enableHorizonal(true);
             m->popupWithYesNo();
-            m->setHandler([]{
-                gWindow->endPopup(true, true);
-            }, [] {
-                gWindow->endPopup(true, false);
+            m->setHandler([this]{
+                if (yesHandler_) {
+                    yesHandler_();
+                } else {
+                    gWindow->endPopup(true, true);
+                }
+            }, [this] {
+                if (noHandler_) {
+                    noHandler_();
+                } else {
+                    gWindow->endPopup(true, false);
+                }
             });
             menu_ = m;
         }

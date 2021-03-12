@@ -36,8 +36,10 @@ enum {
 
     LevelMax = 30,
     ExpMax = 65000,
-    HPMax = 999,
-    MPMax = 999,
+    HpMax = 999,
+    MaxHpMax = 999,
+    MpMax = 999,
+    MaxMpMax = 999,
     StaminaMax = 100,
     PoisonedMax = 100,
     AttackMax = 100,
