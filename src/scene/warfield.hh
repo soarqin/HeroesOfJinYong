@@ -22,6 +22,7 @@
 #include "map.hh"
 
 #include <vector>
+#include <map>
 #include <set>
 
 namespace hojy::scene {
@@ -30,10 +31,12 @@ class WarField: public Map {
     enum {
         FightTextureListCount = 110,
     };
-    struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *charTex = nullptr;
-        std::int16_t charId = -1;
-        bool isWater = false;
+    enum Stage {
+        Idle,
+        PlayerMenu,
+        Selecting,
+        Moving,
+        Acting,
     };
     struct CharInfo {
         std::uint8_t side; /* 0-self 1-enemy */
@@ -46,8 +49,20 @@ class WarField: public Map {
         std::int16_t hp, mp;
         std::int16_t stamina;
         std::uint16_t exp;
+        std::int16_t steps;
+    };
+    struct CellInfo {
+        const Texture *earth = nullptr, *building = nullptr, *charTex = nullptr;
+        bool isWater = false;
+        CharInfo *charInfo = nullptr;
+        std::uint8_t insideMovingArea = 0;
     };
 public:
+    struct SelectableCell {
+        int x, y, moves;
+        SelectableCell *parent;
+    };
+
     WarField(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~WarField() override;
 
@@ -59,6 +74,15 @@ public:
     void render() override;
     void handleKeyInput(Key key) override;
 
+protected:
+    void frameUpdate() override;
+
+    void nextAction();
+    void autoAction();
+    void playerMenu();
+    void maskSelectableArea(int steps, bool zoecheck = false);
+    void unmaskArea();
+
 private:
     int cameraX_ = 0, cameraY_ = 0;
     std::int16_t warId_ = -1;
@@ -66,8 +90,12 @@ private:
     std::vector<CellInfo> cellInfo_;
     std::set<std::int16_t> warMapLoaded_;
 
-    std::vector<CharInfo> charQueue_;
-    size_t activeChar_ = 0;
+    std::vector<CharInfo> chars_;
+    std::vector<CharInfo*> charQueue_;
+    Stage stage_ = Idle;
+    int cursorX_ = 0, cursorY_ = 0;
+    std::map<std::pair<int, int>, SelectableCell> selCells_;
+    std::vector<std::pair<int, int>> movingPath_;
 
     Texture *maskTex_ = nullptr;
     std::vector<TextureMgr> fightTextures_;
