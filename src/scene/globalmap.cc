@@ -35,8 +35,10 @@ enum {
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
-    auto &mmapData = data::gGrpData.lazyLoad("MMAP");
-    textureMgr_.loadFromRLE(mmapData);
+    data::GrpData::DataSet dset;
+    if (data::GrpData::loadData("MMAP", dset)) {
+        textureMgr_.loadFromRLE(dset);
+    }
     {
         auto *tex = textureMgr_[0];
         cellWidth_ = tex->width();
@@ -260,28 +262,28 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     drawDirty_ = true;
     onShip_ = cellInfo_[offset].type == 1;
     if (onShip_) {
-        currFrame_ = (currFrame_ + 1) % 4;
+        currMainCharFrame_ = (currMainCharFrame_ + 1) % 4;
     } else {
-        currFrame_ = currFrame_ % 6 + 1;
+        currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
     }
     return true;
 }
 
 void GlobalMap::updateMainCharTexture() {
     if (onShip_) {
-        mainCharTex_ = textureMgr_[3715 + int(direction_) * 4 + currFrame_];
+        mainCharTex_ = textureMgr_[3715 + int(direction_) * 4 + currMainCharFrame_];
         return;
     }
     if (resting_) {
-        mainCharTex_ = textureMgr_[2529 + int(direction_) * 6 + currFrame_];
+        mainCharTex_ = textureMgr_[2529 + int(direction_) * 6 + currMainCharFrame_];
         return;
     }
-    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currFrame_];
+    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currMainCharFrame_];
 }
 
 void GlobalMap::resetTime() {
     if (onShip_) { return; }
-    Map::resetTime();
+    MapWithEvent::resetTime();
 }
 
 bool GlobalMap::checkTime() {

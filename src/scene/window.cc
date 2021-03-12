@@ -23,6 +23,7 @@
 #include "globalmap.hh"
 #include "submap.hh"
 #include "warfield.hh"
+#include "effect.hh"
 #include "talkbox.hh"
 #include "title.hh"
 #include "menu.hh"
@@ -41,6 +42,7 @@
 #include "util/conv.hh"
 
 #include <SDL.h>
+#include <fmt/format.h>
 #include <stdexcept>
 
 namespace hojy::scene {
@@ -98,6 +100,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
         headTextureMgr_.loadFromRLE(dset);
     }
     renderer_->enableLinear(false);
+    gEffect.load(renderer_, "EFT");
 
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
@@ -184,36 +187,22 @@ void Window::playMusic(int idx) {
     if (playingMusic_ == idx) {
         return;
     }
-    std::string filename;
-    if (idx < 10) {
-        filename = "GAME0" + std::to_string(idx) + ".XMI";
-    } else {
-        filename = "GAME" + std::to_string(idx) + ".XMI";
-    }
-    audio::gMixer.repeatPlay(0, new audio::ChannelMIDI(&audio::gMixer, core::config.musicFilePath(filename)));
+    audio::gMixer.repeatPlay(0, new audio::ChannelMIDI(&audio::gMixer, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx))));
     playingMusic_ = idx;
 }
 
 void Window::playAtkSound(int idx) {
     (void)this;
-    std::string filename;
-    if (idx < 10) {
-        filename = "ATK0" + std::to_string(idx) + ".WAV";
-    } else {
-        filename = "ATK" + std::to_string(idx) + ".WAV";
+    if (idx >= 24) {
+        playEffectSound(idx - 24);
+        return;
     }
-    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(filename)));
+    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx))));
 }
 
 void Window::playEffectSound(int idx) {
     (void)this;
-    std::string filename;
-    if (idx < 10) {
-        filename = "E0" + std::to_string(idx) + ".WAV";
-    } else {
-        filename = "E" + std::to_string(idx) + ".WAV";
-    }
-    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(filename)));
+    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx))));
 }
 
 void Window::newGame() {
@@ -223,7 +212,7 @@ void Window::newGame() {
     subMap_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY, false);
     dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
     map_->fadeIn([this] {
-        map_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
+        dynamic_cast<SubMap*>(subMap_)->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
         dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
         map_->resetFrame();
     });
@@ -239,7 +228,7 @@ bool Window::loadGame(int slot) {
         subMap_->setPosition(binfo->subX, binfo->subY, false);
         subMap_->setDirection(Map::Direction(binfo->direction));
         map_->fadeIn([this]() {
-            map_->setPosition(binfo->subX, binfo->subY);
+            dynamic_cast<SubMap*>(subMap_)->setPosition(binfo->subX, binfo->subY);
             map_->resetFrame();
         });
     } else {
@@ -258,10 +247,10 @@ bool Window::saveGame(int slot) {
     binfo->mainY = globalMap_->currY();
     binfo->subMap = map_->subMapId() + 1;
     if (binfo->subMap > 0) {
-        binfo->subX = map_->currX();
-        binfo->subY = map_->currY();
+        binfo->subX = dynamic_cast<SubMap*>(subMap_)->currX();
+        binfo->subY = dynamic_cast<SubMap*>(subMap_)->currY();
     }
-    binfo->direction = std::int16_t(map_->direction());
+    binfo->direction = std::int16_t(dynamic_cast<MapWithEvent*>(map_)->direction());
     return mem::gSaveData.save(slot);
 }
 
@@ -274,7 +263,7 @@ void Window::forceQuit() {
 void Window::exitToGlobalMap(int direction) {
     map_->fadeOut([this, direction]() {
         map_ = globalMap_;
-        map_->setDirection(Map::Direction(direction));
+        dynamic_cast<MapWithEvent*>(map_)->setDirection(Map::Direction(direction));
         map_->fadeIn([this]() {
             map_->resetFrame();
         });
@@ -298,12 +287,12 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
             x = smi->enterX;
             y = smi->enterY;
         }
-        map_->setPosition(x, y, false);
+        dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y, false);
         auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
         tips->popup({util::big5Conv.toUnicode(smi->name)}, MessageBox::Normal);
         map_->fadeIn([this, tips, x, y] {
             delete tips;
-            map_->setPosition(x, y);
+            dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y);
             map_->resetFrame();
         });
     });
@@ -442,7 +431,9 @@ static void medicMenu(Node *mainMenu) {
     menu->initWithTeamMembers({L"誰要使用醫術"}, {CharListMenu::MEDIC},
                               [mainMenu](std::int16_t charId) {
                                   medicTargetMenu(mainMenu, charId);
-                              }, nullptr);
+                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
+                                  return value > 0;
+                              });
 }
 
 static void medicTargetMenu(Node *mainMenu, int16_t charId) {
@@ -465,7 +456,9 @@ static void depoisonMenu(Node *mainMenu) {
     menu->initWithTeamMembers({L"誰要幫人解毒"}, {CharListMenu::MEDIC},
                               [mainMenu](std::int16_t charId) {
                                   depoisonTargetMenu(mainMenu, charId);
-                              }, nullptr);
+                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
+                                  return value > 0;
+                              });
 }
 
 static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {

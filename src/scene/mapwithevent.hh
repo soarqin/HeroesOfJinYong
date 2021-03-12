@@ -34,13 +34,30 @@ public:
     void runEvent(std::int16_t evt);
     void onUseItem(std::int16_t itemId);
 
+    [[nodiscard]] std::int16_t currX() const { return currX_; }
+    [[nodiscard]] std::int16_t currY() const { return currY_; }
+    [[nodiscard]] Map::Direction direction() const { return direction_; }
+    void setDirection(Direction dir);
+    void setPosition(int x, int y, bool checkEvent = true);
+    void move(Direction direction);
+
+    void render() override;
+    void handleKeyInput(Key key) override;
+
 protected:
     void doInteract();
     void onMove();
     void checkEvent(int type, int x, int y);
 
-    bool checkTime() override;
+    bool getFaceOffset(int &x, int &y);
+    void renderChar(int deltaY = 0);
+
+    virtual bool tryMove(int x, int y, bool checkEvent) { return false; }
+    virtual void updateMainCharTexture() {}
+
+    void resetTime() override;
     void frameUpdate() override;
+    virtual bool checkTime();
     virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
 
 private:
@@ -126,6 +143,14 @@ protected:
     size_t currEventAdvTrue_ = 0, currEventAdvFalse_ = 0;
     std::int16_t currEventItem_ = -1;
     const std::vector<std::int16_t> *currEventList_ = nullptr;
+
+    const Texture *mainCharTex_ = nullptr;
+    std::int32_t currX_ = 0, currY_ = 0;
+    Direction direction_ = DirUp;
+
+    bool resting_ = false;
+    std::int32_t currMainCharFrame_ = 0;
+    std::chrono::steady_clock::time_point nextMainTexTime_;
 
     std::int16_t animEventId_ = 0, animCurrTex_ = 0, animEndTex_ = 0;
 

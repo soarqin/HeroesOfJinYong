@@ -245,6 +245,67 @@ void MapWithEvent::onUseItem(std::int16_t itemId) {
     checkEvent(1, x, y);
 }
 
+void MapWithEvent::setDirection(Map::Direction dir) {
+    if (direction_ == dir) { return; }
+    direction_ = dir;
+    resetTime();
+    currMainCharFrame_ = 0;
+    updateMainCharTexture();
+}
+
+void MapWithEvent::setPosition(int x, int y, bool checkEvent) {
+    currX_ = x;
+    currY_ = y;
+    currMainCharFrame_ = 0;
+    resting_ = false;
+    drawDirty_ = true;
+    bool r = tryMove(x, y, checkEvent);
+    resetTime();
+    if (r) {
+        updateMainCharTexture();
+    }
+}
+
+void MapWithEvent::move(Map::Direction direction) {
+    int x, y;
+    direction_ = direction;
+    if (!getFaceOffset(x, y) || !tryMove(x, y, true)) {
+        return;
+    }
+    resetTime();
+    updateMainCharTexture();
+}
+
+void MapWithEvent::render() {
+    Map::render();
+    if (checkTime()) {
+        updateMainCharTexture();
+    }
+}
+
+void MapWithEvent::handleKeyInput(Node::Key key) {
+    switch (key) {
+    case KeyUp:
+        move(Map::DirUp);
+        break;
+    case KeyRight:
+        move(Map::DirRight);
+        break;
+    case KeyLeft:
+        move(Map::DirLeft);
+        break;
+    case KeyDown:
+        move(Map::DirDown);
+        break;
+    case KeyCancel:
+        gWindow->showMainMenu(subMapId_ >= 0);
+        break;
+    default:
+        Map::handleKeyInput(key);
+        break;
+    }
+}
+
 void MapWithEvent::doInteract() {
     currEventItem_ = -1;
     int x, y;
@@ -273,16 +334,40 @@ void MapWithEvent::checkEvent(int type, int x, int y) {
     if (evt <= 0) { return; }
 
     resetTime();
-    currFrame_ = 0;
+    currMainCharFrame_ = 0;
     updateMainCharTexture();
 
     currEventId_ = eventId;
     runEvent(evt);
 }
 
-bool MapWithEvent::checkTime() {
-    if (animEventId_ < 0) { return false; }
-    return Map::checkTime();
+bool MapWithEvent::getFaceOffset(int &x, int &y) {
+    x = currX_;
+    y = currY_;
+    switch (direction_) {
+    case DirUp:
+        if (y > 0) { --y; return true; }
+        break;
+    case DirRight:
+        if (x < mapWidth_ - 1) { ++x; return true; }
+        break;
+    case DirLeft:
+        if (x > 0) { --x; return true; }
+        break;
+    case DirDown:
+        if (y < mapHeight_ - 1) { ++y; return true; }
+        break;
+    }
+    return false;
+}
+
+void MapWithEvent::renderChar(int deltaY) {
+    renderer_->renderTexture(mainCharTex_, float(x_ + (width_ >> 1)), float(y_ + (height_ >> 1) - deltaY), scale_);
+}
+
+void MapWithEvent::resetTime() {
+    resting_ = false;
+    nextMainTexTime_ = gWindow->currTime() + std::chrono::seconds(currMainCharFrame_ > 0 ? 2 : 5);
 }
 
 void MapWithEvent::frameUpdate() {
@@ -303,6 +388,31 @@ void MapWithEvent::frameUpdate() {
         evt.currTex = evt.begTex = evt.endTex = animCurrTex_;
         setCellTexture(evt.x, evt.y, 3, animCurrTex_ >> 1);
     }
+}
+
+bool MapWithEvent::checkTime() {
+    if (animEventId_ < 0) { return false; }
+    auto now = gWindow->currTime();
+    if (resting_) {
+        if (now < nextMainTexTime_) {
+            return false;
+        }
+        currMainCharFrame_ = (currMainCharFrame_ + 1) % 6;
+        nextMainTexTime_ = now + std::chrono::milliseconds(500);
+        return true;
+    }
+    if (now < nextMainTexTime_) {
+        return false;
+    }
+    if (currMainCharFrame_ > 0) {
+        currMainCharFrame_ = 0;
+        nextMainTexTime_ = now + std::chrono::seconds(5);
+    } else {
+        currMainCharFrame_ = 0;
+        resting_ = true;
+        nextMainTexTime_ = now + std::chrono::milliseconds(500);
+    }
+    return true;
 }
 
 bool MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position) {
@@ -814,11 +924,7 @@ bool MapWithEvent::playMusic(MapWithEvent *, std::int16_t musicId) {
 }
 
 bool MapWithEvent::playSound(MapWithEvent *map, std::int16_t soundId) {
-    if (soundId < 24) {
-        gWindow->playAtkSound(soundId);
-    } else {
-        gWindow->playEffectSound(soundId - 24);
-    }
+    gWindow->playAtkSound(soundId);
     return true;
 }
 

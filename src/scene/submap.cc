@@ -22,6 +22,7 @@
 #include "window.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
+#include <fmt/format.h>
 
 namespace hojy::scene {
 
@@ -39,11 +40,11 @@ bool SubMap::load(std::int16_t subMapId) {
     if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
         mapWidth_ = data::SubMapWidth;
         mapHeight_ = data::SubMapHeight;
-        char idxstr[8], grpstr[8];
-        snprintf(idxstr, 8, "SDX%03d", subMapId);
-        snprintf(grpstr, 8, "SMP%03d", subMapId);
-        auto &submapData = data::gGrpData.lazyLoad(idxstr, grpstr);
-        if (submapData.empty() || !textureMgr_.mergeFromRLE(submapData)) {
+        data::GrpData::DataSet dset;
+        if (!data::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
+            return false;
+        }
+        if (!textureMgr_.mergeFromRLE(dset)) {
             return false;
         }
         subMapLoaded_.insert(subMapId);
@@ -243,7 +244,7 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     currX_ = x;
     currY_ = y;
     drawDirty_ = true;
-    currFrame_ = currFrame_ % 6 + 1;
+    currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
     const auto &subMapInfo = mem::gSaveData.subMapInfo[subMapId_];
     for (int i = 0; i < 3; ++i) {
         if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
@@ -277,7 +278,7 @@ void SubMap::updateMainCharTexture() {
         mainCharTex_ = textureMgr_[2501 + int(direction_) * 7];
         return;
     }
-    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currFrame_];
+    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currMainCharFrame_];
 }
 
 void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {

@@ -27,16 +27,19 @@
 namespace hojy::scene {
 
 class WarField: public Map {
+    enum {
+        FightTextureListCount = 110,
+    };
     struct CellInfo {
         const Texture *earth = nullptr, *building = nullptr, *charTex = nullptr;
         std::int16_t charId = -1;
         bool isWater = false;
     };
     struct CharInfo {
-        std::uint32_t side; /* bit0: 0-self 1-enemy
-                            * bit1: auto-battle
-                            */
+        std::uint8_t side; /* 0-self 1-enemy */
+        bool autoControl;
         std::int16_t id;
+        std::int16_t texId;
         std::int16_t x, y;
         Direction direction;
         std::int16_t speed;
@@ -56,19 +59,18 @@ public:
     void render() override;
     void handleKeyInput(Key key) override;
 
-protected:
-    bool tryMove(int x, int y, bool checkEvent) override;
-    void updateMainCharTexture() override;
-
 private:
+    int cameraX_ = 0, cameraY_ = 0;
     std::int16_t warId_ = -1;
     bool getExpOnLose_ = false;
     std::vector<CellInfo> cellInfo_;
-    Texture *maskTex_ = nullptr;
     std::set<std::int16_t> warMapLoaded_;
 
     std::vector<CharInfo> charQueue_;
     size_t activeChar_ = 0;
+
+    Texture *maskTex_ = nullptr;
+    std::vector<TextureMgr> fightTextures_;
 };
 
 }

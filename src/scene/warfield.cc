@@ -23,12 +23,23 @@
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
+#include <fmt/format.h>
 #include <map>
 
 namespace hojy::scene {
 
 WarField::WarField(Renderer *renderer, int x, int y, int width, int height, float scale):
     Map(renderer, x, y, width, height, scale) {
+    fightTextures_.resize(FightTextureListCount);
+    for (size_t i = 0; i < FightTextureListCount; ++i) {
+        auto &f = fightTextures_[i];
+        f.setRenderer(renderer_);
+        f.setPalette(gNormalPalette);
+        data::GrpData::DataSet dset;
+        if (data::GrpData::loadData(fmt::format("FIGHT{:03}IDX", i), fmt::format("FIGHT{:03}.GRP", i), dset)) {
+            f.loadFromRLE(dset);
+        }
+    }
 }
 
 WarField::~WarField() {
@@ -43,17 +54,17 @@ bool WarField::load(std::int16_t warId) {
     if (warMapLoaded_.find(warMapId) == warMapLoaded_.end()) {
         mapWidth_ = data::WarFieldWidth;
         mapHeight_ = data::WarFieldHeight;
-        char idxstr[8], grpstr[8];
-        snprintf(idxstr, 8, "WDX%03d", warMapId);
-        snprintf(grpstr, 8, "WMP%03d", warMapId);
-        auto &warMapData = data::gGrpData.lazyLoad(idxstr, grpstr);
-        if (warMapData.empty() || !textureMgr_.mergeFromRLE(warMapData)) {
+        data::GrpData::DataSet dset;
+        if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), dset)) {
+            return false;
+        }
+        if (!textureMgr_.mergeFromRLE(dset)) {
             return false;
         }
         warMapLoaded_.insert(warMapId);
         if (!maskTex_) {
             maskTex_ = new Texture;
-            maskTex_->loadFromRLE(renderer_, warMapData[0], gMaskPalette);
+            maskTex_->loadFromRLE(renderer_, dset[0], gMaskPalette);
             maskTex_->enableBlendMode(true);
         }
     }
@@ -111,7 +122,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
             auto id = info->autoAlly[i];
             if (id < 0) { continue; }
             const auto *charInfo = mem::gSaveData.charInfo[id];
-            charQueue_.emplace_back(CharInfo {0, id, info->allyX[i], info->allyY[i], DirLeft,
+            charQueue_.emplace_back(CharInfo {0, false, id, charInfo->headId, info->allyX[i], info->allyY[i], DirLeft,
                                               charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
         }
     } else {
@@ -132,7 +143,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
                 index = *indices.begin();
                 indices.erase(indices.begin());
             }
-            charQueue_.emplace_back(CharInfo{0, id, info->allyX[index], info->allyY[index], DirLeft,
+            charQueue_.emplace_back(CharInfo{0, false, id, charInfo->headId, info->allyX[index], info->allyY[index], DirLeft,
                                              charInfo->speed, charInfo->hp, charInfo->mp, charInfo->stamina, 0});
         }
     }
@@ -140,7 +151,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
         auto id = info->enemy[i];
         if (id < 0) { continue; }
         const auto *charInfo = mem::gSaveData.charInfo[id];
-        charQueue_.emplace_back(CharInfo {1, id, info->enemyX[i], info->enemyY[i], DirRight,
+        charQueue_.emplace_back(CharInfo {1, true, id, charInfo->headId, info->enemyX[i], info->enemyY[i], DirRight,
                                           charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
     }
     std::sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo &c0, const CharInfo &c1) {
@@ -149,10 +160,10 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
     for (auto &ci: charQueue_) {
         auto &cell = cellInfo_[ci.y * mapWidth_ + ci.x];
         cell.charId = ci.id;
-        cell.charTex = textureMgr_[2553 + 4 * ci.id];
+        cell.charTex = textureMgr_[2553 + 4 * ci.texId];
     }
-    currX_ = charQueue_[0].x;
-    currY_ = charQueue_[0].y;
+    cameraX_ = charQueue_[0].x;
+    cameraY_ = charQueue_[0].y;
 }
 
 void WarField::render() {
@@ -162,7 +173,7 @@ void WarField::render() {
         drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
-        int curX = currX_, curY = currY_;
+        int curX = cameraX_, curY = cameraY_;
         int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
         int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
         int wcount = nx * 2 / cellWidth_;
@@ -220,14 +231,6 @@ void WarField::render() {
 
 void WarField::handleKeyInput(Node::Key key) {
     Map::handleKeyInput(key);
-}
-
-bool WarField::tryMove(int x, int y, bool checkEvent) {
-    return Map::tryMove(x, y, checkEvent);
-}
-
-void WarField::updateMainCharTexture() {
-    Map::updateMainCharTexture();
 }
 
 }

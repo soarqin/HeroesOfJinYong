@@ -44,28 +44,16 @@ public:
     ~Map() override;
 
     [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
-    [[nodiscard]] std::int16_t currX() const { return currX_; }
-    [[nodiscard]] std::int16_t currY() const { return currY_; }
 
-    [[nodiscard]] Map::Direction direction() const { return direction_; }
-    void setDirection(Direction dir);
-    void setPosition(int x, int y, bool checkEvent = true);
-    void move(Direction direction);
     void resetFrame();
 
     [[nodiscard]] const TextureMgr &textureMgr() const { return textureMgr_; }
 
     void render() override;
-    void handleKeyInput(Key key) override;
 
 protected:
-    virtual bool tryMove(int x, int y, bool checkEvent) { return false; }
-    virtual void updateMainCharTexture() {}
-    virtual void resetTime();
-    virtual bool checkTime();
+    virtual void resetTime() {}
     virtual void frameUpdate() {}
-    void renderChar(int deltaY = 0);
-    bool getFaceOffset(int &x, int &y);
 
 protected:
     TextureMgr textureMgr_;
@@ -74,12 +62,8 @@ protected:
     std::uint64_t frames_ = 0;
     float scale_ = 1.f;
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
-    std::int32_t currX_ = 0, currY_ = 0, currFrame_ = 0;
-    Direction direction_ = DirUp;
-    bool drawDirty_ = false, resting_ = false;
-    const Texture *mainCharTex_ = nullptr;
+    bool drawDirty_ = false;
     std::chrono::steady_clock::time_point nextFrameTime_;
-    std::chrono::steady_clock::time_point nextRestTexTime_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
     std::int32_t texWidth_ = 0, texHeight_ = 0;
     std::int32_t offsetX_ = 0, offsetY_ = 0;
