@@ -482,6 +482,7 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
         if (id < 0) {
             id = charId;
             auto *charInfo = mem::gSaveData.charInfo[charId];
+            if (!charInfo) { continue; }
             for (size_t j = 0; j < data::CarryItemCount; ++j) {
                 if (charInfo->item[j] >= 0) {
                     if (charInfo->itemCount[j] == 0) { charInfo->itemCount[j] = 1; }
@@ -509,6 +510,7 @@ bool MapWithEvent::sleep(MapWithEvent *map) {
     for (auto id: mem::gSaveData.baseInfo->members) {
         if (id <= 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
+        if (!charInfo) { continue; }
         charInfo->stamina = data::StaminaMax;
         charInfo->hp = charInfo->maxHp;
         charInfo->mp = charInfo->maxMp;
@@ -589,13 +591,15 @@ bool MapWithEvent::emptyAllMP(MapWithEvent *map) {
         if (id < 0) {
             continue;
         }
-        mem::gSaveData.charInfo[id]->mp = 0;
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        if (charInfo) { charInfo->mp = 0; }
     }
     return true;
 }
 
 bool MapWithEvent::setAttrPoison(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    mem::gSaveData.charInfo[charId]->poison = value;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (charInfo) { charInfo->poison = value; }
     return true;
 }
 
@@ -622,12 +626,16 @@ bool MapWithEvent::animation(MapWithEvent *map, std::int16_t eventId, std::int16
 }
 
 int MapWithEvent::checkIntegrity(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high) {
-    auto value = mem::gSaveData.charInfo[charId]->integrity;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return 0; }
+    auto value = charInfo->integrity;
     return value >= low && value <= high ? 1 : 0;
 }
 
 int MapWithEvent::checkAttack(MapWithEvent *map, std::int16_t charId, std::int16_t low, std::int16_t high) {
-    auto value = mem::gSaveData.charInfo[charId]->attack;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return 0; }
+    auto value = charInfo->attack;
     return value >= low ? 1 : 0;
 }
 
@@ -647,7 +655,9 @@ bool MapWithEvent::addItem2(MapWithEvent *map, std::int16_t itemId, std::int16_t
 
 bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillId, std::int16_t quiet) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     auto *skillInfo = mem::gSaveData.skillInfo[skillId];
+    if (!skillInfo) { return true; }
 
     int found = -1;
     auto learnId = skillInfo->id;
@@ -679,6 +689,7 @@ bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16
 
 bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, data::PotentialMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 資質增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
@@ -687,17 +698,21 @@ bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int
 bool MapWithEvent::setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t skillIndex,
                             std::int16_t skillId, std::int16_t level) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->skillId[skillIndex] = skillId;
     charInfo->skillLevel[skillIndex] = level;
     return true;
 }
 
 int MapWithEvent::checkSex(MapWithEvent *map, std::int16_t sex) {
-    return mem::gSaveData.charInfo[0]->sex == sex ? 1 : 0;
+    auto *charInfo = mem::gSaveData.charInfo[0];
+    if (!charInfo) { return 0; }
+    return charInfo->sex == sex ? 1 : 0;
 }
 
 bool MapWithEvent::addIntegrity(MapWithEvent *map, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[0];
+    if (!charInfo) { return true; }
     charInfo->integrity = std::clamp<std::int16_t>(charInfo->integrity + value, 0, data::IntegrityMax);
     return true;
 }
@@ -735,6 +750,7 @@ bool MapWithEvent::forceDirection(MapWithEvent *map, std::int16_t direction) {
 
 bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::int16_t itemId, std::int16_t itemCount) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     int firstEmpty = -1;
     for (int i = 0; i < data::CarryItemCount; ++i) {
         if (charInfo->item[i] < 0) {
@@ -757,7 +773,9 @@ bool MapWithEvent::addItemToChar(MapWithEvent *map, std::int16_t charId, std::in
 int MapWithEvent::checkFemaleInTeam(MapWithEvent *map) {
     for (auto id: mem::gSaveData.baseInfo->members) {
         if (id < 0) { continue; }
-        if (mem::gSaveData.charInfo[id]->sex == 1) {
+        auto *charInfo = mem::gSaveData.charInfo[id];
+        if (!charInfo) { continue; }
+        if (charInfo->sex == 1) {
             return 1;
         }
     }
@@ -779,6 +797,7 @@ bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int1
 
 bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->speed = std::clamp<std::int16_t>(charInfo->speed + value, 0, data::SpeedMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 輕功增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
@@ -786,6 +805,7 @@ bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t
 
 bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, data::MPMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 內力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
@@ -793,6 +813,7 @@ bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t
 
 bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->attack = std::clamp<std::int16_t>(charInfo->attack + value, 0, data::AttackMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 武力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
@@ -800,13 +821,16 @@ bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_
 
 bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, data::HPMax);
     gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 生命增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::setMPType(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
-    mem::gSaveData.charInfo[charId]->mpType = value;
+    auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
+    charInfo->mpType = value;
     return true;
 }
 
@@ -824,12 +848,16 @@ bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
 }
 
 bool MapWithEvent::showIntegrity(MapWithEvent *map) {
-    gWindow->popupMessageBox({L"你的道德指數為 " + std::to_wstring(mem::gSaveData.charInfo[0]->integrity)}, MessageBox::PressToCloseTop);
+    auto *charInfo = mem::gSaveData.charInfo[0];
+    if (!charInfo) { return true; }
+    gWindow->popupMessageBox({L"你的道德指數為 " + std::to_wstring(charInfo->integrity)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::showReputation(MapWithEvent *map) {
-    gWindow->popupMessageBox({L"你的聲望指數為 " + std::to_wstring(mem::gSaveData.charInfo[0]->reputation)}, MessageBox::PressToCloseTop);
+    auto *charInfo = mem::gSaveData.charInfo[0];
+    if (!charInfo) { return true; }
+    gWindow->popupMessageBox({L"你的聲望指數為 " + std::to_wstring(charInfo->reputation)}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -851,6 +879,7 @@ int MapWithEvent::checkEventID(MapWithEvent *map, std::int16_t eventId, std::int
 
 bool MapWithEvent::addReputation(MapWithEvent *map, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[0];
+    if (!charInfo) { return true; }
     auto oldRep = charInfo->reputation;
     charInfo->reputation += value;
     if (oldRep <= 200 && charInfo->reputation > 200) {
@@ -904,6 +933,7 @@ bool MapWithEvent::goBackHome(MapWithEvent *map, std::int16_t eventId, std::int1
 
 bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t charId, std::int16_t value) {
     auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
     charInfo->sex = value;
     return true;
 }

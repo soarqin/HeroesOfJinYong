@@ -19,14 +19,6 @@
 
 #pragma once
 
-#ifdef __GNUC__
-#define ATTR_PACKED __attribute__((packed))
-#define ATTR_PACKED2 __attribute__((aligned(2)))
-#else
-#define ATTR_PACKED
-#define ATTR_PACKED2
-#endif
-
 namespace hojy::data {
 
 enum {

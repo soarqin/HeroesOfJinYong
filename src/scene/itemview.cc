@@ -59,10 +59,8 @@ void ItemView::handleKeyInput(Node::Key key) {
             }
         } else {
             switch (type) {
-            case 0:
-                break;
             case 1:
-
+                break;
             default:
                 break;
             }

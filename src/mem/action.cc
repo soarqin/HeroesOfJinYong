@@ -44,6 +44,12 @@ bool leaveTeam(std::int16_t id) {
                         sizeof(std::int16_t) * (data::TeamMemberCount - i - 1));
             }
             mem::gSaveData.baseInfo->members[data::TeamMemberCount - 1] = -1;
+            auto *charInfo = mem::gSaveData.charInfo[id];
+            if (charInfo) {
+                charInfo->equip0 = -1;
+                charInfo->equip1 = -1;
+                charInfo->learningItem = -1;
+            }
             return true;
         }
     }

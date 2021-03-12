@@ -24,11 +24,9 @@
 
 namespace hojy::mem {
 
-#pragma pack(push, 2)
 struct ShopData {
     std::int16_t id[data::ShopItemCount], total[data::ShopItemCount], price[data::ShopItemCount];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 using ShopInfo = SerializableStructVec<ShopData>;
 

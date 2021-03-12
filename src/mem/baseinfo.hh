@@ -28,7 +28,6 @@
 
 namespace hojy::mem {
 
-#pragma pack(push, 2)
 struct BaseData {
     struct ItemInfo {
         std::int16_t id, count;
@@ -36,8 +35,7 @@ struct BaseData {
     std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
     std::int16_t members[data::TeamMemberCount];
     ItemInfo items[data::BagItemCount];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 using BaseInfo = SerializableStruct<BaseData>;
 

@@ -24,7 +24,6 @@
 
 namespace hojy::mem {
 
-#pragma pack(push, 2)
 struct CharacterData {
     std::int16_t id;
     std::int16_t headId, hpAddOnLevelUp, padding;
@@ -45,8 +44,7 @@ struct CharacterData {
     std::uint16_t expForItem;
     std::int16_t skillId[data::LearnSkillCount], skillLevel[data::LearnSkillCount];
     std::int16_t item[data::CarryItemCount], itemCount[data::CarryItemCount];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 using Character = SerializableStructVec<CharacterData>;
 

@@ -225,8 +225,9 @@ void Title::makeCache() {
                     mainCharName_.pop_back();
                     big5Name = util::big5Conv.fromUnicode(mainCharName_);
                 }
-                memset(mem::gSaveData.charInfo[0]->name, 0, 10);
-                memcpy(mem::gSaveData.charInfo[0]->name, big5Name.data(), big5Name.length());
+                auto *charInfo = mem::gSaveData.charInfo[0];
+                memset(charInfo->name, 0, 10);
+                memcpy(charInfo->name, big5Name.data(), big5Name.length());
                 auto *subMap = mem::gSaveData.subMapInfo[data::gFactors.initSubMapId];
                 auto tailName = util::big5Conv.fromUnicode(L"居");
                 memset(subMap->name, 0, 10);

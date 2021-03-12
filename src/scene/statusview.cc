@@ -43,6 +43,9 @@ void StatusView::handleKeyInput(Node::Key key) {
 }
 
 void StatusView::makeCache() {
+    const auto *charInfo = mem::gSaveData.charInfo[charId_];
+    if (!charInfo) { return; }
+
     auto *ttf = renderer_->ttf();
     auto fontSize = ttf->fontSize();
     auto lineheight = fontSize + TextLineSpacing;
@@ -63,7 +66,6 @@ void StatusView::makeCache() {
     renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
     renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
     int y = SubWindowBorder;
-    const auto *charInfo = mem::gSaveData.charInfo[charId_];
     const auto *headTex = gWindow->headTexture(charInfo->headId);
     if (headTex) {
         auto height = float(headTex->height());

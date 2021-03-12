@@ -468,7 +468,7 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     menu->initWithTeamMembers({L"替誰解毒"}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
                                   int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
-                                                          mem::gSaveData.charInfo[toCharId], 2);
+                                                             mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
                                   gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
                               }, nullptr);

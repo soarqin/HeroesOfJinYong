@@ -24,7 +24,6 @@
 
 namespace hojy::mem {
 
-#pragma pack(push, 2)
 struct SubMapData {
     std::int16_t id;
     char name[10];
@@ -34,20 +33,19 @@ struct SubMapData {
     std::int16_t enterX, enterY;
     std::int16_t exitX[3], exitY[3];
     std::int16_t switchSubMapX, switchSubMapY, subMapEnterX, subMapEnterY;
-} ATTR_PACKED2;
+};
 
 struct SubMapEvent {
     std::int16_t blocked, index, event[3], currTex, endTex, begTex, texDelay, x, y;
-} ATTR_PACKED2;
+};
 
 struct SubMapLayerData {
     std::int16_t data[data::SubMapLayerCount][data::SubMapWidth * data::SubMapHeight];
-} ATTR_PACKED2;
+};
 
 struct SubMapEventData {
     SubMapEvent events[data::SubMapEventCount];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 using SubMapInfo = SerializableStructVec<SubMapData>;
 using SubMapLayerInfo = SerializableStruct<SubMapLayerData>;

@@ -237,7 +237,8 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
             for (auto id: mem::gSaveData.baseInfo->members) {
                 if (id < 0) { continue; }
                 /* TODO: get this limit value from Z.DAT? */
-                if (mem::gSaveData.charInfo[id]->speed >= 70) {
+                auto *charInfo = mem::gSaveData.charInfo[id];
+                if (charInfo && charInfo->speed >= 70) {
                     allow = true;
                     break;
                 }

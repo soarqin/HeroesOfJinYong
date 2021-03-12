@@ -26,19 +26,17 @@
 
 namespace hojy::data {
 
-#pragma pack(push, 2)
 struct WarFieldInfo {
     std::int16_t id;
     char name[10];
     std::int16_t warFieldId, exp, music;
-    std::int16_t ally[TeamMemberCount], autoAlly[TeamMemberCount], allyX[TeamMemberCount], allyY[TeamMemberCount];
+    std::int16_t defaultMembers[TeamMemberCount], forceMembers[TeamMemberCount], memberX[TeamMemberCount], memberY[TeamMemberCount];
     std::int16_t enemy[WarFieldEnemyCount], enemyX[WarFieldEnemyCount], enemyY[WarFieldEnemyCount];
-} ATTR_PACKED2;
+};
 
 struct WarFieldLayers {
     std::int16_t layers[data::WarFieldLayerCount][data::WarFieldWidth *data::WarFieldHeight];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 class WarFieldData {
 public:

@@ -24,7 +24,6 @@
 
 namespace hojy::mem {
 
-#pragma pack(push, 2)
 struct ItemData {
     std::int16_t id;
     char name[20], name2[20];
@@ -39,8 +38,7 @@ struct ItemData {
     std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
     std::int16_t reqExp, reqExpForMakeItem, reqMaterial;
     std::int16_t madeItem[data::MakeItemCount], madeItemCount[data::MakeItemCount];
-} ATTR_PACKED2;
-#pragma pack(pop)
+};
 
 using ItemInfo = SerializableStructVec<ItemData>;
 

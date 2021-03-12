@@ -108,8 +108,8 @@ bool WarField::load(std::int16_t warId) {
 
 bool WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
     const auto *info = data::gWarFieldData.info(warId_);
-    if (info->autoAlly[0] >= 0) { return false; }
-    for (auto &id: info->ally) {
+    if (info->forceMembers[0] >= 0) { return false; }
+    for (auto &id: info->defaultMembers) {
         if (id >= 0) { chars.insert(id); }
     }
     return true;
@@ -117,24 +117,26 @@ bool WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
 
 void WarField::putChars(const std::vector<std::int16_t> &chars) {
     const auto *info = data::gWarFieldData.info(warId_);
-    if (info->autoAlly[0] >= 0) {
+    if (info->forceMembers[0] >= 0) {
         for (size_t i = 0; i < data::TeamMemberCount; ++i) {
-            auto id = info->autoAlly[i];
+            auto id = info->forceMembers[i];
             if (id < 0) { continue; }
             const auto *charInfo = mem::gSaveData.charInfo[id];
-            charQueue_.emplace_back(CharInfo {0, false, id, charInfo->headId, info->allyX[i], info->allyY[i], DirLeft,
-                                              charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
+            if (!charInfo) { continue; }
+            charQueue_.emplace_back(CharInfo {0, false, id, charInfo->headId, info->memberX[i], info->memberY[i], DirLeft,
+                                              charInfo->speed, charInfo->hp, charInfo->mp, data::StaminaMax, 0});
         }
     } else {
         std::map<std::int16_t, size_t> charMap;
         std::set<size_t> indices;
         for (size_t i = 0; i < data::TeamMemberCount; ++i) {
-            auto id = info->ally[i];
+            auto id = info->defaultMembers[i];
             if (id >= 0) { charMap[id] = i; }
             else { indices.insert(i); }
         }
         for (auto id: chars) {
             const auto *charInfo = mem::gSaveData.charInfo[id];
+            if (!charInfo) { continue; }
             auto ite = charMap.find(id);
             size_t index;
             if (ite != charMap.end()) {
@@ -143,7 +145,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
                 index = *indices.begin();
                 indices.erase(indices.begin());
             }
-            charQueue_.emplace_back(CharInfo{0, false, id, charInfo->headId, info->allyX[index], info->allyY[index], DirLeft,
+            charQueue_.emplace_back(CharInfo{0, false, id, charInfo->headId, info->memberX[index], info->memberY[index], DirLeft,
                                              charInfo->speed, charInfo->hp, charInfo->mp, charInfo->stamina, 0});
         }
     }
@@ -151,6 +153,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
         auto id = info->enemy[i];
         if (id < 0) { continue; }
         const auto *charInfo = mem::gSaveData.charInfo[id];
+        if (!charInfo) { continue; }
         charQueue_.emplace_back(CharInfo {1, true, id, charInfo->headId, info->enemyX[i], info->enemyY[i], DirRight,
                                           charInfo->speed, charInfo->maxHp, charInfo->maxMp, data::StaminaMax, 0});
     }
