@@ -86,7 +86,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
 
     SDL_ShowWindow(win);
 
-    audio::gMixer.init(2);
+    audio::gMixer.init(3);
     playMusic(16);
     audio::gMixer.pause(false);
 
@@ -202,7 +202,7 @@ void Window::playAtkSound(int idx) {
 
 void Window::playEffectSound(int idx) {
     (void)this;
-    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx))));
+    audio::gMixer.play(2, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx))));
 }
 
 void Window::newGame() {
@@ -304,8 +304,7 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
     wf->load(warId);
     std::set<std::int16_t> defaultChars;
     if (wf->getDefaultChars(defaultChars)) {
-        int x = width_ / 3, y = height_ * 2 / 7;
-        auto *clm = new CharListMenu(renderer_, x, y, width_ - x, height_ - y);
+        auto *clm = new CharListMenu(renderer_, 0, 0, gWindow->width(), gWindow->height());
         clm->enableCheckBox(true, [defaultChars](std::int16_t charId)->bool {
             return defaultChars.find(charId) == defaultChars.end();
         });
@@ -319,6 +318,7 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
                 clm->checkItem(i, true);
             }
         }
+        clm->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
         popup_ = clm;
         freeOnClose_ = true;
     }

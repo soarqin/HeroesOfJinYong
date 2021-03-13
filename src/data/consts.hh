@@ -70,7 +70,7 @@ enum {
     ShopItemCount = 5,
 
     /* Skill Info */
-    SkillCheckCount = 10,
+    SkillCheckCount = SkillLevelMaxDiv + 1,
 
     /* Sub Map Info */
     SubMapWidth = 64,
@@ -83,6 +83,11 @@ enum {
     WarFieldLayerCount = 8,
     WarFieldWidth = 64,
     WarFieldHeight = 64,
+
+    /* Effect ID */
+    PoisonEffectID = 30,
+    DepoisonEffectID = 36,
+    MedicEffectID = 0,
 };
 
 }

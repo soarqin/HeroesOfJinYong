@@ -64,7 +64,8 @@ class MenuTextList: public Menu {
 public:
     using Menu::Menu;
 
-    inline void setHandler(const std::function<void()> &okHandler, const std::function<bool()> &cancelHandler) {
+    inline void setHandler(const std::function<void()> &okHandler,
+                           const std::function<bool()> &cancelHandler = nullptr) {
         okHandler_ = okHandler;
         cancelHandler_ = cancelHandler;
     }

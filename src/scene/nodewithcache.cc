@@ -27,6 +27,14 @@ NodeWithCache::~NodeWithCache() {
     delete cache_;
 }
 
+void NodeWithCache::makeCenter(int w, int h, int x, int y) {
+    if (cacheDirty_) {
+        makeCache();
+        cacheDirty_ = false;
+    }
+    Node::makeCenter(w, h, x, y);
+}
+
 void NodeWithCache::close() {
     delete cache_;
     cache_ = nullptr;

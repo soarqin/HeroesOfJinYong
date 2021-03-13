@@ -132,14 +132,14 @@ void GlobalMap::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
-        int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
-        int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
+        int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
+        int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
         int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
-        int hcount = (ny * 2 + int(float(2 * cellHeight_) * scale_)) / cellDiffY;
+        int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
         int tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        int ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
+        int ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);

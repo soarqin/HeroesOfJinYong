@@ -67,6 +67,11 @@ void Node::fadeOut(const std::function<void()> &postAction) {
     fadeNode_ = new Mask(this, Mask::FadeOut, 3);
 }
 
+void Node::makeCenter(int w, int h, int x, int y) {
+    x_ = x + (w - width_) / 2;
+    y_ = y + (h - height_) / 2;
+}
+
 void Node::doRender() {
     render();
     for (auto *node : children_) {

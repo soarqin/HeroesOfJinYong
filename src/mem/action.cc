@@ -21,6 +21,7 @@
 
 #include "savedata.hh"
 #include "data/factors.hh"
+#include "util/random.hh"
 #include <algorithm>
 
 namespace hojy::mem {
@@ -34,6 +35,29 @@ const std::wstring &propToName(PropType type) {
     return names[int(type)];
 }
 
+void addUpPropFromEquipToChar(CharacterData *info) {
+    for (auto id: info->equip) {
+        if (id < 0) { continue; }
+        const auto *itemInfo = mem::gSaveData.itemInfo[id];
+        if (!itemInfo) { continue; }
+#define AddProp(M, N) info->M += itemInfo->add##N
+        AddProp(attack, Attack);
+        AddProp(speed, Speed);
+        AddProp(defence, Defence);
+        AddProp(medic, Medic);
+        AddProp(poison, Poison);
+        AddProp(depoison, Depoison);
+        AddProp(antipoison, Antipoison);
+        AddProp(fist, Fist);
+        AddProp(sword, Sword);
+        AddProp(blade, Blade);
+        AddProp(special, Special);
+        AddProp(knowledge, Knowledge);
+        AddProp(poisonAmp, PoisonAmp);
+#undef AddProp
+    }
+}
+
 std::uint16_t getExpForLevelUp(std::int16_t level) {
     --level;
     if (level >= data::gFactors.expForLevelUp.size()) { return 0;}
@@ -41,7 +65,7 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
 }
 
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential) {
-    return mem::gSaveData.itemInfo[itemId]->reqExp * (level <= 0 ? 1 : level) * std::clamp<int16_t>(7 - potential / 15, 1, 5);
+    return mem::gSaveData.itemInfo[itemId]->reqExp * (level <= 0 ? 1 : level) * std::clamp<std::int16_t>(7 - potential / 15, 1, 5);
 }
 
 bool leaveTeam(std::int16_t id) {
@@ -139,15 +163,21 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
         charInfo->N = std::clamp<std::int16_t>(charInfo->N + itemInfo->add##M, 0, data::M##Max); \
         if (oldVal != charInfo->N) { changes[PropType::M] = charInfo->N - oldVal; } \
     }
-    ChangeProp(hp, Hp)
+#define ChangeProp2(N, M) \
+    if (itemInfo->add##M != 0) { \
+        auto oldVal = charInfo->N; \
+        charInfo->N = std::clamp<std::int16_t>(charInfo->N + itemInfo->add##M, 0, charInfo->max##M); \
+        if (oldVal != charInfo->N) { changes[PropType::M] = charInfo->N - oldVal; } \
+    }
+    ChangeProp2(hp, Hp)
     ChangeProp(maxHp, MaxHp)
     ChangeProp(poisoned, Poisoned)
     ChangeProp(stamina, Stamina)
-    if (itemInfo->changeMpType >= 0 && charInfo->mpType != itemInfo->changeMpType) {
+    if (itemInfo->changeMpType > 0 && charInfo->mpType < 2 && charInfo->mpType != itemInfo->changeMpType) {
         charInfo->mpType = itemInfo->changeMpType;
         changes[PropType::MpType] = itemInfo->changeMpType;
     }
-    ChangeProp(mp, Mp)
+    ChangeProp2(mp, Mp)
     ChangeProp(maxMp, MaxMp)
     ChangeProp(attack, Attack)
     ChangeProp(speed, Speed)
@@ -167,6 +197,8 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
         changes[PropType::DoubleAttack] = itemInfo->addDoubleAttack;
     }
     ChangeProp(poisonAmp, PoisonAmp)
+#undef ChangeProp
+#undef ChangeProp2
     return !changes.empty();
 }
 
@@ -220,12 +252,22 @@ std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int
     return std::make_tuple(252, 252, 252);
 }
 
+std::int16_t actPoison(CharacterData *c1, CharacterData *c2, int16_t stamina) {
+    if (!c1 || !c2) { return 0; }
+    auto oldPs = c2->poisoned;
+    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + c1->poison / 4, 0, data::PoisonedMax);
+    if (stamina) {
+        c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
+    }
+    return oldPs - c2->poisoned;
+}
+
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina) {
     if (!c1 || !c2) { return 0; }
     auto oldHp = c2->hp;
-    c2->hp = std::clamp<int16_t>(c2->hp + c1->medic, 0, c2->maxHp);
+    c2->hp = std::clamp<std::int16_t>(c2->hp + c1->medic * 17 / 20, 0, c2->maxHp);
     if (stamina) {
-        c1->stamina = std::clamp<int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
+        c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
     return c2->hp - oldHp;
 }
@@ -233,9 +275,9 @@ std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina) {
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, int16_t stamina) {
     if (!c1 || !c2) { return 0; }
     auto oldPs = c2->poisoned;
-    c2->poisoned = std::clamp<int16_t>(c2->poisoned - c1->depoison / 3, 0, data::PoisonedMax);
+    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned - c1->depoison / 3 - 5 + util::gRandom(11), 0, data::PoisonedMax);
     if (stamina) {
-        c1->stamina = std::clamp<int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
+        c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
     return oldPs - c2->poisoned;
 }

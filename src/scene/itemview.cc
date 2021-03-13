@@ -36,6 +36,12 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
     inBattle_ = inBattle;
     resultFunc_ = resultFunc;
     for (auto &p: mem::gBag.items()) {
+        if (inBattle) {
+            const auto *itemInfo = mem::gSaveData.itemInfo[p.first];
+            if (!itemInfo || (itemInfo->itemType != 3 && itemInfo->itemType != 4)) {
+                continue;
+            }
+        }
         items_.emplace_back(std::make_pair(p.first, p.second));
     }
     const auto &mgr = gWindow->mapTextureMgr();
@@ -57,17 +63,41 @@ void ItemView::handleKeyInput(Node::Key key) {
         std::int16_t id = ipair.first;
         const auto *itemInfo = mem::gSaveData.itemInfo[id];
         if (!itemInfo) { break; }
-        auto type = itemInfo->itemType;
         if (inBattle_) {
-            if (type != 3 && type != 4) {
-                return;
+            switch (itemInfo->itemType) {
+            case 3: {
+                std::map<mem::PropType, std::int16_t> changes;
+                if (mem::useItem(charId_, id, changes)) {
+                    std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+                    for (auto &c: changes) {
+                        if (c.second) {
+                            messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
+                        } else {
+                            messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
+                        }
+                        auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
+                        msgBox->popup(messages, MessageBox::PressToCloseParent);
+                    }
+                    if (resultFunc_) { resultFunc_(-1); }
+                } else {
+                    delete this;
+                }
+                break;
+            }
+            case 4: {
+                if (resultFunc_) { resultFunc_(id); }
+                delete this;
+                break;
+            }
+            default:
+                break;
             }
         } else {
+            auto type = itemInfo->itemType;
             switch (type) {
             case 1:
             case 2: {
-                int x = width_ / 3, y = height_ * 2 / 7;
-                auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
+                auto *clm = new CharListMenu(this, 0, 0, width_, height_);
                 clm->initWithTeamMembers({type == 1 ? L"誰要配備 " : L"誰要修練 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
                                          [this, itemInfo, id, type, clm](std::int16_t charId) {
                                              if (type == 2 && itemInfo->user >= 0) {
@@ -94,6 +124,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                                                  delete clm;
                                              }
                                          });
+                clm->makeCenter(width_, height_, x_, y_);
                 return;
             }
             case 3: {
@@ -119,13 +150,15 @@ void ItemView::handleKeyInput(Node::Key key) {
                                          });
                 return;
             }
+            case 4:
+                return;
             default:
                 break;
             }
+            auto func = std::move(resultFunc_);
+            gWindow->closePopup();
+            if (func) { func(id); }
         }
-        auto func = std::move(resultFunc_);
-        gWindow->closePopup();
-        if (func) { func(id); }
         return;
     }
     case KeyCancel:

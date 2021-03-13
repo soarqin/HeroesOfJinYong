@@ -52,11 +52,13 @@ public:
     [[nodiscard]] inline int y() const { return y_; }
     [[nodiscard]] inline int width() const { return width_; }
     [[nodiscard]] inline int height() const { return height_; }
+    inline void setPosition(int x, int y) { x_ = x; y_ = y; }
 
     void fadeIn(const std::function<void()> &postAction);
     void fadeOut(const std::function<void()> &postAction);
     void fadeEnd();
 
+    virtual void makeCenter(int w, int h, int x = 0, int y = 0);
     virtual void close() { removeAllChildren(); }
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}

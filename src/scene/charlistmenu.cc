@@ -230,6 +230,14 @@ void CharListMenu::enableCheckBox(bool b, const std::function<bool(std::int16_t)
     }
 }
 
+void CharListMenu::makeCenter(int w, int h, int x, int y) {
+    NodeWithCache::makeCenter(w, h, x, y);
+    if (msgBox_) {
+        msgBox_->setPosition(x_, y_);
+        y_ += msgBox_->height() + 10;
+    }
+}
+
 void CharListMenu::render() {
     msgBox_->render();
     NodeWithCache::render();

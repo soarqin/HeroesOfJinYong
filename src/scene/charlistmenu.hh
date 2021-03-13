@@ -56,6 +56,7 @@ public:
               const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler = nullptr,
               const std::function<bool(ValueType, std::int16_t)> &filterFunc = nullptr);
     void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle = nullptr);
+    void makeCenter(int w, int h, int x = 0, int y = 0) override;
     void render() override;
 
 private:

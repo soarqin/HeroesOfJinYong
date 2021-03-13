@@ -45,6 +45,8 @@ void StatusView::handleKeyInput(Node::Key key) {
 void StatusView::makeCache() {
     const auto *charInfo = mem::gSaveData.charInfo[charId_];
     if (!charInfo) { return; }
+    mem::CharacterData info = *charInfo;
+    mem::addUpPropFromEquipToChar(&info);
 
     auto *ttf = renderer_->ttf();
     auto fontSize = ttf->fontSize();
@@ -66,58 +68,58 @@ void StatusView::makeCache() {
     renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
     renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
     int y = SubWindowBorder;
-    const auto *headTex = gWindow->headTexture(charInfo->headId);
+    const auto *headTex = gWindow->headTexture(info.headId);
     if (headTex) {
         auto height = float(headTex->height());
         float scale = float(lineheight * 4 - TextLineSpacing) / height;
         renderer_->renderTexture(headTex, (float(x2) - float(headTex->width()) * scale) / 2.f, float(y + lineheight * 4 - TextLineSpacing) - height * scale, scale, true);
     }
     ttf->setColor(236, 236, 236); ttf->render(L"攻擊力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->attack), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.attack), x3, y, true);
     y += lineheight;
     ttf->setColor(236, 236, 236); ttf->render(L"防禦力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->defence), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.defence), x3, y, true);
     y += lineheight;
     ttf->setColor(236, 236, 236); ttf->render(L"輕功", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->speed), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.speed), x3, y, true);
     y += lineheight;
     ttf->setColor(236, 236, 236); ttf->render(L"醫療能力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->medic), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.medic), x3, y, true);
     y += lineheight;
-    auto name = util::big5Conv.toUnicode(charInfo->name);
+    auto name = util::big5Conv.toUnicode(info.name);
     ttf->setColor(236, 236, 236); ttf->render(name, (x2 - ttf->stringWidth(name)) / 2, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"用毒能力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->poison), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.poison), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"等級", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->level), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.level), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"解毒能力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->depoison), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.depoison), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"生命", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->hp, charInfo->maxHp), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", info.hp, info.maxHp), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"拳掌功夫", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->fist), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.fist), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"內力", x0, y, true);
     std::uint8_t r, g, b;
-    std::tie(r, g, b) = mem::calcColorForMpType(charInfo->mpType);
-    ttf->setColor(r, g, b); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->mp, charInfo->maxMp), x1, y, true);
+    std::tie(r, g, b) = mem::calcColorForMpType(info.mpType);
+    ttf->setColor(r, g, b); ttf->render(fmt::format(L"{:>3}/{:>3}", info.mp, info.maxMp), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"御劍能力", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->sword), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.sword), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"體力", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", charInfo->stamina, data::StaminaMax), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}/{:>3}", info.stamina, data::StaminaMax), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"耍刀技巧", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->blade), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.blade), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"經驗", x0, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", charInfo->exp), x1, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", info.exp), x1, y, true);
     ttf->setColor(236, 236, 236); ttf->render(L"特殊兵器", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->special), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.special), x3, y, true);
     y += lineheight;
     ttf->setColor(252, 148, 16); ttf->render(L"升級", x0, y, true);
-    auto exp = mem::getExpForLevelUp(charInfo->level);
+    auto exp = mem::getExpForLevelUp(info.level);
     ttf->setColor(236, 200, 40);
     if (exp) {
         ttf->render(fmt::format(L"{:>5}", exp), x1, y, true);
@@ -125,25 +127,25 @@ void StatusView::makeCache() {
         ttf->render(L"-", x1, y, true);
     }
     ttf->setColor(236, 236, 236); ttf->render(L"暗器技巧", x2, y, true);
-    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", charInfo->throwing), x3, y, true);
+    ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>3}", info.throwing), x3, y, true);
     if (showPotential) {
         y += lineheight;
         ttf->setColor(252, 148, 16); ttf->render(L"資質", x0, y, true);
-        ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", charInfo->potential), x1, y, true);
+        ttf->setColor(236, 200, 40); ttf->render(fmt::format(L"{:>5}", info.potential), x1, y, true);
     }
     y = SubWindowBorder;
     ttf->setColor(252, 148, 16); ttf->render(L"所會功夫", x4, y, true);
     std::int16_t learningSkillId = -1, learningLevel = 0;
-    if (charInfo->learningItem >= 0) {
-        learningSkillId = mem::gSaveData.itemInfo[charInfo->learningItem]->skillId;
+    if (info.learningItem >= 0) {
+        learningSkillId = mem::gSaveData.itemInfo[info.learningItem]->skillId;
     }
     for (int i = 0; i < data::LearnSkillCount; ++i) {
         y += lineheight;
-        if (charInfo->skillId[i] <= 0) { continue; }
-        ttf->setColor(236, 200, 40); ttf->render(util::big5Conv.toUnicode(mem::gSaveData.skillInfo[charInfo->skillId[i]]->name), x4, y, true);
-        std::int16_t level = std::clamp<int16_t>(charInfo->skillLevel[i] / 100, 0, 9) + 1;
+        if (info.skillId[i] <= 0) { continue; }
+        ttf->setColor(236, 200, 40); ttf->render(util::big5Conv.toUnicode(mem::gSaveData.skillInfo[info.skillId[i]]->name), x4, y, true);
+        std::int16_t level = std::clamp<int16_t>(info.skillLevel[i] / 100, 0, 9) + 1;
         ttf->setColor(236, 236, 236); ttf->render(fmt::format(L"{:>2}", level), x5, y, true);
-        if (charInfo->skillId[i] == learningSkillId) {
+        if (info.skillId[i] == learningSkillId) {
             learningLevel = level;
         }
     }
@@ -152,19 +154,19 @@ void StatusView::makeCache() {
     ttf->render(L"裝備物品", x0, y, true); ttf->render(L"修練物品", x2, y, true);
     ttf->setColor(236, 200, 40);
     y += lineheight;
-    if (charInfo->equip[0] >= 0) {
-        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip[0]]->name), x0, y, true);
+    if (info.equip[0] >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[info.equip[0]]->name), x0, y, true);
     }
-    if (charInfo->learningItem >= 0) {
-        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->learningItem]->name), x2, y, true);
+    if (info.learningItem >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[info.learningItem]->name), x2, y, true);
     }
     y += lineheight;
-    if (charInfo->equip[1] >= 0) {
-        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[charInfo->equip[1]]->name), x0, y, true);
+    if (info.equip[1] >= 0) {
+        ttf->render(util::big5Conv.toUnicode(mem::gSaveData.itemInfo[info.equip[1]]->name), x0, y, true);
     }
-    if (charInfo->learningItem >= 0) {
-        std::uint16_t expForItem = mem::getExpForSkillLearn(charInfo->learningItem, learningLevel, charInfo->potential);
-        ttf->render(fmt::format(L"{:>5}/{:>5}", charInfo->expForItem, expForItem), x2, y, true);
+    if (info.learningItem >= 0) {
+        std::uint16_t expForItem = mem::getExpForSkillLearn(info.learningItem, learningLevel, info.potential);
+        ttf->render(fmt::format(L"{:>5}/{:>5}", info.expForItem, expForItem), x2, y, true);
     }
     cacheEnd();
 }

@@ -119,10 +119,10 @@ void SubMap::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
-        int nx = int(auxWidth_) / 2 + int(cellWidth_ * scale_);
-        int ny = int(auxHeight_) / 2 + int(cellHeight_ * scale_);
+        int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
+        int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
         int wcount = nx * 2 / cellWidth_;
-        int hcount = (ny * 2 + int(float(2 * cellHeight_) * scale_)) / cellDiffY;
+        int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
         int cx, cy, tx, ty;
         int delta = -mapWidth_ + 1;
 
@@ -166,7 +166,7 @@ void SubMap::render() {
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
+        ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;

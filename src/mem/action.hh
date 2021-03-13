@@ -35,6 +35,7 @@ enum class PropType {
     Fist, Sword, Blade, Special, HiddenWeapon, Knowledge, Integrity, DoubleAttack, PoisonAmp,
 };
 const std::wstring &propToName(PropType type);
+void addUpPropFromEquipToChar(CharacterData *info);
 std::uint16_t getExpForLevelUp(std::int16_t level);
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential);
 bool leaveTeam(std::int16_t id);
@@ -44,6 +45,7 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);
 std::int16_t getLeaveEventId(std::int16_t id);
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type);
+std::int16_t actPoison(CharacterData *c1, CharacterData *c2, int16_t stamina);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, int16_t stamina);
 

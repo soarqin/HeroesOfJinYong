@@ -20,7 +20,7 @@
 #pragma once
 
 #include "map.hh"
-
+#include "mem/character.hh"
 #include <vector>
 #include <map>
 #include <set>
@@ -34,35 +34,44 @@ class WarField: public Map {
     enum Stage {
         Idle,
         PlayerMenu,
-        Selecting,
+        MoveSelecting,
+        AttackSelecting,
+        UseItemSelecting,
         Moving,
         Acting,
     };
     struct CharInfo {
         std::uint8_t side; /* 0-self 1-enemy */
-        bool autoControl;
         std::int16_t id;
         std::int16_t texId;
         std::int16_t x, y;
         Direction direction;
-        std::int16_t speed;
-        std::int16_t hp, mp;
-        std::int16_t stamina;
+        mem::CharacterData info;
         std::uint16_t exp;
         std::int16_t steps;
     };
     struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *charTex = nullptr;
+        const Texture *earth = nullptr, *building = nullptr;
         bool isWater = false;
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
     };
-public:
     struct SelectableCell {
         int x, y, moves;
         SelectableCell *parent;
     };
-
+    struct CompareSelCells {
+        bool operator()(const SelectableCell *a, const SelectableCell *b) {
+            return a->moves > b->moves;
+        }
+    };
+    struct PopupNumber {
+        std::wstring str;
+        int x, y;
+        int offsetX;
+        std::uint8_t r, g, b;
+    };
+public:
     WarField(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~WarField() override;
 
@@ -82,6 +91,9 @@ protected:
     void playerMenu();
     void maskSelectableArea(int steps, bool zoecheck = false);
     void unmaskArea();
+    bool tryUseSkill(int index);
+    void startActAction();
+    void attack(int x, int y, std::int16_t skillId);
 
 private:
     int cameraX_ = 0, cameraY_ = 0;
@@ -94,8 +106,14 @@ private:
     std::vector<CharInfo*> charQueue_;
     Stage stage_ = Idle;
     int cursorX_ = 0, cursorY_ = 0;
+    bool autoControl_ = false;
     std::map<std::pair<int, int>, SelectableCell> selCells_;
     std::vector<std::pair<int, int>> movingPath_;
+    /* -3poison -2depoison -1medic 0~skillId */
+    std::int16_t actId_ = -1, actLevel_ = 0;
+    int effectId_ = -1, effectTexIdx_ = -1, fightTexIdx_ = -1, fightTexCount_ = 0, fightFrame_ = 0;
+    const TextureMgr *fightTexMgr_ = nullptr;
+    std::vector<PopupNumber> popupNumbers_;
 
     Texture *maskTex_ = nullptr;
     std::vector<TextureMgr> fightTextures_;
