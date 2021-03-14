@@ -30,6 +30,7 @@ enum {
     CharFrameCount = 5,
     LearnSkillCount = 10,
     CarryItemCount = 4,
+    KnowledgeBarrier = 80,
 
     SkillLevelMax = 999,
     SkillLevelMaxDiv = 9,
@@ -41,7 +42,7 @@ enum {
     MpMax = 999,
     MaxMpMax = 999,
     StaminaMax = 100,
-    PoisonedMax = 100,
+    PoisonedMax = 99,
     AttackMax = 100,
     DefenceMax = 100,
     SpeedMax = 100,

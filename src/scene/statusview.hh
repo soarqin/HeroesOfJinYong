@@ -20,6 +20,7 @@
 #pragma once
 
 #include "nodewithcache.hh"
+#include "mem/character.hh"
 
 namespace hojy::scene {
 
@@ -27,6 +28,7 @@ class StatusView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
+    void show(const mem::CharacterData *data, bool calcEquip);
     void show(std::int16_t charId);
 
     void handleKeyInput(Key key) override;
@@ -35,7 +37,7 @@ protected:
     void makeCache() override;
 
 protected:
-    std::int16_t charId_;
+    mem::CharacterData data_ {};
 };
 
 }

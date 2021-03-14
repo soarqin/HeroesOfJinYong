@@ -64,7 +64,32 @@ WarField::~WarField() {
     delete maskTex_;
 }
 
+void WarField::cleanup() {
+    chars_.clear();
+    charQueue_.clear();
+    stage_ = Idle;
+    knowledge_[0] = knowledge_[1] = 0;
+    cursorX_ = 0;
+    cursorY_ = 0;
+    autoControl_ = false;
+    selCells_.clear();
+    movingPath_.clear();
+    actIndex_ = -1;
+    actId_ = -1;
+    actLevel_ = 0;
+    effectId_ = -1;
+    effectTexIdx_ = -1;
+    fightTexIdx_ = -1;
+    fightTexCount_ = 0;
+    fightFrame_ = 0;
+    attackTimesLeft_ = 0;
+    fightTexMgr_ = nullptr;
+    popupNumbers_.clear();
+}
+
 bool WarField::load(std::int16_t warId) {
+    cleanup();
+
     warId_ = warId;
     const auto *info = data::gWarFieldData.info(warId);
     auto warMapId = info->warFieldId;
@@ -122,6 +147,7 @@ bool WarField::load(std::int16_t warId) {
 
     subMapId_ = warMapId;
     resetFrame();
+
     return true;
 }
 
@@ -184,9 +210,15 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
             ci.info.mp = ci.info.maxMp;
             ci.info.stamina = data::StaminaMax;
         }
+        if (ci.info.knowledge >= data::KnowledgeBarrier) {
+            knowledge_[ci.side] += ci.info.knowledge;
+        }
         cell.charInfo = &ci;
     }
     frameUpdate();
+    if (info->music >= 0) {
+        gWindow->playMusic(info->music);
+    }
 }
 
 void WarField::render() {
@@ -216,6 +248,68 @@ void WarField::render() {
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting || stage_ == UseItemSelecting;
         bool acting = stage_ == Acting;
         auto *ch = charQueue_.back();
+        if (acting && effectTexIdx_ >= 0) {
+            const auto *skillInfo = actId_ >= 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
+            const auto *tex = (*gEffect[effectId_])[effectTexIdx_];
+            auto mw = mapWidth_;
+            if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
+                auto sx = cursorX_, sy = cursorY_;
+                cellInfo_[sy * mw + sx].effect = tex;
+            } else {
+                switch (skillInfo->attackAreaType) {
+                case 1: {
+                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int i = r; i; --i) {
+                        switch (charQueue_.back()->direction) {
+                        case Map::DirUp:
+                            if (sy >= i) cellInfo_[st - i * mw + sx].effect = tex;
+                            break;
+                        case Map::DirRight:
+                            if (sx + i < mapWidth_) cellInfo_[st + sx + i].effect = tex;
+                            break;
+                        case Map::DirLeft:
+                            if (sx >= i) cellInfo_[st + sx - i].effect = tex;
+                            break;
+                        case Map::DirDown:
+                            if (sy + i < mapHeight_) cellInfo_[st + i * mw + sx].effect = tex;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case 2: {
+                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int i = r; i; --i) {
+                        if (sy >= i) cellInfo_[st - i * mw + sx].effect = tex;
+                        if (sx + i < mapWidth_) cellInfo_[st + sx + i].effect = tex;
+                        if (sx >= i) cellInfo_[st + sx - i].effect = tex;
+                        if (sy + i < mapHeight_) cellInfo_[st + i * mw + sx].effect = tex;
+                    }
+                    break;
+                }
+                case 3: {
+                    auto sx = cursorX_, sy = cursorY_;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int j = -r; j <= r; ++j) {
+                        auto ry = sy + j;
+                        if (ry < 0 || ry >= mapHeight_) { continue; }
+                        for (int i = -r; i <= r; ++i) {
+                            auto rx = sx + i;
+                            if (rx < 0 || rx >= mapWidth_) { continue; }
+                            cellInfo_[ry * mw + rx].effect = tex;
+                        }
+                    }
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
+        }
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -246,6 +340,10 @@ void WarField::render() {
                         renderer_->renderTexture(textureMgr_[2553 + 4 * ci.charInfo->texId + int(ci.charInfo->direction)], dx, ty);
                     }
                 }
+                if (ci.effect) {
+                    renderer_->renderTexture(ci.effect, dx, ty);
+                    ci.effect = nullptr;
+                }
             }
             if (j % 2) {
                 ++cx;
@@ -259,90 +357,15 @@ void WarField::render() {
         }
         if (acting && effectTexIdx_ >= 0) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
-            const auto *skillInfo = actId_ >= 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
-            const auto *tex = (*gEffect[effectId_])[effectTexIdx_];
-            if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
-                int deltax = cursorX_ - cameraX_, deltay = cursorY_ - cameraY_;
-                renderer_->renderTexture(tex,
-                                         ax + (deltax - deltay) * cellDiffX,
-                                         ay + (deltax + deltay) * cellDiffY);
-            } else {
-                switch (skillInfo->attackAreaType) {
-                case 1: {
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        switch (charQueue_.back()->direction) {
-                        case Map::DirUp:
-                            renderer_->renderTexture(tex,
-                                                     ax + (r - i + 1) * cellDiffX,
-                                                     ay - (r - i + 1) * cellDiffY);
-                            break;
-                        case Map::DirRight:
-                            renderer_->renderTexture(tex,
-                                                     ax + i * cellDiffX,
-                                                     ay + i * cellDiffY);
-                            break;
-                        case Map::DirLeft:
-                            renderer_->renderTexture(tex,
-                                                     ax - (r - i + 1) * cellDiffX,
-                                                     ay - (r - i + 1) * cellDiffY);
-                            break;
-                        case Map::DirDown:
-                            renderer_->renderTexture(tex,
-                                                     ax - i * cellDiffX,
-                                                     ay + i * cellDiffY);
-                            break;
-                        default:
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case 2: {
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        renderer_->renderTexture(tex,
-                                                 ax + (r - i + 1) * cellDiffX,
-                                                 ay - (r - i + 1) * cellDiffY);
-                        renderer_->renderTexture(tex,
-                                                 ax + i * cellDiffX,
-                                                 ay + i * cellDiffY);
-                        renderer_->renderTexture(tex,
-                                                 ax - (r - i + 1) * cellDiffX,
-                                                 ay - (r - i + 1) * cellDiffY);
-                        renderer_->renderTexture(tex,
-                                                 ax - i * cellDiffX,
-                                                 ay + i * cellDiffY);
-                    }
-                    break;
-                }
-                case 3: {
-                    int deltax = cursorX_ - cameraX_, deltay = cursorY_ - cameraY_;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int j = -r; j <= r; ++j) {
-                        for (int i = -r; i <= r; ++i) {
-                            renderer_->renderTexture(tex,
-                                                     ax + (deltax + i - deltay - j) * cellDiffX,
-                                                     ay + (deltax + i + deltay + j) * cellDiffY);
-                        }
-                    }
-                    break;
-                }
-                default:
-                    break;
-                }
-            }
-            if (fightFrame_) {
-                auto *ttf = renderer_->ttf();
-                auto fsize = int(8.f * scale_);
-                for (auto &n: popupNumbers_) {
-                    int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
-                    ttf->setColor(n.r, n.g, n.b);
-                    ttf->render(n.str,
-                                ax + (deltax - deltay) * cellDiffX + n.offsetX,
-                                ay + (deltax + deltay) * cellDiffY - cellDiffY * 2 - fsize - fightFrame_ * 2,
-                                false, fsize);
-                }
+            auto *ttf = renderer_->ttf();
+            auto fsize = int(8.f * scale_);
+            for (auto &n: popupNumbers_) {
+                int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
+                ttf->setColor(n.r, n.g, n.b);
+                ttf->render(n.str,
+                            ax + (deltax - deltay) * cellDiffX + n.offsetX,
+                            ay + (deltax + deltay) * cellDiffY - cellDiffY * 2 - fsize - fightFrame_ * 2,
+                            true, fsize);
             }
         }
         renderer_->setTargetTexture(nullptr);
@@ -487,12 +510,21 @@ void WarField::frameUpdate() {
         }
         ++fightFrame_;
         if (++effectTexIdx_ >= int(gEffect[effectId_]->size())) {
-            actId_ = -1; actLevel_ = 0;
-            effectId_ = -1; effectTexIdx_ = -1; fightTexIdx_ = -1; fightTexCount_ = 0; fightFrame_ = 0;
-            fightTexMgr_ = nullptr;
-            popupNumbers_.clear();
-            charQueue_.pop_back();
-            stage_ = Idle;
+            if (--attackTimesLeft_ <= 0) {
+                actIndex_ = -1;
+                actId_ = -1;
+                actLevel_ = 0;
+                effectId_ = -1;
+                effectTexIdx_ = -1;
+                fightTexIdx_ = -1;
+                fightTexCount_ = 0;
+                fightFrame_ = 0;
+                attackTimesLeft_ = 0;
+                fightTexMgr_ = nullptr;
+                endTurn();
+            } else {
+                startActAction();
+            }
         }
         drawDirty_ = true;
         break;
@@ -506,14 +538,19 @@ void WarField::nextAction() {
     if (charQueue_.empty()) {
         charQueue_.reserve(chars_.size());
         for (auto &c: chars_) {
-            charQueue_.emplace_back(&c);
-            c.steps = c.info.speed / 15;
+            if (c.info.hp > 0) {
+                charQueue_.emplace_back(&c);
+                c.steps = c.info.speed / 15;
+            }
         }
         std::stable_sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo *c0, const CharInfo *c1) {
             return c0->info.speed < c1->info.speed;
         });
     }
-    auto *ch = charQueue_.back();
+    CharInfo *ch;
+    while ((ch = charQueue_.back())->info.hp <= 0) {
+        charQueue_.pop_back();
+    }
     cameraX_ = ch->x;
     cameraY_ = ch->y;
     drawDirty_ = true;
@@ -558,7 +595,9 @@ void WarField::playerMenu() {
         }
     }
     n.emplace_back(L"物品"); menuIndices.emplace_back(5);
-    n.emplace_back(L"等待"); menuIndices.emplace_back(6);
+    if (charQueue_.size() > 1) {
+        n.emplace_back(L"等待"); menuIndices.emplace_back(6);
+    }
     n.emplace_back(L"狀態"); menuIndices.emplace_back(7);
     n.emplace_back(L"休息"); menuIndices.emplace_back(8);
     n.emplace_back(L"自動"); menuIndices.emplace_back(9);
@@ -620,7 +659,7 @@ void WarField::playerMenu() {
             iv->setUser(ch->id);
             iv->show(true, [this](std::int16_t itemId) {
                 if (itemId < 0) {
-                    charQueue_.pop_back();
+                    endTurn();
                 }
             });
             return;
@@ -633,17 +672,26 @@ void WarField::playerMenu() {
         case 7: {
             auto *svmenu = new CharListMenu(this, 0, 0, gWindow->width(), gWindow->height());
             svmenu->initWithTeamMembers({L"要查閱誰的狀態"}, {CharListMenu::LEVEL},
-                                      [this](std::int16_t charId) {
-                                          auto *sv = new StatusView(this, 0, 0, 0, 0);
-                                          sv->show(charId);
-                                          sv->makeCenter(gWindow->width(), gWindow->height());
-                                      }, nullptr);
+                                        [this](std::int16_t charId) {
+                                            auto *sv = new StatusView(this, 0, 0, 0, 0);
+                                            bool found = false;
+                                            for (auto &p: chars_) {
+                                                if (p.id == charId && p.side == 0) {
+                                                    sv->show(&p.info, false);
+                                                    found = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (!found) {
+                                                sv->show(charId);
+                                            }
+                                            sv->makeCenter(gWindow->width(), gWindow->height());
+                                        }, nullptr);
             svmenu->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
             return;
         }
         case 8:
-            charQueue_.pop_back();
-            stage_ = Idle;
+            endTurn();
             break;
         case 9:
             autoControl_ = true;
@@ -789,8 +837,10 @@ private:
 bool WarField::tryUseSkill(int index) {
     auto *ch = charQueue_.back();
     if (index < 0) {
+        actIndex_ = -1;
         actId_ = index;
         actLevel_ = 0;
+        attackTimesLeft_ = 1;
         int steps;
         switch (index) {
         case -3:
@@ -815,8 +865,14 @@ bool WarField::tryUseSkill(int index) {
     if (!skill) {
         return false;
     }
+    actIndex_ = index;
     actId_ = ch->info.skillId[index];
+    attackTimesLeft_ = ch->info.doubleAttack ? 2 : 1;
     actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[index] / 100, 0, 9);
+    auto mpUse = skill->reqMp * (actLevel_ / 2 + 1);
+    if (mpUse > ch->info.mp) {
+        actLevel_ = ch->info.mp / skill->reqMp * 2;
+    }
     switch (skill->attackAreaType) {
     case 1: {
         auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
@@ -839,6 +895,7 @@ bool WarField::tryUseSkill(int index) {
 }
 
 void WarField::startActAction() {
+    popupNumbers_.clear();
     if (actId_ < 0) {
         auto *ch = charQueue_.back();
         auto *target = cellInfo_[cursorY_ * mapWidth_ + cursorX_].charInfo;
@@ -865,7 +922,6 @@ void WarField::startActAction() {
             result = popup ? mem::actPoison(&ch->info, &target->info, 3) : 0;
             popup = popup && result != 0;
             r = 96; g = 176; b = 64;
-            /* 232, 32, 44 */
             break;
         }
         if (popup) {
@@ -906,13 +962,114 @@ void WarField::startActAction() {
         fightTexCount_ += fightTexIdx_;
         effectTexIdx_ = -ch->info.frameDelay[skillType];
         fightFrame_ = -ch->info.frameSoundDelay[skillType];
+
+        switch (skillInfo->attackAreaType) {
+        case 1: {
+            auto sx = cameraX_, sy = cameraY_;
+            int r = skillInfo->selRange[actLevel_];
+            for (int i = r; i; --i) {
+                switch (ch->direction) {
+                case Map::DirUp:
+                    if (sy >= i) { makeDamage(ch, sx, sy - i); }
+                    break;
+                case Map::DirRight:
+                    if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy); }
+                    break;
+                case Map::DirLeft:
+                    if (sx >= i) { makeDamage(ch, sx - i, sy); }
+                    break;
+                case Map::DirDown:
+                    if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i); }
+                    break;
+                default:
+                    break;
+                }
+            }
+            break;
+        }
+        case 2: {
+            auto sx = cameraX_, sy = cameraY_;
+            int r = skillInfo->selRange[actLevel_];
+            for (int i = r; i; --i) {
+                if (sy >= i) { makeDamage(ch, sx, sy - i); }
+                if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy); }
+                if (sx >= i) { makeDamage(ch, sx - i, sy); }
+                if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i); }
+            }
+            break;
+        }
+        case 3: {
+            auto sx = cursorX_, sy = cursorY_;
+            int r = skillInfo->area[actLevel_];
+            for (int j = -r; j <= r; ++j) {
+                auto ry = sy + j;
+                if (ry < 0 || ry >= mapHeight_) { continue; }
+                for (int i = -r; i <= r; ++i) {
+                    auto rx = sx + i;
+                    if (rx < 0 || rx >= mapWidth_) { continue; }
+                    makeDamage(ch, rx, ry);
+                }
+            }
+            break;
+        }
+        default:
+            makeDamage(ch, cursorX_, cursorY_);
+            break;
+        }
     } else {
-        stage_ = Idle;
+        endTurn();
     }
 }
 
-void WarField::attack(int x, int y, std::int16_t skillId) {
+void WarField::makeDamage(WarField::CharInfo *ch, int x, int y) {
+    auto *info = cellInfo_[y * mapWidth_ + x].charInfo;
+    if (!info || info->side == ch->side) { return; }
+    std::int16_t dmg, ps;
+    bool dead, levelup;
+    if (mem::actDamage(&ch->info, &info->info, knowledge_[0], knowledge_[1],
+                   std::abs(x - cameraX_) + std::abs(y - cameraY_), actIndex_, actLevel_,
+                   attackTimesLeft_ == 1 ? 3 : 0, dmg, ps, dead, levelup)) {
+        auto txt = fmt::format(L"{:+}", -dmg);
+        auto *ttf = renderer_->ttf();
+        popupNumbers_.emplace_back(PopupNumber {txt, x, y,
+                                                -ttf->stringWidth(txt, int(8.f * scale_)) / 2,
+                                                232, 32, 44});
+    }
+}
 
+void WarField::endTurn() {
+    auto *ch = charQueue_.back();
+    mem::actPoisonDamage(&ch->info);
+    charQueue_.pop_back();
+    int aliveCount[2] = {0, 0};
+    for (auto &ci: chars_) {
+        if (ci.info.hp > 0) {
+            ++aliveCount[ci.side];
+        }
+    }
+    if (aliveCount[1] == 0) {
+        endWar(true);
+        return;
+    }
+    if (aliveCount[0] == 0) {
+        endWar(false);
+        return;
+    }
+    stage_ = Idle;
+}
+
+void WarField::endWar(bool won) {
+    for (auto &ci: chars_) {
+        auto *charInfo = mem::gSaveData.charInfo[ci.id];
+        if (!charInfo) { continue; }
+        charInfo->hp = std::max<std::int16_t>(1, ci.info.hp);
+        charInfo->mp = ci.info.mp;
+        charInfo->poisoned = ci.info.poisoned;
+        charInfo->hurt = ci.info.hurt;
+        charInfo->stamina = ci.info.stamina;
+    }
+    cleanup();
+    gWindow->endWar(won);
 }
 
 }

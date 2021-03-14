@@ -324,6 +324,21 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
     }
 }
 
+void Window::endWar(bool won) {
+    map_ = subMap_;
+    subMap_->continueEvents(won);
+    auto *subMapInfo = mem::gSaveData.subMapInfo[subMap_->subMapId()];
+    if (subMapInfo) {
+        auto music = subMapInfo->enterMusic;
+        if (music < 0) {
+            music = subMapInfo->exitMusic;
+        }
+        if (music >= 0) {
+            gWindow->playMusic(music);
+        }
+    }
+}
+
 void Window::useQuestItem(std::int16_t itemId) {
     auto *mapev = dynamic_cast<MapWithEvent*>(map_);
     if (mapev) mapev->onUseItem(itemId);

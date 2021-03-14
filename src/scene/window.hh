@@ -70,6 +70,7 @@ public:
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
     void enterWar(std::int16_t warId, bool getExpOnLose);
+    void endWar(bool won);
     void useQuestItem(std::int16_t itemId);
     void forceEvent(std::int16_t eventId);
 

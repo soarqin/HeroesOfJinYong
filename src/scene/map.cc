@@ -49,8 +49,10 @@ void Map::resetFrame() {
 
 void Map::render() {
     ++frames_;
-    if (gWindow->currTime() >= nextFrameTime_) {
+    auto now = gWindow->currTime();
+    if (now >= nextFrameTime_) {
         nextFrameTime_ += std::chrono::microseconds(int(100000.f / core::config.animationSpeed()));
+        if (nextFrameTime_ < now) { nextFrameTime_ = now; }
         frameUpdate();
     }
 }

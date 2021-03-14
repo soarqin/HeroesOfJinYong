@@ -21,6 +21,7 @@
 
 #include "character.hh"
 #include "iteminfo.hh"
+#include "skillinfo.hh"
 
 #include <string>
 #include <tuple>
@@ -45,8 +46,12 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);
 std::int16_t getLeaveEventId(std::int16_t id);
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type);
-std::int16_t actPoison(CharacterData *c1, CharacterData *c2, int16_t stamina);
-std::int16_t actMedic(CharacterData *c1, CharacterData *c2, int16_t stamina);
-std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, int16_t stamina);
+bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
+               int distance, int index, int level, std::int16_t stamina,
+               std::int16_t &damage, std::int16_t &poisoned, bool &dead, bool &levelup);
+std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
+std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
+std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
+std::int16_t actPoisonDamage(CharacterData *c);
 
 }

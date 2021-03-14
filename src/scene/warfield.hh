@@ -51,7 +51,7 @@ class WarField: public Map {
         std::int16_t steps;
     };
     struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr;
+        const Texture *earth = nullptr, *building = nullptr, *effect = nullptr;
         bool isWater = false;
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
@@ -75,6 +75,7 @@ public:
     WarField(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~WarField() override;
 
+    void cleanup();
     bool load(std::int16_t warId);
     void setGetExpOnLose(bool b) { getExpOnLose_ = b; }
     bool getDefaultChars(std::set<std::int16_t> &chars) const;
@@ -93,7 +94,9 @@ protected:
     void unmaskArea();
     bool tryUseSkill(int index);
     void startActAction();
-    void attack(int x, int y, std::int16_t skillId);
+    void makeDamage(CharInfo *ch, int x, int y);
+    void endTurn();
+    void endWar(bool won);
 
 private:
     int cameraX_ = 0, cameraY_ = 0;
@@ -105,13 +108,15 @@ private:
     std::vector<CharInfo> chars_;
     std::vector<CharInfo*> charQueue_;
     Stage stage_ = Idle;
+    std::uint16_t knowledge_[2] = {0, 0};
     int cursorX_ = 0, cursorY_ = 0;
     bool autoControl_ = false;
     std::map<std::pair<int, int>, SelectableCell> selCells_;
     std::vector<std::pair<int, int>> movingPath_;
     /* -3poison -2depoison -1medic 0~skillId */
-    std::int16_t actId_ = -1, actLevel_ = 0;
+    std::int16_t actIndex_ = -1, actId_ = -1, actLevel_ = 0;
     int effectId_ = -1, effectTexIdx_ = -1, fightTexIdx_ = -1, fightTexCount_ = 0, fightFrame_ = 0;
+    int attackTimesLeft_ = 0;
     const TextureMgr *fightTexMgr_ = nullptr;
     std::vector<PopupNumber> popupNumbers_;
 
