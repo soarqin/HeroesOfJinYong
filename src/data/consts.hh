@@ -43,6 +43,7 @@ enum {
     MaxMpMax = 999,
     StaminaMax = 100,
     PoisonedMax = 99,
+    HurtMax = 99,
     AttackMax = 100,
     DefenceMax = 100,
     SpeedMax = 100,

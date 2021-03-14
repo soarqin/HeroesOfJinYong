@@ -52,6 +52,7 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
+std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId, std::int16_t stamina, bool &dead);
 std::int16_t actPoisonDamage(CharacterData *c);
 
 }

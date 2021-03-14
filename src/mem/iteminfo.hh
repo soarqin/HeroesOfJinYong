@@ -28,7 +28,7 @@ struct ItemData {
     std::int16_t id;
     char name[20], name2[20];
     char desc[30];
-    std::int16_t skillId, hiddenWeaponEffectId;
+    std::int16_t skillId, throwingEffectId;
     std::int16_t user;      /* current equipped user */
     std::int16_t equipType; /* 0Weapon 1Armor */
     std::int16_t showDesc;
@@ -41,7 +41,7 @@ struct ItemData {
     std::int16_t reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
     std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqThrowing, reqPotential;
     std::int16_t reqExp, reqExpForMakeItem, reqMaterial;
-    std::int16_t madeItem[data::MakeItemCount], madeItemCount[data::MakeItemCount];
+    std::int16_t makeItem[data::MakeItemCount], makeItemCount[data::MakeItemCount];
 };
 
 using ItemInfo = SerializableStructVec<ItemData>;

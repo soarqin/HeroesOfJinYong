@@ -29,7 +29,9 @@ namespace hojy::data {
 struct WarFieldInfo {
     std::int16_t id;
     char name[10];
-    std::int16_t warFieldId, exp, music;
+    std::int16_t warFieldId;
+    std::uint16_t exp;
+    std::int16_t music;
     std::int16_t defaultMembers[TeamMemberCount], forceMembers[TeamMemberCount], memberX[TeamMemberCount], memberY[TeamMemberCount];
     std::int16_t enemy[WarFieldEnemyCount], enemyX[WarFieldEnemyCount], enemyY[WarFieldEnemyCount];
 };

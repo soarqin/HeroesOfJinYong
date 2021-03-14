@@ -36,9 +36,9 @@ class WarField: public Map {
         PlayerMenu,
         MoveSelecting,
         AttackSelecting,
-        UseItemSelecting,
         Moving,
         Acting,
+        Finished,
     };
     struct CharInfo {
         std::uint8_t side; /* 0-self 1-enemy */
@@ -97,7 +97,8 @@ protected:
     void startActAction();
     void makeDamage(CharInfo *ch, int x, int y);
     void endTurn();
-    void endWar(bool won);
+    void endWar();
+    void popupFinishMessages(const std::vector<std::wstring> &messages, int index);
 
 private:
     int cameraX_ = 0, cameraY_ = 0;
@@ -113,6 +114,7 @@ private:
     std::uint16_t knowledge_[2] = {0, 0};
     int cursorX_ = 0, cursorY_ = 0;
     bool autoControl_ = false;
+    bool won_ = false;
     std::map<std::pair<int, int>, SelectableCell> selCells_;
     std::vector<std::pair<int, int>> movingPath_;
     /* -3poison -2depoison -1medic 0~skillId */

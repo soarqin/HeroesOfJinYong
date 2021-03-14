@@ -30,6 +30,7 @@
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
+#include "mem/bag.hh"
 #include "util/conv.hh"
 #include <fmt/format.h>
 #include <map>
@@ -245,7 +246,7 @@ void WarField::render() {
         tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
         ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
-        bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting || stage_ == UseItemSelecting;
+        bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
         bool acting = stage_ == Acting;
         auto *ch = charQueue_.back();
         if (acting && effectTexIdx_ >= 0) {
@@ -383,7 +384,7 @@ void WarField::render() {
 }
 
 void WarField::handleKeyInput(Node::Key key) {
-    if (stage_ != MoveSelecting && stage_ != AttackSelecting && stage_ != UseItemSelecting) {
+    if (stage_ != MoveSelecting && stage_ != AttackSelecting) {
         if (key == KeyCancel) {
             autoControl_ = false;
         }
@@ -666,6 +667,15 @@ void WarField::playerMenu() {
             iv->show(true, [this](std::int16_t itemId) {
                 if (itemId < 0) {
                     endTurn();
+                } else {
+                    auto *ch = charQueue_.back();
+                    actIndex_ = itemId;
+                    actId_ = -4;
+                    actLevel_ = 0;
+                    attackTimesLeft_ = 1;
+                    maskSelectableArea(ch->info.throwing / 15, false);
+                    stage_ = AttackSelecting;
+                    drawDirty_ = true;
                 }
             });
             iv->setCloseHandler([this]() { playerMenu(); });
@@ -919,13 +929,24 @@ bool WarField::tryUseSkill(int index) {
 void WarField::startActAction() {
     popupNumbers_.clear();
     if (actId_ < 0) {
-        auto *ch = charQueue_.back();
         auto *target = cellInfo_[cursorY_ * mapWidth_ + cursorX_].charInfo;
+        if (!target) {
+            playerMenu();
+            return;
+        }
+        auto *ch = charQueue_.back();
         std::int16_t result;
         std::uint8_t r, g, b;
         auto *ttf = renderer_->ttf();
         bool popup;
         switch (actId_) {
+        case -3:
+            effectId_ = data::PoisonEffectID;
+            popup = target && ch->side != target->side;
+            result = popup ? mem::actPoison(&ch->info, &target->info, 3) : 0;
+            popup = popup && result != 0;
+            r = 96; g = 176; b = 64;
+            break;
         case -2:
             effectId_ = data::DepoisonEffectID;
             popup = target && ch->side == target->side;
@@ -938,15 +959,19 @@ void WarField::startActAction() {
             result = popup ? mem::actMedic(&ch->info, &target->info, 4) : 0;
             r = 236; g = 200; b = 40;
             break;
-        default:
-            effectId_ = data::PoisonEffectID;
+        default: {
+            const auto *itemInfo = mem::gSaveData.itemInfo[actIndex_];
+            effectId_ = itemInfo ? itemInfo->throwingEffectId : data::PoisonEffectID;
             popup = target && ch->side != target->side;
-            result = popup ? mem::actPoison(&ch->info, &target->info, 3) : 0;
+            bool dead;
+            result = popup ? mem::actThrow(&ch->info, &target->info, actIndex_, 0, dead) : 0;
             popup = popup && result != 0;
-            r = 96; g = 176; b = 64;
+            r = 232; g = 32; b = 44;
             break;
         }
+        }
         if (popup) {
+            if (result != 0) { ch->exp += std::abs(result); }
             auto txt = fmt::format(L"{:+}", result);
             popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_,
                                                    -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
@@ -1048,9 +1073,15 @@ void WarField::makeDamage(WarField::CharInfo *ch, int x, int y) {
     if (!info || info->side == ch->side) { return; }
     std::int16_t dmg, ps;
     bool dead, levelup;
+    bool wasDead = info->info.hp <= 0;
     if (mem::actDamage(&ch->info, &info->info, knowledge_[0], knowledge_[1],
                    std::abs(x - cameraX_) + std::abs(y - cameraY_), actIndex_, actLevel_,
                    attackTimesLeft_ == 1 ? 3 : 0, dmg, ps, dead, levelup)) {
+        if (!wasDead && dead) {
+            ch->exp += dmg;
+        } else {
+            ch->exp += dmg / 2;
+        }
         auto txt = fmt::format(L"{:+}", -dmg);
         auto *ttf = renderer_->ttf();
         popupNumbers_.emplace_back(PopupNumber {txt, x, y,
@@ -1074,18 +1105,23 @@ void WarField::endTurn() {
         }
     }
     if (aliveCount[1] == 0) {
-        endWar(true);
+        won_ = true;
+        endWar();
         return;
     }
     if (aliveCount[0] == 0) {
-        endWar(false);
+        won_ = false;
+        endWar();
         return;
     }
     stage_ = Idle;
 }
 
-void WarField::endWar(bool won) {
+void WarField::endWar() {
+    removeAllChildren();
+    std::vector<CharInfo*> alives;
     for (auto &ci: chars_) {
+        if (ci.side != 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[ci.id];
         if (!charInfo) { continue; }
         charInfo->hp = std::max<std::int16_t>(1, ci.info.hp);
@@ -1093,9 +1129,114 @@ void WarField::endWar(bool won) {
         charInfo->poisoned = ci.info.poisoned;
         charInfo->hurt = ci.info.hurt;
         charInfo->stamina = ci.info.stamina;
+        if (getExpOnLose_ || charInfo->hp > 0) { alives.push_back(&ci); }
     }
-    cleanup();
-    gWindow->endWar(won);
+    const auto *info = data::gWarFieldData.info(warId_);
+    auto wexp = info != nullptr ? info->exp : 0;
+    std::vector<std::wstring> messages = { won_ ? L"戰鬥勝利" : L"戰鬥失敗" };
+    for (auto *ch: alives) {
+        ch->exp += wexp / int(alives.size());
+        auto *charInfo = mem::gSaveData.charInfo[ch->id];
+        if (!charInfo) { continue; }
+        auto name = util::big5Conv.toUnicode(charInfo->name);
+        messages.emplace_back(fmt::format(L"{} 獲得經驗點數 {}", name, ch->exp));
+        bool canLearn = false, makingItem = false;
+        std::int16_t skillId = 0;
+        int skillIndex = -1, skillLevel = 0;
+        if (charInfo->learningItem >= 0) {
+            const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+            if (itemInfo) {
+                makingItem = itemInfo->makeItem[0] >= 0;
+                canLearn = true;
+                skillId = itemInfo->skillId;
+                if (skillId >= 0) {
+                    for (int i = 0; i < data::LearnSkillCount; ++i) {
+                        if (charInfo->skillId[i] < 0) {
+                            skillIndex = i;
+                            continue;
+                        }
+                        if (charInfo->skillId[i] == skillId) {
+                            skillIndex = i;
+                            skillLevel = std::clamp<std::int16_t>(charInfo->skillLevel[i] / 100, 0, 9);
+                            if (skillLevel >= 9) {
+                                canLearn = false;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        int exp, exp2;
+        if (charInfo->level >= data::LevelMax) {
+            exp = 0;
+            exp2 = ch->exp;
+        } else {
+            if (canLearn) {
+                exp = exp2 = ch->exp / 2;
+            } else {
+                exp = ch->exp;
+                exp2 = 0;
+            }
+        }
+        if (exp) {
+            charInfo->exp = std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax);
+            std::int16_t expReq;
+            bool levelup = false;
+            while ((expReq = mem::getExpForLevelUp(charInfo->level)) > 0 && charInfo->exp >= expReq) {
+                ++charInfo->level;
+                levelup = true;
+                /* TODO: add prop on levelup */
+            }
+            messages.emplace_back(name + L" 升級了");
+        }
+        if (exp2 && canLearn) {
+            charInfo->expForItem = std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax);
+            auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
+            if (expReq > 0 && charInfo->expForItem >= expReq) {
+                charInfo->expForItem -= expReq;
+                if (charInfo->skillId[skillIndex] < 0) {
+                    charInfo->skillId[skillIndex] = skillId;
+                    charInfo->skillLevel[skillIndex] = 0;
+                } else {
+                    charInfo->skillLevel[skillIndex] = (charInfo->skillLevel[skillIndex] / 100 + 1) * 100;
+                }
+                const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
+                if (skillInfo) {
+                    messages.emplace_back(name + L" 修練 " + util::big5Conv.toUnicode(skillInfo->name) + L" 成功");
+                }
+            }
+        }
+        if (makingItem) {
+            const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+            charInfo->expForMakeItem += ch->exp;
+            bool itemMade = false;
+            for (int i = 0; i < data::MakeItemCount; ++i) {
+                if (itemInfo->makeItem[i] >= 0 && charInfo->expForMakeItem >= itemInfo->reqExpForMakeItem
+                    && mem::gBag[itemInfo->reqMaterial] > 0) {
+                    mem::gBag.remove(itemInfo->reqMaterial, 1);
+                    mem::gBag.add(itemInfo->makeItem[i], itemInfo->makeItemCount[i]);
+                    const auto *targetItemInfo = mem::gSaveData.itemInfo[itemInfo->makeItem[i]];
+                    messages.emplace_back(name + L" 製造出 " + util::big5Conv.toUnicode(targetItemInfo->name));
+                }
+            }
+        }
+    }
+    stage_ = Finished;
+    popupFinishMessages(messages, 0);
+}
+
+void WarField::popupFinishMessages(const std::vector<std::wstring> &messages, int index) {
+    auto *msgBox = new MessageBox(this, 0, 0, width_, height_ * 4 / 5);
+    msgBox->popup({messages[index]}, MessageBox::PressToCloseThis);
+    msgBox->setCloseHandler([this, messages, index]() {
+        if (index + 1 < messages.size()) {
+            popupFinishMessages(messages, index + 1);
+        } else {
+            cleanup();
+            gWindow->endWar(won_);
+        }
+    });
 }
 
 }

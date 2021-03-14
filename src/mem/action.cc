@@ -65,6 +65,9 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
 }
 
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential) {
+    if (level >= 9) {
+        return 0;
+    }
     return mem::gSaveData.itemInfo[itemId]->reqExp * (level <= 0 ? 1 : level) * std::clamp<std::int16_t>(7 - potential / 15, 1, 5);
 }
 
@@ -336,7 +339,19 @@ std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamin
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina) {
     if (!c1 || !c2) { return 0; }
     auto oldHp = c2->hp;
-    c2->hp = std::clamp<std::int16_t>(c2->hp + c1->medic * 17 / 20, 0, c2->maxHp);
+    int heal;
+    if (c2->hurt > c1->medic + 20) { return 0; }
+    if (c2->hurt <= 25) {
+        heal = c1->medic * 4 / 5;
+    } else if (c2->hurt <= 50) {
+        heal = c1->medic * 3 / 4;
+    } else if (c2->hurt <= 75) {
+        heal = c1->medic * 2 / 3;
+    } else {
+        heal = c1->medic / 2;
+    }
+    c2->hp = std::clamp<std::int16_t>(c2->hp + heal + util::gRandom(6), 0, c2->maxHp);
+    c2->hurt = std::clamp<std::int16_t>(c2->hurt - c1->medic, 0, data::HurtMax);
     if (stamina) {
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
@@ -351,6 +366,37 @@ std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stam
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
     return oldPs - c2->poisoned;
+}
+
+std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId, std::int16_t stamina, bool &dead) {
+    if (!c1 || !c2) { return 0; }
+    const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+    if (!itemInfo) { return 0; }
+
+    int div;
+    if (c2->hurt == 0) {
+        div = 4;
+    } else if (c2->hurt <= 33) {
+        div = 3;
+    } else if (c2->hurt <= 66) {
+        div = 2;
+    } else {
+        div = 1;
+    }
+    auto oldHp = c2->hp;
+    c2->hp = std::clamp<std::int16_t>(c2->hp - std::max<std::int16_t>(1, (-itemInfo->addHp / div + util::gRandom(6) + c1->throwing * 2) / 3), 0, c2->maxHp);
+    if (c2->antipoison < 100) {
+        auto ps = itemInfo->addPoisoned <= 0 ? (itemInfo->addPoisoned / 2 + util::gRandom(6) - util::gRandom(6))
+            : ((itemInfo->addPoisoned - c2->throwing) / 2 - c2->antipoison) / 2;
+        if (ps > 0) {
+            c2->poisoned = std::clamp<std::int16_t>(c2->poisoned - ps, 0, data::PoisonedMax);
+        }
+    }
+    if (stamina) {
+        c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
+    }
+    dead = c2->hp <= 0;
+    return c2->hp - oldHp;
 }
 
 std::int16_t actPoisonDamage(CharacterData *c) {
