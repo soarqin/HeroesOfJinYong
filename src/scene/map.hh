@@ -64,6 +64,7 @@ protected:
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     bool drawDirty_ = false;
     std::chrono::steady_clock::time_point nextFrameTime_;
+    std::chrono::steady_clock::duration eachFrameTime_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
     std::int32_t texWidth_ = 0, texHeight_ = 0;
     std::int32_t offsetX_ = 0, offsetY_ = 0;

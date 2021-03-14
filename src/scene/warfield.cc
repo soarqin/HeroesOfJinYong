@@ -250,7 +250,8 @@ void WarField::render() {
         auto *ch = charQueue_.back();
         if (acting && effectTexIdx_ >= 0) {
             const auto *skillInfo = actId_ >= 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
-            const auto *tex = (*gEffect[effectId_])[effectTexIdx_];
+            const auto &effTexMgr = (*gEffect[effectId_]);
+            const auto *tex = effTexMgr[effectTexIdx_ < effTexMgr.size() ? effectTexIdx_ : effTexMgr.size() - 1];
             auto mw = mapWidth_;
             if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
                 auto sx = cursorX_, sy = cursorY_;
@@ -355,7 +356,7 @@ void WarField::render() {
                 ty += cellDiffY;
             }
         }
-        if (acting && effectTexIdx_ >= 0) {
+        if (acting && effectTexIdx_ >= 3) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
             auto *ttf = renderer_->ttf();
             auto fsize = int(8.f * scale_);
@@ -509,7 +510,7 @@ void WarField::frameUpdate() {
             gWindow->playEffectSound(effectId_);
         }
         ++fightFrame_;
-        if (++effectTexIdx_ >= int(gEffect[effectId_]->size())) {
+        if (++effectTexIdx_ >= int(gEffect[effectId_]->size()) + 3) {
             if (--attackTimesLeft_ <= 0) {
                 actIndex_ = -1;
                 actId_ = -1;
@@ -1045,6 +1046,10 @@ void WarField::endTurn() {
     for (auto &ci: chars_) {
         if (ci.info.hp > 0) {
             ++aliveCount[ci.side];
+        } else if (ci.x > 0) {
+            cellInfo_[ci.x + ci.y * mapWidth_].charInfo = nullptr;
+            ci.x = ci.y = -1;
+            drawDirty_ = true;
         }
     }
     if (aliveCount[1] == 0) {
