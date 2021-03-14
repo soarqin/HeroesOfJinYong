@@ -98,7 +98,7 @@ protected:
     void makeDamage(CharInfo *ch, int x, int y);
     void endTurn();
     void endWar();
-    void popupFinishMessages(const std::vector<std::wstring> &messages, int index);
+    void popupFinishMessages(std::vector<std::wstring> messages, int index);
 
 private:
     int cameraX_ = 0, cameraY_ = 0;

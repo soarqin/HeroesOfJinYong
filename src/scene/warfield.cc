@@ -30,7 +30,6 @@
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
-#include "mem/bag.hh"
 #include "util/conv.hh"
 #include <fmt/format.h>
 #include <map>
@@ -1223,13 +1222,13 @@ void WarField::endWar() {
         }
     }
     stage_ = Finished;
-    popupFinishMessages(messages, 0);
+    popupFinishMessages(std::move(messages), 0);
 }
 
-void WarField::popupFinishMessages(const std::vector<std::wstring> &messages, int index) {
+void WarField::popupFinishMessages(std::vector<std::wstring> messages, int index) {
     auto *msgBox = new MessageBox(this, 0, 0, width_, height_ * 4 / 5);
     msgBox->popup({messages[index]}, MessageBox::PressToCloseThis);
-    msgBox->setCloseHandler([this, messages, index]() {
+    msgBox->setCloseHandler([this, messages = std::move(messages), index]() {
         if (index + 1 < messages.size()) {
             popupFinishMessages(messages, index + 1);
         } else {
