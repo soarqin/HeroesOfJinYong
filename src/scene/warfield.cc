@@ -135,7 +135,7 @@ bool WarField::load(std::int16_t warId) {
         for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
             auto &ci = cellInfo_[pos];
             auto texId = layers[0][pos] >> 1;
-            ci.isWater = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
+            ci.blocked = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
             ci.earth = textureMgr_[texId];
             texId = layers[1][pos] >> 1;
             if (texId) {
@@ -333,17 +333,22 @@ void WarField::render() {
                 }
                 if (ci.building) {
                     renderer_->renderTexture(ci.building, dx, ty);
-                }
-                if (ci.charInfo) {
-                    if (acting && ci.charInfo == ch) {
-                        renderer_->renderTexture((*fightTexMgr_)[fightTexIdx_], dx, ty);
-                    } else {
-                        renderer_->renderTexture(textureMgr_[2553 + 4 * ci.charInfo->texId + int(ci.charInfo->direction)], dx, ty);
+                    if (ci.effect) {
+                        ci.effect = nullptr;
                     }
-                }
-                if (ci.effect) {
-                    renderer_->renderTexture(ci.effect, dx, ty);
-                    ci.effect = nullptr;
+                } else {
+                    if (ci.charInfo) {
+                        if (acting && ci.charInfo == ch) {
+                            renderer_->renderTexture((*fightTexMgr_)[fightTexIdx_], dx, ty);
+                        } else {
+                            renderer_->renderTexture(textureMgr_[2553 + 4 * ci.charInfo->texId
+                                + int(ci.charInfo->direction)], dx, ty);
+                        }
+                    }
+                    if (ci.effect) {
+                        renderer_->renderTexture(ci.effect, dx, ty);
+                        ci.effect = nullptr;
+                    }
                 }
             }
             if (j % 2) {
@@ -359,7 +364,7 @@ void WarField::render() {
         if (acting && effectTexIdx_ >= 3) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
             auto *ttf = renderer_->ttf();
-            auto fsize = int(8.f * scale_);
+            auto fsize = std::lround(8.f * scale_);
             for (auto &n: popupNumbers_) {
                 int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
                 ttf->setColor(n.r, n.g, n.b);
@@ -447,11 +452,9 @@ void WarField::handleKeyInput(Node::Key key) {
         return;
     }
     case KeyCancel:
-        if (stage_ != AttackSelecting) {
-            unmaskArea();
-            drawDirty_ = true;
-            playerMenu();
-        }
+        unmaskArea();
+        drawDirty_ = true;
+        playerMenu();
         return;
     default:
         return;
@@ -558,6 +561,7 @@ void WarField::nextAction() {
     if (ch->side == 1 || autoControl_) {
         autoAction();
     } else {
+        lastMenuIndex_ = 0;
         playerMenu();
     }
 }
@@ -602,13 +606,14 @@ void WarField::playerMenu() {
     n.emplace_back(L"狀態"); menuIndices.emplace_back(7);
     n.emplace_back(L"休息"); menuIndices.emplace_back(8);
     n.emplace_back(L"自動"); menuIndices.emplace_back(9);
-    menu->popup(n);
+    menu->popup(n, lastMenuIndex_);
     menu->setHandler([this, menu, menuIndices, ch]() {
         auto index = menu->currIndex();
         if (index < 0 || index >= menuIndices.size()) { return; }
+        lastMenuIndex_ = index;
         switch (menuIndices[index]) {
         case 0:
-            maskSelectableArea(ch->steps);
+            maskSelectableArea(ch->steps, false);
             stage_ = MoveSelecting;
             drawDirty_ = true;
             break;
@@ -663,6 +668,8 @@ void WarField::playerMenu() {
                     endTurn();
                 }
             });
+            iv->setCloseHandler([this]() { playerMenu(); });
+            delete menu;
             return;
         }
         case 6:
@@ -707,14 +714,25 @@ void WarField::playerMenu() {
     });
 }
 
-void WarField::maskSelectableArea(int steps, bool zoecheck) {
+void WarField::maskSelectableArea(int steps, bool ignoreblock, bool zoecheck) {
     auto *ch = charQueue_.back();
+    getSelectableArea(ch, selCells_, steps, ignoreblock, zoecheck);
+    int w = mapWidth_;
+    for (auto &c: selCells_) {
+        auto &ci = cellInfo_[c.first.first + c.first.second * w];
+        ci.insideMovingArea = true;
+    }
+    cursorX_ = ch->x;
+    cursorY_ = ch->y;
+}
+
+void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, bool ignoreblock, bool zoecheck) {
     auto myside = ch->side;
     int w = mapWidth_, h = mapHeight_;
     std::vector<SelectableCell*> sortedSelectable;
 
-    selCells_.clear();
-    auto &start = selCells_[std::make_pair(ch->x, ch->y)];
+    selCells.clear();
+    auto &start = selCells[std::make_pair(ch->x, ch->y)];
     start.x = ch->x;
     start.y = ch->y;
     start.moves = 0;
@@ -766,14 +784,16 @@ void WarField::maskSelectableArea(int steps, bool zoecheck) {
         for (int i = 0; i < ncnt; ++i) {
             int tx = nx[i], ty = ny[i];
             auto &ci = cellInfo_[ty * w + tx];
-            if (ci.isWater || ci.building || (ci.charInfo && ci.charInfo->side == myside)) { continue; }
+            if (!ignoreblock && (ci.blocked || ci.building || (ci.charInfo && ci.charInfo->side == myside))) {
+                continue;
+            }
             auto currMove = mc->moves + 1;
-            auto ite = selCells_.find(std::make_pair(tx, ty));
-            if (ite == selCells_.end()) {
+            auto ite = selCells.find(std::make_pair(tx, ty));
+            if (ite == selCells.end()) {
                 if (currMove > steps) {
                     continue;
                 }
-                auto &mcell = selCells_[std::make_pair(tx, ty)];
+                auto &mcell = selCells[std::make_pair(tx, ty)];
                 mcell.x = tx;
                 mcell.y = ty;
                 mcell.moves = currMove;
@@ -783,11 +803,6 @@ void WarField::maskSelectableArea(int steps, bool zoecheck) {
             }
         }
     }
-    for (auto c: selCells_) {
-        cellInfo_[c.first.first + c.first.second * w].insideMovingArea = true;
-    }
-    cursorX_ = ch->x;
-    cursorY_ = ch->y;
 }
 
 void WarField::unmaskArea() {
@@ -823,9 +838,12 @@ public:
             directionHandler_(Map::DirDown);
             delete this;
             break;
-        case KeyCancel:
+        case KeyCancel: {
+            auto fn = std::move(closeHandler_);
             delete this;
+            if (fn) { fn(); }
             break;
+        }
         default:
             break;
         }
@@ -857,7 +875,7 @@ bool WarField::tryUseSkill(int index) {
             steps = 1;
             break;
         }
-        maskSelectableArea(steps);
+        maskSelectableArea(steps, false);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -878,6 +896,9 @@ bool WarField::tryUseSkill(int index) {
     case 1: {
         auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
         msgBox->popup({L"選擇攻擊方向"});
+        msgBox->setCloseHandler([this]() {
+            playerMenu();
+        });
         msgBox->setDirectionHandler([this, ch](Map::Direction direction) {
             ch->direction = direction;
             startActAction();
@@ -888,7 +909,7 @@ bool WarField::tryUseSkill(int index) {
         startActAction();
         return true;
     default:
-        maskSelectableArea(skill->selRange[actLevel_]);
+        maskSelectableArea(skill->selRange[actLevel_], false);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -928,7 +949,7 @@ void WarField::startActAction() {
         if (popup) {
             auto txt = fmt::format(L"{:+}", result);
             popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_,
-                                                   -ttf->stringWidth(txt, int(8.f * scale_)) / 2,
+                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
                                                    r, g, b});
         }
         stage_ = Acting;
@@ -1033,7 +1054,7 @@ void WarField::makeDamage(WarField::CharInfo *ch, int x, int y) {
         auto txt = fmt::format(L"{:+}", -dmg);
         auto *ttf = renderer_->ttf();
         popupNumbers_.emplace_back(PopupNumber {txt, x, y,
-                                                -ttf->stringWidth(txt, int(8.f * scale_)) / 2,
+                                                -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
                                                 232, 32, 44});
     }
 }

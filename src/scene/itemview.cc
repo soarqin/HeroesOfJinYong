@@ -71,99 +71,111 @@ void ItemView::handleKeyInput(Node::Key key) {
                     std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
                     for (auto &c: changes) {
                         if (c.second) {
-                            messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
+                            messages.emplace_back(fmt::format(L"{} 提昇 {}", mem::propToName(c.first), c.second));
                         } else {
                             messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
                         }
-                        auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                        msgBox->popup(messages, MessageBox::PressToCloseParent);
                     }
-                    if (resultFunc_) { resultFunc_(-1); }
+                    auto *msgBox = new MessageBox(parent_, 0, 0, gWindow->width(), gWindow->height());
+                    msgBox->popup(messages, MessageBox::PressToCloseThis);
+                    auto fn = std::move(resultFunc_);
+                    delete this;
+                    msgBox->setCloseHandler([fn] {
+                        if (fn) { fn(-1); }
+                    });
                 } else {
                     delete this;
                 }
-                break;
+                return;
             }
             case 4: {
-                if (resultFunc_) { resultFunc_(id); }
+                auto fn = std::move(resultFunc_);
                 delete this;
-                break;
+                if (fn) { fn(id); }
+                return;
             }
             default:
                 break;
             }
-        } else {
-            auto type = itemInfo->itemType;
-            switch (type) {
-            case 1:
-            case 2: {
-                auto *clm = new CharListMenu(this, 0, 0, width_, height_);
-                clm->initWithTeamMembers({type == 1 ? L"誰要配備 " : L"誰要修練 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
-                                         [this, itemInfo, id, type, clm](std::int16_t charId) {
-                                             if (type == 2 && itemInfo->user >= 0) {
-                                                 auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
-                                                 msgBox->setHandler([this, id, charId, clm]() {
-                                                     if (!mem::equipItem(charId, id)) {
-                                                         auto *msgBox = new MessageBox(parent_, 0, 0, gWindow->width(), gWindow->height());
-                                                         msgBox->popup({L"此人不適合修練此物品"}, MessageBox::PressToCloseThis);
-                                                     } else {
-                                                         update();
-                                                     }
-                                                     delete clm;
-                                                 }, [clm]() {
-                                                     delete clm;
-                                                 });
-                                                 msgBox->popup({L"此物品現在已經有人修練了", L"是否要換人修練？"}, MessageBox::YesNo);
-                                             } else {
+            return;
+        }
+        auto type = itemInfo->itemType;
+        switch (type) {
+        case 1:
+        case 2: {
+            auto *clm = new CharListMenu(this, 0, 0, width_, height_);
+            clm->initWithTeamMembers({type == 1 ? L"誰要配備 " : L"誰要修練 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+                                     [this, itemInfo, id, type, clm](std::int16_t charId) {
+                                         if (type == 2 && itemInfo->user >= 0) {
+                                             auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
+                                             msgBox->setYesNoHandler([this, id, charId, clm]() {
                                                  if (!mem::equipItem(charId, id)) {
-                                                     auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                                                     msgBox->popup({L"此人不適合配備此物品"}, MessageBox::PressToCloseThis);
+                                                     auto *msgBox = new MessageBox(parent_,
+                                                                                   0,
+                                                                                   0,
+                                                                                   gWindow->width(),
+                                                                                   gWindow->height());
+                                                     msgBox->popup({L"此人不適合修練此物品"}, MessageBox::PressToCloseThis);
                                                  } else {
                                                      update();
                                                  }
                                                  delete clm;
-                                             }
-                                         });
-                clm->makeCenter(width_, height_, x_, y_);
-                return;
-            }
-            case 3: {
-                int x = width_ / 3, y = height_ * 2 / 7;
-                auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
-                clm->initWithTeamMembers({L"誰要使用 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
-                                         [this, &ipair, itemInfo, id, type, clm](std::int16_t charId) {
-                                             std::map<mem::PropType, std::int16_t> changes;
-                                             if (ipair.second && mem::useItem(charId, id, changes)) {
-                                                 std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
-                                                 for (auto &c: changes) {
-                                                     if (c.second) {
-                                                         messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
-                                                     } else {
-                                                         messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
-                                                     }
-                                                     auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                                                     msgBox->popup(messages, MessageBox::PressToCloseParent);
-                                                 }
+                                             }, [clm]() {
+                                                 delete clm;
+                                             });
+                                             msgBox->popup({L"此物品現在已經有人修練了", L"是否要換人修練？"}, MessageBox::YesNo);
+                                         } else {
+                                             if (!mem::equipItem(charId, id)) {
+                                                 auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
+                                                 msgBox->popup({L"此人不適合配備此物品"}, MessageBox::PressToCloseThis);
                                              } else {
-                                                 delete this;
+                                                 update();
                                              }
-                                         });
-                return;
-            }
-            case 4:
-                return;
-            default:
-                break;
-            }
-            auto func = std::move(resultFunc_);
-            gWindow->closePopup();
-            if (func) { func(id); }
+                                             delete clm;
+                                         }
+                                     });
+            clm->makeCenter(width_, height_, x_, y_);
+            return;
         }
+        case 3: {
+            int x = width_ / 3, y = height_ * 2 / 7;
+            auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
+            clm->initWithTeamMembers({L"誰要使用 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+                                     [this, &ipair, itemInfo, id, type, clm](std::int16_t charId) {
+                                         std::map<mem::PropType, std::int16_t> changes;
+                                         if (ipair.second && mem::useItem(charId, id, changes)) {
+                                             std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+                                             for (auto &c: changes) {
+                                                 if (c.second) {
+                                                     messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
+                                                 } else {
+                                                     messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
+                                                 }
+                                             }
+                                             auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
+                                             msgBox->popup(messages, MessageBox::PressToCloseParent);
+                                         } else {
+                                             delete this;
+                                         }
+                                     });
+            return;
+        }
+        case 4:
+            return;
+        default:
+            break;
+        }
+        auto func = std::move(resultFunc_);
+        gWindow->closePopup();
+        if (func) { func(id); }
         return;
     }
-    case KeyCancel:
+    case KeyCancel: {
+        auto fn = std::move(closeHandler_);
         delete this;
+        if (fn) { fn(); }
         return;
+    }
     case KeyUp:
         if (currSel_ < cols_) {
             if (currTop_ == 0) {

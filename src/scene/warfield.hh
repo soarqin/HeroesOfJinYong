@@ -52,7 +52,7 @@ class WarField: public Map {
     };
     struct CellInfo {
         const Texture *earth = nullptr, *building = nullptr, *effect = nullptr;
-        bool isWater = false;
+        bool blocked = false;
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
     };
@@ -90,7 +90,8 @@ protected:
     void nextAction();
     void autoAction();
     void playerMenu();
-    void maskSelectableArea(int steps, bool zoecheck = false);
+    void maskSelectableArea(int steps, bool ignoreblock, bool zoecheck = false);
+    void getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, bool ignoreblock, bool zoecheck = false);
     void unmaskArea();
     bool tryUseSkill(int index);
     void startActAction();
@@ -108,6 +109,7 @@ private:
     std::vector<CharInfo> chars_;
     std::vector<CharInfo*> charQueue_;
     Stage stage_ = Idle;
+    int lastMenuIndex_ = 0;
     std::uint16_t knowledge_[2] = {0, 0};
     int cursorX_ = 0, cursorY_ = 0;
     bool autoControl_ = false;

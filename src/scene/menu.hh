@@ -85,6 +85,8 @@ public:
 
     void popupWithYesNo();
 
+    void handleKeyInput(Key key) override;
+
     void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
         yesHandler_ = yesHandler;
         noHandler_ = noHandler;

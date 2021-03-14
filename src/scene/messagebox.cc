@@ -36,15 +36,24 @@ void MessageBox::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
         switch (type_) {
-        case PressToCloseThis:
+        case PressToCloseThis: {
+            auto fn = std::move(closeHandler_);
             delete this;
+            if (fn) { fn(); }
             break;
-        case PressToCloseParent:
+        }
+        case PressToCloseParent: {
+            auto fn = std::move(closeHandler_);
             delete parent_;
+            if (fn) { fn(); }
             break;
-        case PressToCloseTop:
+        }
+        case PressToCloseTop: {
+            auto fn = std::move(closeHandler_);
             gWindow->endPopup(true);
+            if (fn) { fn(); }
             break;
+        }
         default:
             break;
         }

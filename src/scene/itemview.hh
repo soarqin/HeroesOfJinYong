@@ -32,6 +32,7 @@ public:
     using NodeWithCache::NodeWithCache;
 
     inline void setUser(std::int16_t charId) { charId_ = charId; }
+    inline void setCloseHandler(const std::function<void()> &func) { closeHandler_ = func; }
     void show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc);
     void handleKeyInput(Key key) override;
 
@@ -46,6 +47,7 @@ protected:
     int currTop_ = 0, currSel_ = 0;
     std::int16_t charId_ = -1;
     std::function<void(std::int16_t)> resultFunc_;
+    std::function<void()> closeHandler_;
 };
 
 }

@@ -218,6 +218,28 @@ void MenuTextList::onCancel() {
     }
 }
 
+void MenuYesNo::handleKeyInput(Node::Key key) {
+    switch (key) {
+    case KeyUp:
+    case KeyLeft:
+        if (currIndex_ != 0) {
+            currIndex_ = 0;
+            update();
+        }
+        break;
+    case KeyDown:
+    case KeyRight:
+        if (currIndex_ != 1) {
+            currIndex_ = 1;
+            update();
+        }
+        break;
+    default:
+        Menu::handleKeyInput(key);
+        break;
+    }
+}
+
 void MenuYesNo::popupWithYesNo() {
     popup({L"是", L"否"}, -1);
 }

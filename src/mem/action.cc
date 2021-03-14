@@ -356,7 +356,7 @@ std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stam
 std::int16_t actPoisonDamage(CharacterData *c) {
     if (!c->poisoned) { return 0; }
     auto oldHp = c->hp;
-    c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned, 0, c->maxHp);
+    c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned, 1, c->maxHp);
     return c->hp - oldHp;
 }
 

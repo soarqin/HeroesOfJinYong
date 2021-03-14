@@ -40,22 +40,25 @@ public:
 public:
     using NodeWithCache::NodeWithCache;
 
-    inline void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
+    inline void setCloseHandler(const std::function<void()> &closeHandler) {
+        closeHandler_ = closeHandler;
+    }
+    inline void setYesNoHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
         yesHandler_ = yesHandler;
         noHandler_ = noHandler;
     }
     void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
     void handleKeyInput(Key key) override;
 
-private:
+protected:
     void makeCache() override;
 
-private:
+protected:
     std::vector<std::wstring> text_;
     Node *menu_ = nullptr;
     Type type_ = Normal;
     Align align_ = Center;
-    std::function<void()> yesHandler_, noHandler_;
+    std::function<void()> closeHandler_, yesHandler_, noHandler_;
 };
 
 }
