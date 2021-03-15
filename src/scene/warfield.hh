@@ -58,8 +58,8 @@ class WarField: public Map {
         std::uint8_t insideMovingArea = 0;
     };
     struct SelectableCell {
-        int x, y, moves;
-        SelectableCell *parent;
+        int x, y, moves, ranges;
+        SelectableCell *moveParent, *rangeParent;
     };
     struct CompareSelCells {
         bool operator()(const SelectableCell *a, const SelectableCell *b) {
@@ -92,9 +92,9 @@ protected:
     void autoAction();
     void recalcKnowledge();
     void playerMenu();
-    void maskSelectableArea(int steps, int ignoreblock, bool zoecheck = false);
+    void maskSelectableArea(int steps, int ranges, bool zoecheck = false);
     void unmaskArea();
-    void getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ignoreblock, bool zoecheck = false);
+    void getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ranges, bool zoecheck = false);
     bool tryUseSkill(int index);
     void startActAction();
     void makeDamage(CharInfo *ch, int x, int y, int distance);
@@ -125,6 +125,7 @@ private:
     int attackTimesLeft_ = 0;
     const TextureMgr *fightTexMgr_ = nullptr;
     std::vector<PopupNumber> popupNumbers_;
+    std::function<void()> pendingAutoAction_;
 
     Texture *maskTex_ = nullptr;
     std::vector<TextureMgr> fightTextures_;
