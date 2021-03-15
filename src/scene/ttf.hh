@@ -70,6 +70,7 @@ public:
 
     inline int fontSize() const { return fontSize_; }
     void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
+    void setAltColor(int index, std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
     void render(std::wstring_view str, int x, int y, bool shadow, int fontSize = -1);
 
@@ -86,7 +87,7 @@ protected:
 private:
     void *renderer_;
 
-    std::uint8_t r_ = 255, g_ = 255, b_ = 255;
+    std::uint8_t altR_[16] = {}, altG_[16] = {}, altB_[16] = {};
     std::vector<void*> textures_;
 
     std::vector<rect_pack_data*> rectpackData_;

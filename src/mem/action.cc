@@ -100,7 +100,15 @@ bool leaveTeam(std::int16_t id) {
     return false;
 }
 
-
+bool skillFull(std::int16_t charId) {
+    if (charId < 0) { return true; }
+    const auto *charInfo = mem::gSaveData.charInfo[charId];
+    if (!charInfo) { return true; }
+    for (auto id: charInfo->skillId) {
+        if (id < 0) { return false; }
+    }
+    return true;
+}
 
 bool equipItem(std::int16_t charId, std::int16_t itemId) {
     if (charId < 0) { return false; }
@@ -255,6 +263,58 @@ std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int
     return std::make_tuple(252, 252, 252);
 }
 
+std::int16_t calcRealAttack(const CharacterData *c, std::int16_t knowledge, const SkillData *skill, std::int16_t level) {
+    int atk = c->attack;
+    int eqatk = 0;
+    for (auto &eq: c->equip) {
+        if (eq < 0) { continue; }
+        const auto *itemInfo = mem::gSaveData.itemInfo[eq];
+        if (!itemInfo) { continue; }
+        atk -= itemInfo->addAttack;
+        eqatk += itemInfo->addAttack;
+    }
+    auto &swBindings = data::gFactors.skillWeaponsBindings;
+    for (size_t i = 0; i < swBindings.size(); i+=3) {
+        if (swBindings[i + 1] == skill->id && swBindings[i] == c->equip[0]) {
+            eqatk += swBindings[i + 2];
+            break;
+        }
+    }
+    return (atk * 3 + skill->damage[level]) / 2 + eqatk + knowledge * 2;
+}
+
+std::int16_t calcRealDefense(const CharacterData *c, std::int16_t knowledge) {
+    return c->defence + knowledge * 2;
+}
+
+std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t stamina, std::int16_t hurt, std::int16_t distance) {
+    int dmg = (atk - def * 3) * 2 / 3;
+    if (dmg < 0) {
+        dmg = atk / 10;
+    }
+    if (dmg > 0) {
+        dmg += stamina / 15 + hurt / 20;
+        if (distance > 1) {
+            if (distance <= 10) {
+                dmg = dmg * (100 - (distance - 1) * 3) / 100;
+            } else {
+                dmg = dmg * 2 / 3;
+            }
+        }
+    } else {
+        dmg = 1;
+    }
+    return dmg;
+}
+
+std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp) {
+    auto mpUse = reqMp * (level / 2 + 1);
+    if (mpUse > currMp) {
+        return currMp / reqMp * 2;
+    }
+    return level;
+}
+
 bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
                int distance, int index, int level, std::int16_t stamina,
                std::int16_t &damage, std::int16_t &poisoned, bool &dead, bool &levelup) {
@@ -265,24 +325,8 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
     if (!skill) { return false; }
     if (c1->mp < skill->reqMp) { return false; }
     c1->mp = std::max(0, c1->mp - skill->reqMp);
-    int atk = c1->attack;
-    int eqatk = 0;
-    for (auto &eq: c1->equip) {
-        if (eq < 0) { continue; }
-        const auto *itemInfo = mem::gSaveData.itemInfo[eq];
-        if (!itemInfo) { continue; }
-        atk -= itemInfo->addAttack;
-        eqatk += itemInfo->addAttack;
-    }
-    auto &swBindings = data::gFactors.skillWeaponsBindings;
-    for (size_t i = 0; i < swBindings.size(); i+=3) {
-        if (swBindings[i + 1] == skillId && swBindings[i] == c1->equip[0]) {
-            eqatk += swBindings[i + 2];
-            break;
-        }
-    }
-    atk = (atk * 3 + skill->damage[level]) / 2 + eqatk + knowledge1 * 2;
-    int def = c2->defence + knowledge2 * 2;
+    int atk = calcRealAttack(c1, knowledge1, skill, level);
+    int def = calcRealDefense(c2, knowledge2);
     int dmg = (atk - def * 3) * 2 / 3 + int(util::gRandom(21) - util::gRandom(21));
     if (dmg < 0) {
         dmg = atk / 10 + int(util::gRandom(5) - util::gRandom(5));
@@ -402,7 +446,7 @@ std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId,
 std::int16_t actPoisonDamage(CharacterData *c) {
     if (!c->poisoned) { return 0; }
     auto oldHp = c->hp;
-    c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned, 1, c->maxHp);
+    c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned / 10, 1, c->maxHp);
     return c->hp - oldHp;
 }
 

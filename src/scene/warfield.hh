@@ -49,6 +49,7 @@ class WarField: public Map {
         mem::CharacterData info;
         std::uint16_t exp;
         std::int16_t steps;
+        std::int16_t attack, defence;
     };
     struct CellInfo {
         const Texture *earth = nullptr, *building = nullptr, *effect = nullptr;
@@ -89,13 +90,14 @@ protected:
 
     void nextAction();
     void autoAction();
+    void recalcKnowledge();
     void playerMenu();
-    void maskSelectableArea(int steps, bool ignoreblock, bool zoecheck = false);
-    void getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, bool ignoreblock, bool zoecheck = false);
+    void maskSelectableArea(int steps, int ignoreblock, bool zoecheck = false);
     void unmaskArea();
+    void getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ignoreblock, bool zoecheck = false);
     bool tryUseSkill(int index);
     void startActAction();
-    void makeDamage(CharInfo *ch, int x, int y);
+    void makeDamage(CharInfo *ch, int x, int y, int distance);
     void endTurn();
     void endWar();
     void popupFinishMessages(std::vector<std::wstring> messages, int index);

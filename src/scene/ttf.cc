@@ -140,13 +140,24 @@ int TTF::stringWidth(const std::wstring &str, int fontSize) {
 }
 
 void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
-    r_ = r; g_ = g; b_ = b;
+    altR_[0] = r; altG_[0] = g; altB_[0] = b;
+}
+
+void TTF::setAltColor(int index, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    if (index > 0 && index <= 16) {
+        --index;
+        altR_[index] = r;
+        altG_[index] = g;
+        altB_[index] = b;
+    }
 }
 
 void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
     if (fontSize < 0) fontSize = fontSize_;
     auto *renderer = static_cast<SDL_Renderer*>(renderer_);
+    int colorIndex = 0;
     for (auto ch: str) {
+        if (ch > 0 && ch < 17) { colorIndex = ch - 1; continue; }
         const FontData *fd;
         std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
         auto ite = fontCache_.find(key);
@@ -167,13 +178,13 @@ void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize)
             SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
             dstrc.x -= 2;
             dstrc.y -= 2;
-            SDL_SetTextureColorMod(tex, r_, g_, b_);
+            SDL_SetTextureColorMod(tex, altR_[colorIndex], altG_[colorIndex], altB_[colorIndex]);
             SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
         } else {
             SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
             SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
             auto *tex = static_cast<SDL_Texture *>(textures_[fd->rpidx]);
-            SDL_SetTextureColorMod(tex, r_, g_, b_);
+            SDL_SetTextureColorMod(tex, altR_[colorIndex], altG_[colorIndex], altB_[colorIndex]);
             SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
         }
         x += fd->advW;

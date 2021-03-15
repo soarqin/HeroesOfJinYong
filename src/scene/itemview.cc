@@ -109,7 +109,14 @@ void ItemView::handleKeyInput(Node::Key key) {
                                          if (type == 2 && itemInfo->user >= 0) {
                                              auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
                                              msgBox->setYesNoHandler([this, id, charId, clm]() {
-                                                 if (!mem::equipItem(charId, id)) {
+                                                 if (mem::skillFull(charId)) {
+                                                     auto *msgBox = new MessageBox(parent_,
+                                                                                   0,
+                                                                                   0,
+                                                                                   gWindow->width(),
+                                                                                   gWindow->height());
+                                                     msgBox->popup({L"一人只能修練十種功夫"}, MessageBox::PressToCloseThis);
+                                                 } else if (!mem::equipItem(charId, id)) {
                                                      auto *msgBox = new MessageBox(parent_,
                                                                                    0,
                                                                                    0,

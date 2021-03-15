@@ -210,11 +210,9 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
             ci.info.mp = ci.info.maxMp;
             ci.info.stamina = data::StaminaMax;
         }
-        if (ci.info.knowledge >= data::KnowledgeBarrier) {
-            knowledge_[ci.side] += ci.info.knowledge;
-        }
         cell.charInfo = &ci;
     }
+    recalcKnowledge();
     frameUpdate();
     if (info->music >= 0) {
         gWindow->playMusic(info->music);
@@ -555,6 +553,7 @@ void WarField::nextAction() {
     while ((ch = charQueue_.back())->info.hp <= 0) {
         charQueue_.pop_back();
     }
+    mem::actPoisonDamage(&ch->info);
     cameraX_ = ch->x;
     cameraY_ = ch->y;
     drawDirty_ = true;
@@ -567,8 +566,162 @@ void WarField::nextAction() {
 }
 
 void WarField::autoAction() {
+    auto *ch = charQueue_.back();
+    struct SkillPredict {
+        const mem::SkillData *skill;
+        std::int16_t index;
+        std::int16_t level;
+        std::int16_t atk;
+        std::int16_t rangeType;
+        std::int16_t skillRange, area;
+    };
+    SkillPredict skills[data::LearnSkillCount];
+    int skillCount = 0, maxRange = 0;
+    for (int i = 0; i < data::LearnSkillCount; ++i) {
+        if (ch->info.skillId[i] < 0) { continue; }
+        const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
+        if (!skill) { continue; }
+        std::int16_t level = mem::calcRealSkillLevel(skill->reqMp, std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9), ch->info.mp);
+        std::int16_t atk = mem::calcRealAttack(&ch->info, knowledge_[ch->side], skill, ch->info.skillLevel[i]);
+        std::int16_t type = skill->attackAreaType, range = skill->selRange[level], area = skill->area[level];
+        skills[skillCount++] = SkillPredict {skill, std::int16_t(i), level, atk, type, range, area};
+        if (type == 0 || type == 3) {
+            maxRange = std::max<int>(maxRange, range);
+        }
+    }
+    CharInfo *enemies[std::max(data::WarFieldEnemyCount, data::TeamMemberCount)];
+    int enemyCount = 0;
+    auto enemySide = ch->side ^ 1;
+    for (auto &ci: chars_) {
+        if (ci.side != enemySide || ci.info.hp <= 0) { continue; }
+        enemies[enemyCount++] = &ci;
+    }
+    std::map<std::pair<int, int>, SelectableCell> selCells;
+    int steps = ch->steps;
+    getSelectableArea(ch, selCells, steps + maxRange, steps + 1);
+    struct PredictScore {
+        int score;
+        std::int16_t fx, fy, tx, ty;
+        int skillIndex;
+    };
+    int myx = ch->x, myy = ch->y;
+    std::vector<PredictScore> scores;
+    scores.reserve(selCells.size());
+    for (int j = 0; j < skillCount; ++j) {
+        auto rt = skills[j].rangeType;
+        for (auto &c: selCells) {
+            std::int16_t x, y;
+            std::tie(x, y) = c.first;
+            switch (rt) {
+            case 1: {
+                if (c.second.moves > steps) { continue; }
+                int totalDmg[4] = {0, 0, 0, 0};
+                for (int i = 0; i < enemyCount; ++i) {
+                    auto *enemy = enemies[i];
+                    std::int16_t ex = enemy->x, ey = enemy->y;
+                    auto r = skills[j].skillRange;
+                    int distance;
+                    if ((ex == x && (distance = std::abs(ey - y)) <= r)
+                        || (ey == y && (distance = std::abs(ex - x)) <= r)) {
+                        int dmg = mem::calcPredictDamage(skills[j].atk, enemy->info.defence,
+                                                         ch->info.stamina, enemy->info.hurt,
+                                                         distance);
+                        if (dmg >= enemy->info.hp) { dmg = std::max<int>(dmg * 3 / 2, enemy->info.maxHp); }
+                        if (ey < y)
+                            totalDmg[0] += dmg;
+                        else if (ex > x)
+                            totalDmg[1] += dmg;
+                        else if (ex < x)
+                            totalDmg[2] += dmg;
+                        else
+                            totalDmg[3] += dmg;
+                    }
+                }
+                scores.emplace_back(PredictScore {totalDmg[0], x, y, 0, -1, j});
+                scores.emplace_back(PredictScore {totalDmg[1], x, y, 1, -1, j});
+                scores.emplace_back(PredictScore {totalDmg[2], x, y, 2, -1, j});
+                scores.emplace_back(PredictScore {totalDmg[3], x, y, 3, -1, j});
+                break;
+            }
+            case 2: {
+                if (c.second.moves > steps) { continue; }
+                int totalDmg = 0;
+                auto r = skills[j].skillRange;
+                for (int i = 0; i < enemyCount; ++i) {
+                    auto *enemy = enemies[i];
+                    std::int16_t ex = enemy->x, ey = enemy->y;
+                    int distance;
+                    if ((ex == x && (distance = std::abs(ey - y)) <= r)
+                        || (ey == y && (distance = std::abs(ex - x)) <= r)) {
+                        int dmg = mem::calcPredictDamage(skills[j].atk, enemy->info.defence,
+                                                         ch->info.stamina, enemy->info.hurt,
+                                                         distance);
+                        if (dmg >= enemy->info.hp) { dmg = std::max<int>(dmg * 3 / 2, enemy->info.maxHp); }
+                        totalDmg += dmg;
+                    }
+                }
+                scores.emplace_back(PredictScore {totalDmg, x, y, x, y, j});
+                break;
+            }
+            case 3: {
+                int totalDmg = 0;
+                auto r = skills[j].area;
+                auto *n = c.second.parent;
+                while (n->moves > steps) {
+                    n = n->parent;
+                }
+                std::int16_t mx = n->x, my = n->y;
+                for (int i = 0; i < enemyCount; ++i) {
+                    auto *enemy = enemies[i];
+                    std::int16_t ex = enemy->x, ey = enemy->y;
+                    if (std::abs(ex - x) > r || std::abs(ey - y) > r) { continue; }
+                    int distance = std::abs(x - mx) + std::abs(y - my)
+                                 + std::abs(x - ex) + std::abs(y - ey);
+                    int dmg = mem::calcPredictDamage(skills[j].atk, enemy->info.defence,
+                                                     ch->info.stamina, enemy->info.hurt,
+                                                     distance);
+                    if (dmg >= enemy->info.hp) { dmg = std::max<int>(dmg * 3 / 2, enemy->info.maxHp); }
+                    totalDmg += dmg;
+                }
+                scores.emplace_back(PredictScore {totalDmg, mx, my, x, y, j});
+                break;
+            }
+            default: {
+                if (c.second.moves > steps + skills[j].skillRange) { continue; }
+                for (int i = 0; i < enemyCount; ++i) {
+                    auto *enemy = enemies[i];
+                    if (enemy->x != x || enemy->y != y) { continue; }
+                    auto *n = c.second.parent;
+                    while (n->moves > steps) {
+                        n = n->parent;
+                    }
+                    std::int16_t mx = n->x, my = n->y;
+                    int distance = std::abs(mx - x) + std::abs(my - y);
+                    int dmg = mem::calcPredictDamage(skills[j].atk, enemy->info.defence,
+                                                     ch->info.stamina, enemy->info.hurt,
+                                                     distance);
+                    if (dmg >= enemy->info.hp) { dmg = dmg * 3 / 2; }
+                    scores.emplace_back(PredictScore{dmg, mx, my, x, y, j});
+                }
+                break;
+            }
+            }
+        }
+    }
+    std::sort(scores.begin(), scores.end(), [](const PredictScore &v0, const PredictScore &v1) {
+        return v0.score > v1.score;
+    });
     charQueue_.pop_back();
     /* TODO: implement this */
+}
+
+void WarField::recalcKnowledge() {
+    knowledge_[0] = knowledge_[1] = 0;
+    for (auto &ci: chars_) {
+        if (ci.info.hp > 0 && ci.info.knowledge >= data::KnowledgeBarrier) {
+            knowledge_[ci.side] += ci.info.knowledge;
+        }
+    }
 }
 
 void WarField::playerMenu() {
@@ -585,9 +738,9 @@ void WarField::playerMenu() {
     }
     if (info.stamina >= 10) {
         n.emplace_back(L"攻擊"); menuIndices.emplace_back(1);
-    }
-    if (info.poison && info.stamina >= 20) {
-        n.emplace_back(L"用毒"); menuIndices.emplace_back(2);
+        if (info.poison) {
+            n.emplace_back(L"用毒"); menuIndices.emplace_back(2);
+        }
     }
     if (info.stamina >= 50) {
         if (info.depoison) {
@@ -613,7 +766,7 @@ void WarField::playerMenu() {
         lastMenuIndex_ = index;
         switch (menuIndices[index]) {
         case 0:
-            maskSelectableArea(ch->steps, false);
+            maskSelectableArea(ch->steps, 256);
             stage_ = MoveSelecting;
             drawDirty_ = true;
             break;
@@ -672,7 +825,7 @@ void WarField::playerMenu() {
                     actId_ = -4;
                     actLevel_ = 0;
                     attackTimesLeft_ = 1;
-                    maskSelectableArea(ch->info.throwing / 15, false);
+                    maskSelectableArea(ch->info.throwing / 15, 0);
                     stage_ = AttackSelecting;
                     drawDirty_ = true;
                 }
@@ -723,7 +876,7 @@ void WarField::playerMenu() {
     });
 }
 
-void WarField::maskSelectableArea(int steps, bool ignoreblock, bool zoecheck) {
+void WarField::maskSelectableArea(int steps, int ignoreblock, bool zoecheck) {
     auto *ch = charQueue_.back();
     getSelectableArea(ch, selCells_, steps, ignoreblock, zoecheck);
     int w = mapWidth_;
@@ -735,7 +888,15 @@ void WarField::maskSelectableArea(int steps, bool ignoreblock, bool zoecheck) {
     cursorY_ = ch->y;
 }
 
-void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, bool ignoreblock, bool zoecheck) {
+void WarField::unmaskArea() {
+    int w = mapWidth_;
+    for (auto c: selCells_) {
+        cellInfo_[c.first.first + c.first.second * w].insideMovingArea = false;
+    }
+    selCells_.clear();
+}
+
+void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ignoreblock, bool zoecheck) {
     auto myside = ch->side;
     int w = mapWidth_, h = mapHeight_;
     std::vector<SelectableCell*> sortedSelectable;
@@ -752,7 +913,7 @@ void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
         std::pop_heap(sortedSelectable.begin(), sortedSelectable.end(), CompareSelCells());
         auto *mc = sortedSelectable.back();
         sortedSelectable.erase(sortedSelectable.end() - 1);
-        bool blocked = false;
+        bool zoeblocked = false;
         int nx[4], ny[4], ncnt = 0;
         for (int i = 0; i < 4; ++i) {
             int tx, ty;
@@ -781,7 +942,7 @@ void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
             if (zoecheck) {
                 auto &ci = cellInfo_[ty * w + tx];
                 if (ci.charInfo && ci.charInfo->side == myside) {
-                    blocked = true;
+                    zoeblocked = true;
                     break;
                 }
             }
@@ -789,37 +950,32 @@ void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
             ny[ncnt] = ty;
             ++ncnt;
         }
-        if (blocked) { continue; }
+        if (zoeblocked) { continue; }
         for (int i = 0; i < ncnt; ++i) {
             int tx = nx[i], ty = ny[i];
             auto &ci = cellInfo_[ty * w + tx];
-            if (!ignoreblock && (ci.blocked || ci.building || (ci.charInfo && ci.charInfo->side == myside))) {
+            if (ci.blocked || ci.building) {
                 continue;
             }
-            auto currMove = mc->moves + 1;
+            auto currMove = mc->moves;
+            if (currMove < ignoreblock && ci.charInfo) {
+                continue;
+            }
+            ++currMove;
             auto ite = selCells.find(std::make_pair(tx, ty));
             if (ite == selCells.end()) {
-                if (currMove > steps) {
-                    continue;
-                }
                 auto &mcell = selCells[std::make_pair(tx, ty)];
                 mcell.x = tx;
                 mcell.y = ty;
                 mcell.moves = currMove;
                 mcell.parent = mc;
-                sortedSelectable.push_back(&mcell);
-                std::push_heap(sortedSelectable.begin(), sortedSelectable.end(), CompareSelCells());
+                if (currMove < steps) {
+                    sortedSelectable.push_back(&mcell);
+                    std::push_heap(sortedSelectable.begin(), sortedSelectable.end(), CompareSelCells());
+                }
             }
         }
     }
-}
-
-void WarField::unmaskArea() {
-    int w = mapWidth_;
-    for (auto c: selCells_) {
-        cellInfo_[c.first.first + c.first.second * w].insideMovingArea = false;
-    }
-    selCells_.clear();
 }
 
 class DirectionSelMessageBox: public MessageBox {
@@ -884,7 +1040,7 @@ bool WarField::tryUseSkill(int index) {
             steps = 1;
             break;
         }
-        maskSelectableArea(steps, false);
+        maskSelectableArea(steps, 0);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -897,6 +1053,7 @@ bool WarField::tryUseSkill(int index) {
     actId_ = ch->info.skillId[index];
     attackTimesLeft_ = ch->info.doubleAttack ? 2 : 1;
     actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[index] / 100, 0, 9);
+    actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp);
     auto mpUse = skill->reqMp * (actLevel_ / 2 + 1);
     if (mpUse > ch->info.mp) {
         actLevel_ = ch->info.mp / skill->reqMp * 2;
@@ -918,7 +1075,7 @@ bool WarField::tryUseSkill(int index) {
         startActAction();
         return true;
     default:
-        maskSelectableArea(skill->selRange[actLevel_], false);
+        maskSelectableArea(skill->selRange[actLevel_], 0);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -942,7 +1099,7 @@ void WarField::startActAction() {
         case -3:
             effectId_ = data::PoisonEffectID;
             popup = target && ch->side != target->side;
-            result = popup ? mem::actPoison(&ch->info, &target->info, 3) : 0;
+            result = popup ? mem::actPoison(&ch->info, &target->info, 2) : 0;
             popup = popup && result != 0;
             r = 96; g = 176; b = 64;
             break;
@@ -962,9 +1119,12 @@ void WarField::startActAction() {
             const auto *itemInfo = mem::gSaveData.itemInfo[actIndex_];
             effectId_ = itemInfo ? itemInfo->throwingEffectId : data::PoisonEffectID;
             popup = target && ch->side != target->side;
-            bool dead;
+            bool dead = false;
             result = popup ? mem::actThrow(&ch->info, &target->info, actIndex_, 0, dead) : 0;
             popup = popup && result != 0;
+            if (dead) {
+                recalcKnowledge();
+            }
             r = 232; g = 32; b = 44;
             break;
         }
@@ -1016,16 +1176,16 @@ void WarField::startActAction() {
             for (int i = r; i; --i) {
                 switch (ch->direction) {
                 case Map::DirUp:
-                    if (sy >= i) { makeDamage(ch, sx, sy - i); }
+                    if (sy >= i) { makeDamage(ch, sx, sy - i, i); }
                     break;
                 case Map::DirRight:
-                    if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy); }
+                    if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy, i); }
                     break;
                 case Map::DirLeft:
-                    if (sx >= i) { makeDamage(ch, sx - i, sy); }
+                    if (sx >= i) { makeDamage(ch, sx - i, sy, i); }
                     break;
                 case Map::DirDown:
-                    if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i); }
+                    if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i, i); }
                     break;
                 default:
                     break;
@@ -1037,47 +1197,51 @@ void WarField::startActAction() {
             auto sx = cameraX_, sy = cameraY_;
             int r = skillInfo->selRange[actLevel_];
             for (int i = r; i; --i) {
-                if (sy >= i) { makeDamage(ch, sx, sy - i); }
-                if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy); }
-                if (sx >= i) { makeDamage(ch, sx - i, sy); }
-                if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i); }
+                if (sy >= i) { makeDamage(ch, sx, sy - i, i); }
+                if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy, i); }
+                if (sx >= i) { makeDamage(ch, sx - i, sy, i); }
+                if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i, i); }
             }
             break;
         }
         case 3: {
             auto sx = cursorX_, sy = cursorY_;
             int r = skillInfo->area[actLevel_];
+            int baseDistance = std::abs(sx - cameraX_) + std::abs(sy - cameraY_);
             for (int j = -r; j <= r; ++j) {
                 auto ry = sy + j;
                 if (ry < 0 || ry >= mapHeight_) { continue; }
                 for (int i = -r; i <= r; ++i) {
                     auto rx = sx + i;
                     if (rx < 0 || rx >= mapWidth_) { continue; }
-                    makeDamage(ch, rx, ry);
+                    makeDamage(ch, rx, ry, baseDistance + std::abs(i) + std::abs(j));
                 }
             }
             break;
         }
-        default:
-            makeDamage(ch, cursorX_, cursorY_);
+        default: {
+            int x = cursorX_, y = cursorY_;
+            makeDamage(ch, x, y, std::abs(x - cameraX_) + std::abs(y - cameraY_));
             break;
+        }
         }
     } else {
         endTurn();
     }
 }
 
-void WarField::makeDamage(WarField::CharInfo *ch, int x, int y) {
+void WarField::makeDamage(WarField::CharInfo *ch, int x, int y, int distance) {
     auto *info = cellInfo_[y * mapWidth_ + x].charInfo;
     if (!info || info->side == ch->side) { return; }
     std::int16_t dmg, ps;
     bool dead, levelup;
     bool wasDead = info->info.hp <= 0;
     if (mem::actDamage(&ch->info, &info->info, knowledge_[0], knowledge_[1],
-                   std::abs(x - cameraX_) + std::abs(y - cameraY_), actIndex_, actLevel_,
+                   distance, actIndex_, actLevel_,
                    attackTimesLeft_ == 1 ? 3 : 0, dmg, ps, dead, levelup)) {
         if (!wasDead && dead) {
             ch->exp += dmg;
+            recalcKnowledge();
         } else {
             ch->exp += dmg / 2;
         }
@@ -1090,8 +1254,6 @@ void WarField::makeDamage(WarField::CharInfo *ch, int x, int y) {
 }
 
 void WarField::endTurn() {
-    auto *ch = charQueue_.back();
-    mem::actPoisonDamage(&ch->info);
     charQueue_.pop_back();
     int aliveCount[2] = {0, 0};
     for (auto &ci: chars_) {
