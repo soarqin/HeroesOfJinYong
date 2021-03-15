@@ -515,9 +515,20 @@ void WarField::frameUpdate() {
         }
         ++fightFrame_;
         if (++effectTexIdx_ >= int(gEffect[effectId_]->size()) + 3) {
-            if (--attackTimesLeft_ <= 0) {
-                actIndex_ = -1;
-                actId_ = -1;
+            if (--attackTimesLeft_ > 0) {
+                const auto *skill = mem::gSaveData.skillInfo[actId_];
+                if (skill) {
+                    actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, charQueue_.back()->info.mp);
+                }
+                if (actLevel_ >= 0) {
+                    startActAction();
+                } else {
+                    actIndex_ = actId_ = -1;
+                }
+            } else {
+                actIndex_ = actId_ = -1;
+            }
+            if (actIndex_ < 0) {
                 actLevel_ = 0;
                 effectId_ = -1;
                 effectTexIdx_ = -1;
@@ -527,12 +538,6 @@ void WarField::frameUpdate() {
                 attackTimesLeft_ = 0;
                 fightTexMgr_ = nullptr;
                 endTurn();
-            } else {
-                const auto *skill = mem::gSaveData.skillInfo[actId_];
-                if (skill) {
-                    actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, charQueue_.back()->info.mp);
-                }
-                startActAction();
             }
         }
         drawDirty_ = true;
@@ -579,6 +584,28 @@ void WarField::autoAction() {
         return;
     }
     auto *ch = charQueue_.back();
+    if (ch->info.stamina < 10) {
+        /* TODO: use item if possible, or rest for restore stamina */
+        charQueue_.pop_back();
+        stage_ = Idle;
+        return;
+    }
+    if (ch->info.hp < 20 || ch->info.hp <= ch->info.maxHp / 20) {
+        /* TODO: use item if possible, or medic/rest for restore hp */
+        /*
+        charQueue_.pop_back();
+        stage_ = Idle;
+        return;
+         */
+    }
+    if (ch->info.poisoned > 33) {
+        /* TODO: try depoison or use item */
+        /*
+        charQueue_.pop_back();
+        stage_ = Idle;
+        return;
+         */
+    }
     struct SkillPredict {
         const mem::SkillData *skill;
         std::int16_t index;
@@ -594,12 +621,19 @@ void WarField::autoAction() {
         const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
         if (!skill) { continue; }
         std::int16_t level = mem::calcRealSkillLevel(skill->reqMp, std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9), ch->info.mp);
+        if (level < 0) { continue; }
         std::int16_t atk = mem::calcRealAttack(&ch->info, knowledge_[ch->side], skill, ch->info.skillLevel[i]);
         std::int16_t type = skill->attackAreaType, range = skill->selRange[level], area = skill->area[level];
         skills[skillCount++] = SkillPredict {skill, std::int16_t(i), level, atk, type, range, area};
         if (type == 0 || type == 3) {
             maxRange = std::max<int>(maxRange, range);
         }
+    }
+    if (!skillCount) {
+        /* TODO: use item if possible, or rest for restore MP */
+        charQueue_.pop_back();
+        stage_ = Idle;
+        return;
     }
     CharInfo *enemies[std::max(data::WarFieldEnemyCount, data::TeamMemberCount)];
     int enemyCount = 0;
@@ -732,6 +766,7 @@ void WarField::autoAction() {
         }
     }
     if (scores.empty()) {
+        /* TODO: move towards nearest or weakest enemy? */
         charQueue_.pop_back();
     } else {
         std::sort(scores.begin(), scores.end(), [](const PredictScore &v0, const PredictScore &v1) {
@@ -744,8 +779,11 @@ void WarField::autoAction() {
             attackTimesLeft_ = ch->info.doubleAttack ? 2 : 1;
             actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[s.skillIndex] / 100, 0, 9);
             const auto *skill = mem::gSaveData.skillInfo[actId_];
-            if (skill) {
-                actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp);
+            if (!skill || (actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp) < 0)) {
+                /* impossible to run these codes if no logic bug */
+                charQueue_.pop_back();
+                stage_ = Idle;
+                return;
             }
             if (s.ty < 0) {
                 ch->direction = Map::Direction(s.tx);

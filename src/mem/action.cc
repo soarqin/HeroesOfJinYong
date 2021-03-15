@@ -310,6 +310,7 @@ std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t 
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp) {
     auto mpUse = reqMp * (level / 2 + 1);
     if (mpUse > currMp) {
+        if (currMp < reqMp) { return -1; }
         return currMp / reqMp * 2;
     }
     return level;
