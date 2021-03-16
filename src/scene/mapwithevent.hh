@@ -155,6 +155,7 @@ protected:
     std::int16_t animEventId_[3] = {}, animCurrTex_[3] = {}, animEndTex_[3] = {};
 
     std::list<std::function<bool()>> pendingSubEvents_;
+    std::vector<std::pair<std::int16_t, std::int16_t>> cameraMoving_;
 };
 
 }

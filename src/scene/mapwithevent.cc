@@ -23,7 +23,6 @@
 #include "mask.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
-#include "core/config.hh"
 #include "util/random.hh"
 #include "util/conv.hh"
 
@@ -378,6 +377,14 @@ void MapWithEvent::resetTime() {
 }
 
 void MapWithEvent::frameUpdate() {
+    if (!cameraMoving_.empty()) {
+        std::tie(cameraX_, cameraY_) = cameraMoving_.back();
+        cameraMoving_.pop_back();
+        drawDirty_ = true;
+        if (cameraMoving_.empty()) {
+            continueEvents();
+        }
+    }
     if (animCurrTex_[0] == 0) { return; }
     if (animCurrTex_[0] == animEndTex_[0]) {
         for (int i = 0; i < 3; ++i) {
@@ -619,8 +626,21 @@ bool MapWithEvent::setAttrPoison(MapWithEvent *map, std::int16_t charId, std::in
 }
 
 bool MapWithEvent::moveCamera(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
-    /* TODO: implement this */
-    return true;
+    if (map->subMapId_ < 0) { return true; }
+    map->cameraMoving_.clear();
+    if (y0 != y1) {
+        std::int16_t dy = y0 < y1 ? -1 : 1;
+        for (std::int16_t y = y1; y != y0; y+= dy) {
+            map->cameraMoving_.emplace_back(std::make_pair(x1, y));
+        }
+    }
+    if (x0 != x1) {
+        std::int16_t dx = x0 < x1 ? -1 : 1;
+        for (std::int16_t x = x1; x != x0; x+= dx) {
+            map->cameraMoving_.emplace_back(std::make_pair(x, y0));
+        }
+    }
+    return false;
 }
 
 bool MapWithEvent::modifyEventId(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId,
