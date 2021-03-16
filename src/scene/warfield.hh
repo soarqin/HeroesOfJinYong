@@ -38,6 +38,7 @@ class WarField: public Map {
         AttackSelecting,
         Moving,
         Acting,
+        PoppingUp,
         Finished,
     };
     struct CharInfo {
@@ -98,9 +99,10 @@ protected:
     bool tryUseSkill(int index);
     void startActAction();
     void makeDamage(CharInfo *ch, int x, int y, int distance);
+    void doRest();
     void endTurn();
     void endWar();
-    void popupFinishMessages(std::vector<std::wstring> messages, int index);
+    void popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index);
 
 private:
     int cameraX_ = 0, cameraY_ = 0;
@@ -117,6 +119,7 @@ private:
     int cursorX_ = 0, cursorY_ = 0;
     bool autoControl_ = false;
     bool won_ = false;
+    bool skillLevelup_ = false;
     std::map<std::pair<int, int>, SelectableCell> selCells_;
     std::vector<std::pair<int, int>> movingPath_;
     /* -3poison -2depoison -1medic 0~skillId */

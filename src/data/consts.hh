@@ -32,7 +32,7 @@ enum {
     CarryItemCount = 4,
     KnowledgeBarrier = 80,
 
-    SkillLevelMax = 999,
+    SkillLevelMax = 900,
     SkillLevelMaxDiv = 9,
 
     LevelMax = 30,

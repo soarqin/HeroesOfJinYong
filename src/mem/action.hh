@@ -43,6 +43,7 @@ bool leaveTeam(std::int16_t id);
 bool skillFull(std::int16_t charId);
 bool equipItem(std::int16_t charId, std::int16_t itemId);
 bool useItem(std::int16_t charId, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
+std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::map<PropType, std::int16_t> &changes);
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);
 std::int16_t getLeaveEventId(std::int16_t id);
@@ -52,12 +53,14 @@ std::int16_t calcRealDefense(const CharacterData *c, std::int16_t knowledge);
 std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t stamina, std::int16_t hurt, std::int16_t distance);
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp);
 bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
-               int distance, int index, int level, std::int16_t stamina,
-               std::int16_t &damage, std::int16_t &poisoned, bool &dead, bool &levelup);
+               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned, bool &dead);
+void postDamage(CharacterData *c, int index, std::int16_t stamina, bool &levelup);
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId, std::int16_t stamina, bool &dead);
 std::int16_t actPoisonDamage(CharacterData *c);
+void actRest(CharacterData *c);
+void actLevelup(CharacterData *c);
 
 }

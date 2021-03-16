@@ -20,6 +20,8 @@
 #pragma once
 
 #include "nodewithcache.hh"
+#include "messagebox.hh"
+#include "mem/action.hh"
 
 #include <vector>
 #include <functional>
@@ -35,6 +37,9 @@ public:
     inline void setCloseHandler(const std::function<void()> &func) { closeHandler_ = func; }
     void show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc);
     void handleKeyInput(Key key) override;
+
+    static MessageBox *popupUseResult(Node *parent, std::int16_t id,
+                                      const std::map<mem::PropType, std::int16_t> &changes);
 
 protected:
     void makeCache() override;

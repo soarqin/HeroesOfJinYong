@@ -167,6 +167,45 @@ bool useItem(std::int16_t charId, std::int16_t itemId, std::map<PropType, std::i
     return true;
 }
 
+std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::map<PropType, std::int16_t> &changes) {
+    if (!charInfo) { return -1; }
+    for (int i = 0; i < data::CarryItemCount; ++i) {
+        auto itemId = charInfo->item[i];
+        if (itemId < 0 || charInfo->itemCount[i] <= 0) { continue; }
+        const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+        if (!itemInfo) { continue; }
+        if (itemInfo->itemType != 3) { continue; }
+        switch (type) {
+        case PropType::Hp:
+            if (itemInfo->addHp <= 0) { continue; }
+            break;
+        case PropType::Mp:
+            if (itemInfo->addMp <= 0) { continue; }
+            break;
+        case PropType::Stamina:
+            if (itemInfo->addStamina <= 0) { continue; }
+            break;
+        case PropType::Poisoned:
+            if (itemInfo->addPoisoned >= 0) { continue; }
+            break;
+        default:
+            continue;
+        }
+        if (--charInfo->itemCount[i] <= 0) {
+            if (i + 1 < data::CarryItemCount) {
+                memmove(charInfo->item + i, charInfo->item + i + 1,
+                        sizeof(std::int16_t) * data::CarryItemCount - i - 1);
+                memmove(charInfo->itemCount + i, charInfo->itemCount + i + 1,
+                        sizeof(std::int16_t) * data::CarryItemCount - i - 1);
+            }
+            charInfo->item[data::CarryItemCount - 1] = -1;
+            charInfo->itemCount[data::CarryItemCount - 1] = 0;
+        }
+        return applyItemChanges(charInfo, itemInfo, changes) ? itemId : -1;
+    }
+    return -1;
+}
+
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes) {
 #define ChangeProp(N, M) \
     if (itemInfo->add##M != 0) { \
@@ -308,6 +347,7 @@ std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t 
 }
 
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp) {
+    if (reqMp <= 0) { return level; }
     auto mpUse = reqMp * (level / 2 + 1);
     if (mpUse > currMp) {
         if (currMp < reqMp) { return -1; }
@@ -317,8 +357,7 @@ std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int
 }
 
 bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
-               int distance, int index, int level, std::int16_t stamina,
-               std::int16_t &damage, std::int16_t &poisoned, bool &dead, bool &levelup) {
+               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned, bool &dead) {
     if (!c1 || !c2) { return false; }
     index = std::clamp(index, 0, 9);
     auto skillId = c1->skillId[index];
@@ -346,12 +385,6 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
     }
     damage = dmg;
     c2->hp = std::max(0, c2->hp - dmg);
-    c1->skillLevel[index] += util::gRandom(1, 2);
-    levelup = c1->skillLevel[index] / 100 != level;
-    if (levelup) {
-        c1->skillLevel[index] = c2->skillLevel[index] / 100 * 100;
-    }
-    c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     poisoned = 0;
     if (c2->hp > 0) {
         /* add poison */
@@ -368,6 +401,19 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
         dead = true;
     }
     return true;
+}
+
+void postDamage(CharacterData *c, int index, std::int16_t stamina, bool &levelup) {
+    if (c->skillLevel[index] < data::SkillLevelMax) {
+        int oldlevel = c->skillLevel[index] / 100;
+        c->skillLevel[index] = std::clamp<std::int16_t>(c->skillLevel[index] + util::gRandom(1, 2),
+                                                        0, data::SkillLevelMax);
+        levelup = c->skillLevel[index] / 100 != oldlevel;
+        if (levelup) {
+            c->skillLevel[index] = c->skillLevel[index] / 100 * 100;
+        }
+    }
+    c->stamina = std::clamp<std::int16_t>(c->stamina - stamina, 0, data::StaminaMax);
 }
 
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina) {
@@ -449,6 +495,27 @@ std::int16_t actPoisonDamage(CharacterData *c) {
     auto oldHp = c->hp;
     c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned / 10, 1, c->maxHp);
     return c->hp - oldHp;
+}
+
+void actRest(CharacterData *c) {
+    c->stamina = std::clamp<std::int16_t>(c->stamina + 3, 0, data::StaminaMax);
+    /* TODO: fix following formulas? */
+    if (c->hp < c->maxHp) {
+        std::int16_t n = c->maxHp / 100 + util::gRandom(3) - util::gRandom(3);
+        if (n > 0) {
+            c->hp = std::clamp<std::int16_t>(c->hp + n, 0, c->maxHp);
+        }
+    }
+    if (c->mp < c->maxMp) {
+        std::int16_t n = c->maxMp / 100 + util::gRandom(3) - util::gRandom(3);
+        if (n > 0) {
+            c->mp = std::clamp<std::int16_t>(c->mp + n, 0, c->maxMp);
+        }
+    }
+}
+
+void actLevelup(CharacterData *c) {
+
 }
 
 }

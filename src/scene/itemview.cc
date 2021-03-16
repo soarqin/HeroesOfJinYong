@@ -22,7 +22,6 @@
 #include "window.hh"
 #include "charlistmenu.hh"
 #include "mem/savedata.hh"
-#include "mem/action.hh"
 #include "util/conv.hh"
 #include <fmt/format.h>
 
@@ -68,18 +67,9 @@ void ItemView::handleKeyInput(Node::Key key) {
             case 3: {
                 std::map<mem::PropType, std::int16_t> changes;
                 if (mem::useItem(charId_, id, changes)) {
-                    std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
-                    for (auto &c: changes) {
-                        if (c.second) {
-                            messages.emplace_back(fmt::format(L"{} 提昇 {}", mem::propToName(c.first), c.second));
-                        } else {
-                            messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
-                        }
-                    }
-                    auto *msgBox = new MessageBox(parent_, 0, 0, gWindow->width(), gWindow->height());
-                    msgBox->popup(messages, MessageBox::PressToCloseThis);
                     auto fn = std::move(resultFunc_);
                     delete this;
+                    auto *msgBox = popupUseResult(parent_, id, changes);
                     msgBox->setCloseHandler([fn] {
                         if (fn) { fn(-1); }
                     });
@@ -254,6 +244,21 @@ void ItemView::handleKeyInput(Node::Key key) {
     default:
         break;
     }
+}
+
+MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<mem::PropType, std::int16_t> &changes) {
+    const auto *itemInfo = mem::gSaveData.itemInfo[id];
+    std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+    for (auto &c: changes) {
+        if (c.second) {
+            messages.emplace_back(fmt::format(L"{} 提昇 {}", mem::propToName(c.first), c.second));
+        } else {
+            messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
+        }
+    }
+    auto *msgBox = new MessageBox(parent, 0, 0, gWindow->width(), gWindow->height());
+    msgBox->popup(messages, MessageBox::PressToCloseThis);
+    return msgBox;
 }
 
 void ItemView::makeCache() {
