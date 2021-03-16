@@ -29,6 +29,7 @@
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
+#include "util/random.hh"
 #include "util/conv.hh"
 #include <fmt/format.h>
 #include <map>
@@ -845,17 +846,32 @@ void WarField::autoAction() {
         std::sort(scores.begin(), scores.end(), [](const PredictScore &v0, const PredictScore &v1) {
             return v0.score > v1.score;
         });
-#ifndef NDEBUG
+        int ratio[3], ratioTotal = 0;
         int counter = 0;
         for (auto &s: scores) {
+#ifndef NDEBUG
             fmt::print(stdout, "({},{})->({},{}): {}={}\n", s.fx, s.fy, s.tx, s.ty, s.skillIndex, s.score);
             fflush(stdout);
+#endif
+            ratio[counter] = s.score;
+            ratioTotal += s.score;
             if (++counter == 3) {
                 break;
             }
         }
-#endif
-        auto &s = scores.front();
+        int randNum = util::gRandom(ratioTotal);
+        int sel;
+        if (counter > 1) {
+            for (sel = 0; sel < 2; ++sel) {
+                if (randNum < ratio[sel]) {
+                    break;
+                }
+                randNum -= ratio[sel];
+            }
+        } else {
+            sel = 0;
+        }
+        auto &s = scores[sel];
         pendingAutoAction_ = [this, ch, s]() {
             actIndex_ = s.skillIndex;
             actId_ = ch->info.skillId[s.skillIndex];
@@ -1482,10 +1498,10 @@ void WarField::makeDamage(WarField::CharInfo *ch, int x, int y, int distance) {
     if (mem::actDamage(&ch->info, &enemyInfo, knowledge_[0], knowledge_[1],
                    distance, actIndex_, actLevel_, dmg, ps, dead)) {
         if (!wasDead && dead) {
-            ch->exp += dmg;
+            ch->exp += dmg * 2 / 3;
             recalcKnowledge();
         } else {
-            ch->exp += dmg / 2;
+            ch->exp += dmg / 3;
         }
         auto txt = fmt::format(L"{:+}", -dmg);
         auto *ttf = renderer_->ttf();
