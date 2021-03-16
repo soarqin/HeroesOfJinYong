@@ -58,6 +58,7 @@ protected:
 protected:
     TextureMgr textureMgr_;
     std::int16_t subMapId_ = -1;
+    int cameraX_ = 0, cameraY_ = 0;
 
     std::uint64_t frames_ = 0;
     float scale_ = 1.f;

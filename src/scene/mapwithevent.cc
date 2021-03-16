@@ -256,6 +256,8 @@ void MapWithEvent::setDirection(Map::Direction dir) {
 void MapWithEvent::setPosition(int x, int y, bool checkEvent) {
     currX_ = x;
     currY_ = y;
+    cameraX_ = x;
+    cameraY_ = y;
     currMainCharFrame_ = 0;
     resting_ = false;
     drawDirty_ = true;
@@ -362,7 +364,12 @@ bool MapWithEvent::getFaceOffset(int &x, int &y) {
 }
 
 void MapWithEvent::renderChar(int deltaY) {
-    renderer_->renderTexture(mainCharTex_, float(x_ + (width_ >> 1)), float(y_ + (height_ >> 1) - deltaY), scale_);
+    int dx = currX_ - cameraX_;
+    int dy = currY_ - cameraY_;
+    int cellDiffY = cellHeight_ / 2;
+    int offsetX = (dx - dy) * cellWidth_ / 2;
+    int offsetY = (dx + dy) * cellDiffY;
+    renderer_->renderTexture(mainCharTex_, float(x_ + (width_ >> 1)) + float(offsetX) * scale_, float(y_ + (height_ >> 1)) + float(offsetY + cellDiffY - deltaY) * scale_, scale_);
 }
 
 void MapWithEvent::resetTime() {
@@ -371,27 +378,35 @@ void MapWithEvent::resetTime() {
 }
 
 void MapWithEvent::frameUpdate() {
-    if (animCurrTex_ == 0) { return; }
-    if (animCurrTex_ == animEndTex_) {
-        animEventId_ = 0;
-        animCurrTex_ = 0;
-        animEndTex_ = 0;
+    if (animCurrTex_[0] == 0) { return; }
+    if (animCurrTex_[0] == animEndTex_[0]) {
+        for (int i = 0; i < 3; ++i) {
+            animEventId_[i] = 0;
+            animCurrTex_[i] = 0;
+            animEndTex_[i] = 0;
+        }
         continueEvents();
         return;
     }
-    int step = animCurrTex_ < animEndTex_ ? 1 : -1;
-    animCurrTex_ += step;
-    if (animEventId_ < 0) {
+    for (int i = 0; i < 3; ++i) {
+        if (animCurrTex_[i] == 0 || animCurrTex_[i] == animEndTex_[i]) { continue; }
+        int step = animCurrTex_[i] < animEndTex_[i] ? 1 : -1;
+        animCurrTex_[i] += step;
+    }
+    if (animEventId_[0] < 0) {
         updateMainCharTexture();
     } else {
-        auto &evt = mem::gSaveData.subMapEventInfo[subMapId_]->events[animEventId_];
-        evt.currTex = evt.begTex = evt.endTex = animCurrTex_;
-        setCellTexture(evt.x, evt.y, 3, animCurrTex_ >> 1);
+        for (int i = 0; i < 3; ++i) {
+            if (animEventId_[i] == 0) { continue; }
+            auto &evt = mem::gSaveData.subMapEventInfo[subMapId_]->events[animEventId_[i]];
+            evt.currTex = evt.begTex = evt.endTex = animCurrTex_[i];
+            setCellTexture(evt.x, evt.y, 3, animCurrTex_[i] >> 1);
+        }
     }
 }
 
 bool MapWithEvent::checkTime() {
-    if (animEventId_ < 0) { return false; }
+    if (animEventId_[0] < 0) { return false; }
     auto now = gWindow->currTime();
     if (resting_) {
         if (now < nextMainTexTime_) {
@@ -619,9 +634,9 @@ bool MapWithEvent::modifyEventId(MapWithEvent *map, std::int16_t subMapId, std::
 
 bool MapWithEvent::animation(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex) {
     if (map->subMapId_ < 0) { return true; }
-    map->animEventId_ = eventId;
-    map->animCurrTex_ = begTex;
-    map->animEndTex_ = endTex;
+    map->animEventId_[0] = eventId;
+    map->animCurrTex_[0] = begTex;
+    map->animEndTex_[0] = endTex;
     return false;
 }
 
@@ -784,15 +799,30 @@ int MapWithEvent::checkFemaleInTeam(MapWithEvent *map) {
 
 bool MapWithEvent::animation2(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2) {
-    /* TODO: implement this */
-    return true;
+    if (map->subMapId_ < 0) { return true; }
+    map->animEventId_[0] = eventId;
+    map->animCurrTex_[0] = begTex;
+    map->animEndTex_[0] = endTex;
+    map->animEventId_[1] = eventId2;
+    map->animCurrTex_[1] = begTex2;
+    map->animEndTex_[1] = endTex2;
+    return false;
 }
 
 bool MapWithEvent::animation3(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2,
                               std::int16_t eventId3, std::int16_t begTex3) {
-    /* TODO: implement this */
-    return true;
+    if (map->subMapId_ < 0) { return true; }
+    map->animEventId_[0] = eventId;
+    map->animCurrTex_[0] = begTex;
+    map->animEndTex_[0] = endTex;
+    map->animEventId_[1] = eventId2;
+    map->animCurrTex_[1] = begTex2;
+    map->animEndTex_[1] = begTex2 + (endTex - begTex);
+    map->animEventId_[1] = eventId3;
+    map->animCurrTex_[1] = begTex3;
+    map->animEndTex_[1] = begTex3 + (endTex - begTex);
+    return false;
 }
 
 bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t value) {

@@ -132,6 +132,7 @@ void GlobalMap::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
+        int camX = cameraX_, camY = cameraY_;
         int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
         int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
         int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
@@ -140,7 +141,7 @@ void GlobalMap::render() {
         int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
         int tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
         int ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
-        cx = curX - cx; cy = curY - cy;
+        cx = camX - cx; cy = camY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->setClipRect(0, 0, 2048, 2048);
         renderer_->clear(0, 0, 0, 0);
@@ -157,7 +158,7 @@ void GlobalMap::render() {
                     auto &ci = cellInfo_[offset];
                     renderer_->renderTexture(ci.earth, dx, ty);
                     if (ci.surface) {
-                        renderer_->renderTexture(ci.surface, dx, ty - cellDiffY);
+                        renderer_->renderTexture(ci.surface, dx, ty);
                     }
                 } else {
                     renderer_->renderTexture(deepWaterTex_, dx, ty);
@@ -174,9 +175,12 @@ void GlobalMap::render() {
             }
         }
 
-        int ox = (mapHeight_ + curX - curY - 1) * cellDiffX + offsetX_ - int(auxWidth_ / 2);
-        int oy = (curX + curY) * cellDiffY + offsetY_ - int(auxHeight_ / 2);
-        int myy = int(auxHeight_) / 2 + oy;
+        int ox = (mapHeight_ + camX - camY - 1) * cellDiffX + offsetX_ - int(auxWidth_ / 2);
+        int oy = (camX + camY) * cellDiffY + offsetY_ - int(auxHeight_ / 2) - cellDiffY;
+        int dx = currX_ - cameraX_;
+        int dy = currY_ - cameraY_;
+        int offsetY = (dx + dy) * cellDiffY;
+        int myy = int(auxHeight_) / 2 + oy + offsetY;
         int l = ox - cellWidth_ * 2, t = oy - cellHeight_ * 2, r = ox + int(auxWidth_) + cellWidth_ * 2, b = oy + int(auxHeight_) + cellHeight_ * 6;
         auto ite = std::lower_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {t * texWidth_ + l, 0, 0, nullptr}, BuildingTexComp());
         auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
@@ -260,6 +264,8 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     }
     currX_ = x;
     currY_ = y;
+    cameraX_ = x;
+    cameraY_ = y;
     drawDirty_ = true;
     onShip_ = cellInfo_[offset].type == 1;
     if (onShip_) {

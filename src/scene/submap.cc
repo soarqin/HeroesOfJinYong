@@ -119,6 +119,7 @@ void SubMap::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = currX_, curY = currY_;
+        int camX = cameraX_, camY = cameraY_;
         int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
         int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
         int wcount = nx * 2 / cellWidth_;
@@ -167,7 +168,7 @@ void SubMap::render() {
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
         ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
-        cx = curX - cx; cy = curY - cy;
+        cx = camX - cx; cy = camY - cy;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -243,6 +244,8 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     }
     currX_ = x;
     currY_ = y;
+    cameraX_ = x;
+    cameraY_ = y;
     drawDirty_ = true;
     currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
     const auto &subMapInfo = mem::gSaveData.subMapInfo[subMapId_];
@@ -270,8 +273,8 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
 }
 
 void SubMap::updateMainCharTexture() {
-    if (animEventId_ < 0) {
-        mainCharTex_ = textureMgr_[animCurrTex_ >> 1];
+    if (animEventId_[0] < 0) {
+        mainCharTex_ = textureMgr_[animCurrTex_[0] >> 1];
         return;
     }
     if (resting_) {

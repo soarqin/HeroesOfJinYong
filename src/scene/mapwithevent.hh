@@ -152,7 +152,7 @@ protected:
     std::int32_t currMainCharFrame_ = 0;
     std::chrono::steady_clock::time_point nextMainTexTime_;
 
-    std::int16_t animEventId_ = 0, animCurrTex_ = 0, animEndTex_ = 0;
+    std::int16_t animEventId_[3] = {}, animCurrTex_[3] = {}, animEndTex_[3] = {};
 
     std::list<std::function<bool()>> pendingSubEvents_;
 };

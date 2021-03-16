@@ -105,7 +105,6 @@ protected:
     void popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index);
 
 private:
-    int cameraX_ = 0, cameraY_ = 0;
     std::int16_t warId_ = -1;
     bool getExpOnLose_ = false;
     std::vector<CellInfo> cellInfo_;
