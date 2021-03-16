@@ -845,6 +845,16 @@ void WarField::autoAction() {
         std::sort(scores.begin(), scores.end(), [](const PredictScore &v0, const PredictScore &v1) {
             return v0.score > v1.score;
         });
+#ifndef NDEBUG
+        int counter = 0;
+        for (auto &s: scores) {
+            fmt::print(stdout, "({},{})->({},{}): {}={}\n", s.fx, s.fy, s.tx, s.ty, s.skillIndex, s.score);
+            fflush(stdout);
+            if (++counter == 3) {
+                break;
+            }
+        }
+#endif
         auto &s = scores.front();
         pendingAutoAction_ = [this, ch, s]() {
             actIndex_ = s.skillIndex;
@@ -1140,14 +1150,19 @@ void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
         }
     }
     if (ranges) {
+        struct CompareRangeCells {
+            bool operator()(const SelectableCell *a, const SelectableCell *b) {
+                return a->ranges > b->ranges;
+            }
+        };
         std::vector<SelectableCell*> sortedAttackable;
         sortedAttackable.reserve(selCells.size());
         for (auto &p: selCells) {
             sortedAttackable.push_back(&p.second);
         }
-        std::make_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareSelCells());
+        std::make_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
         while (!sortedAttackable.empty()) {
-            std::pop_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareSelCells());
+            std::pop_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
             auto *mc = sortedAttackable.back();
             sortedAttackable.erase(sortedAttackable.end() - 1);
             int nx[4], ny[4], ncnt = 0;
@@ -1196,7 +1211,7 @@ void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
                     mcell.rangeParent = mc;
                     if (currRange < ranges) {
                         sortedAttackable.push_back(&mcell);
-                        std::push_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareSelCells());
+                        std::push_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
                     }
                 }
             }
@@ -1582,7 +1597,6 @@ void WarField::endWar() {
             std::int16_t expReq;
             bool levelup = false;
             while ((expReq = mem::getExpForLevelUp(charInfo->level)) > 0 && charInfo->exp >= expReq) {
-                ++charInfo->level;
                 levelup = true;
                 mem::actLevelup(charInfo);
             }
