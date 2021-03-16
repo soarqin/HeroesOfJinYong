@@ -58,4 +58,14 @@ void Map::render() {
     }
 }
 
+Map::Direction Map::calcDirection(int fx, int fy, int tx, int ty) {
+    int dx = tx - fx, dy = ty - fy;
+    if (std::abs(dx) > std::abs(dy)) {
+        if (dx < 0) { return Map::DirLeft; }
+        return Map::DirRight;
+    }
+    if (dy < 0) { return Map::DirUp; }
+    return Map::DirDown;
+}
+
 }

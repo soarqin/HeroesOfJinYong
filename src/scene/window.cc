@@ -26,6 +26,7 @@
 #include "effect.hh"
 #include "talkbox.hh"
 #include "title.hh"
+#include "dead.hh"
 #include "menu.hh"
 #include "charlistmenu.hh"
 #include "itemview.hh"
@@ -36,7 +37,6 @@
 #include "audio/channelwav.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
-#include "mem/action.hh"
 #include "mem/savedata.hh"
 #include "core/config.hh"
 #include "util/conv.hh"
@@ -86,10 +86,6 @@ Window::Window(int w, int h): width_(w), height_(h) {
 
     SDL_ShowWindow(win);
 
-    audio::gMixer.init(3);
-    playMusic(16);
-    audio::gMixer.pause(false);
-
     globalTextureMgr_.setPalette(gNormalPalette);
     globalTextureMgr_.setRenderer(renderer_);
     headTextureMgr_.setPalette(gNormalPalette);
@@ -106,9 +102,9 @@ Window::Window(int w, int h): width_(w), height_(h) {
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
     warfield_ = new WarField(renderer_, 0, 0, w, h, core::config.scale());
 
-    auto *title = new Title(renderer_, 0, 0, w, h);
-    title->init();
-    popup_ = title;
+    audio::gMixer.init(3);
+    audio::gMixer.pause(false);
+    title();
 }
 
 Window::~Window() {
@@ -205,6 +201,14 @@ void Window::playEffectSound(int idx) {
     audio::gMixer.play(2, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx))));
 }
 
+void Window::title() {
+    playMusic(16);
+    auto *title = new Title(renderer_, 0, 0, width_, height_);
+    title->init();
+    freeOnClose_ = true;
+    popup_ = title;
+}
+
 void Window::newGame() {
     map_ = subMap_;
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
@@ -298,9 +302,10 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
     });
 }
 
-void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
+void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
     auto *wf = dynamic_cast<WarField*>(warfield_);
     wf->setGetExpOnLose(getExpOnLose);
+    wf->setDeadOnLose(deadOnLose);
     wf->load(warId);
     std::set<std::int16_t> defaultChars;
     if (wf->getDefaultChars(defaultChars)) {
@@ -324,7 +329,8 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose) {
     }
 }
 
-void Window::endWar(bool won) {
+void Window::endWar(bool won, bool instantDie) {
+    if (instantDie) { playerDie(); return; }
     map_ = subMap_;
     subMap_->continueEvents(won);
     auto *subMapInfo = mem::gSaveData.subMapInfo[subMap_->subMapId()];
@@ -337,6 +343,14 @@ void Window::endWar(bool won) {
             gWindow->playMusic(music);
         }
     }
+}
+
+void Window::playerDie() {
+    map_ = nullptr;
+    auto *dead = new Dead(renderer_, 0, 0, width_, height_);
+    dead->init();
+    freeOnClose_ = true;
+    popup_ = dead;
 }
 
 void Window::useQuestItem(std::int16_t itemId) {

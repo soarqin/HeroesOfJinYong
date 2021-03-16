@@ -36,16 +36,6 @@
 
 namespace hojy::scene {
 
-Map::Direction calcDirection(int fx, int fy, int tx, int ty) {
-    int dx = tx - fx, dy = ty - fy;
-    if (std::abs(dx) > std::abs(dy)) {
-        if (dx < 0) { return Map::DirLeft; }
-        return Map::DirRight;
-    }
-    if (dy < 0) { return Map::DirUp; }
-    return Map::DirDown;
-}
-
 WarField::WarField(Renderer *renderer, int x, int y, int width, int height, float scale):
     Map(renderer, x, y, width, height, scale) {
     fightTextures_.resize(FightTextureListCount);
@@ -1562,102 +1552,111 @@ void WarField::endWar() {
             if (ci.info.skillId[i] <= 0) { continue; }
             charInfo->skillLevel[i] = ci.info.skillLevel[i];
         }
-        if (getExpOnLose_ || charInfo->hp > 0) { alives.push_back(&ci); }
+        if (charInfo->hp > 0) { alives.push_back(&ci); }
     }
     const auto *info = data::gWarFieldData.info(warId_);
     auto wexp = info != nullptr ? info->exp : 0;
     std::vector<std::pair<int, std::wstring>> messages = { {0, won_ ? L"戰鬥勝利" : L"戰鬥失敗"} };
-    for (auto *ch: alives) {
-        ch->exp += wexp / int(alives.size());
-        auto *charInfo = mem::gSaveData.charInfo[ch->id];
-        if (!charInfo) { continue; }
-        auto name = util::big5Conv.toUnicode(charInfo->name);
-        messages.emplace_back(std::make_pair(0, fmt::format(L"{} 獲得經驗點數 {}", name, ch->exp)));
-        bool canLearn = false, makingItem = false;
-        std::int16_t skillId = 0;
-        int skillIndex = -1, skillLevel = 0;
-        if (charInfo->learningItem >= 0) {
-            const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-            if (itemInfo) {
-                makingItem = itemInfo->makeItem[0] >= 0;
-                canLearn = true;
-                skillId = itemInfo->skillId;
-                if (skillId > 0) {
-                    for (int i = 0; i < data::LearnSkillCount; ++i) {
-                        if (charInfo->skillId[i] <= 0) {
-                            skillIndex = i;
-                            continue;
-                        }
-                        if (charInfo->skillId[i] == skillId) {
-                            skillIndex = i;
-                            skillLevel = std::clamp<std::int16_t>(charInfo->skillLevel[i] / 100, 0, 9);
-                            if (skillLevel >= 9) {
-                                canLearn = false;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        int exp, exp2;
-        if (charInfo->level >= data::LevelMax) {
-            exp = 0;
-            exp2 = ch->exp;
-        } else {
-            if (canLearn) {
-                exp = exp2 = ch->exp / 2;
-            } else {
-                exp = ch->exp;
-                exp2 = 0;
-            }
-        }
-        if (exp) {
-            charInfo->exp = std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax);
-            std::int16_t expReq;
-            bool levelup = false;
-            while ((expReq = mem::getExpForLevelUp(charInfo->level)) > 0 && charInfo->exp >= expReq) {
-                levelup = true;
-                mem::actLevelup(charInfo);
-            }
-            if (levelup) {
-                messages.emplace_back(std::make_pair(0, name + L" 升級了"));
-            }
-        }
-        if (exp2 && canLearn) {
-            charInfo->expForItem = std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax);
-            auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
-            if (expReq > 0 && charInfo->expForItem >= expReq) {
-                charInfo->expForItem -= expReq;
-                int newlevel = 0;
-                if (charInfo->skillId[skillIndex] <= 0) {
-                    charInfo->skillId[skillIndex] = skillId;
-                    charInfo->skillLevel[skillIndex] = 0;
-                } else {
-                    newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
-                    charInfo->skillLevel[skillIndex] = newlevel * 100;
-                }
+    if (won_ || getExpOnLose_) {
+        for (auto *ch: alives) {
+            ch->exp += wexp / int(alives.size());
+            auto *charInfo = mem::gSaveData.charInfo[ch->id];
+            if (!charInfo) { continue; }
+            auto name = util::big5Conv.toUnicode(charInfo->name);
+            messages.emplace_back(std::make_pair(0, fmt::format(L"{} 獲得經驗點數 {}", name, ch->exp)));
+            bool canLearn = false, makingItem = false;
+            std::int16_t skillId = 0;
+            int skillIndex = -1, skillLevel = 0;
+            if (charInfo->learningItem >= 0) {
                 const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-                const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
-                if (itemInfo && skillInfo) {
-                    messages.emplace_back(std::make_pair(0, name + L" 修練 " + util::big5Conv.toUnicode(itemInfo->name) + L" 成功"));
-                    if (newlevel > 0) {
-                        messages.emplace_back(std::make_pair(1, fmt::format(L"{} 升級為 第 {} 級", util::big5Conv.toUnicode(skillInfo->name), newlevel + 1)));
+                if (itemInfo) {
+                    makingItem = itemInfo->makeItem[0] >= 0;
+                    canLearn = true;
+                    skillId = itemInfo->skillId;
+                    if (skillId > 0) {
+                        for (int i = 0; i < data::LearnSkillCount; ++i) {
+                            if (charInfo->skillId[i] <= 0) {
+                                skillIndex = i;
+                                continue;
+                            }
+                            if (charInfo->skillId[i] == skillId) {
+                                skillIndex = i;
+                                skillLevel = std::clamp<std::int16_t>(charInfo->skillLevel[i] / 100, 0, 9);
+                                if (skillLevel >= 9) {
+                                    canLearn = false;
+                                }
+                                break;
+                            }
+                        }
                     }
                 }
             }
-        }
-        if (makingItem) {
-            const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-            charInfo->expForMakeItem += ch->exp;
-            bool itemMade = false;
-            for (int i = 0; i < data::MakeItemCount; ++i) {
-                if (itemInfo->makeItem[i] >= 0 && charInfo->expForMakeItem >= itemInfo->reqExpForMakeItem
-                    && mem::gBag[itemInfo->reqMaterial] > 0) {
-                    mem::gBag.remove(itemInfo->reqMaterial, 1);
-                    mem::gBag.add(itemInfo->makeItem[i], itemInfo->makeItemCount[i]);
-                    const auto *targetItemInfo = mem::gSaveData.itemInfo[itemInfo->makeItem[i]];
-                    messages.emplace_back(std::make_pair(0, name + L" 製造出 " + util::big5Conv.toUnicode(targetItemInfo->name)));
+            int exp, exp2;
+            if (charInfo->level >= data::LevelMax) {
+                exp = 0;
+                exp2 = ch->exp;
+            } else {
+                if (canLearn) {
+                    exp = exp2 = ch->exp / 2;
+                } else {
+                    exp = ch->exp;
+                    exp2 = 0;
+                }
+            }
+            if (exp) {
+                charInfo->exp = std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax);
+                std::int16_t expReq;
+                bool levelup = false;
+                while ((expReq = mem::getExpForLevelUp(charInfo->level)) > 0 && charInfo->exp >= expReq) {
+                    levelup = true;
+                    mem::actLevelup(charInfo);
+                }
+                if (levelup) {
+                    messages.emplace_back(std::make_pair(0, name + L" 升級了"));
+                }
+            }
+            if (exp2 && canLearn) {
+                charInfo->expForItem = std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax);
+                auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
+                if (expReq > 0 && charInfo->expForItem >= expReq) {
+                    charInfo->expForItem -= expReq;
+                    int newlevel = 0;
+                    if (charInfo->skillId[skillIndex] <= 0) {
+                        charInfo->skillId[skillIndex] = skillId;
+                        charInfo->skillLevel[skillIndex] = 0;
+                    } else {
+                        newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
+                        charInfo->skillLevel[skillIndex] = newlevel * 100;
+                    }
+                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+                    const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
+                    if (itemInfo && skillInfo) {
+                        messages.emplace_back(std::make_pair(0,
+                                                             name + L" 修練 " + util::big5Conv.toUnicode(itemInfo->name)
+                                                                 + L" 成功"));
+                        if (newlevel > 0) {
+                            messages.emplace_back(std::make_pair(1,
+                                                                 fmt::format(L"{} 升級為 第 {} 級",
+                                                                             util::big5Conv.toUnicode(skillInfo->name),
+                                                                             newlevel + 1)));
+                        }
+                    }
+                }
+            }
+            if (makingItem) {
+                const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+                charInfo->expForMakeItem += ch->exp;
+                bool itemMade = false;
+                for (int i = 0; i < data::MakeItemCount; ++i) {
+                    if (itemInfo->makeItem[i] >= 0 && charInfo->expForMakeItem >= itemInfo->reqExpForMakeItem
+                        && mem::gBag[itemInfo->reqMaterial] > 0) {
+                        mem::gBag.remove(itemInfo->reqMaterial, 1);
+                        mem::gBag.add(itemInfo->makeItem[i], itemInfo->makeItemCount[i]);
+                        const auto *targetItemInfo = mem::gSaveData.itemInfo[itemInfo->makeItem[i]];
+                        messages.emplace_back(std::make_pair(0,
+                                                             name + L" 製造出 "
+                                                                 + util::big5Conv.toUnicode(targetItemInfo->name)));
+                    }
                 }
             }
         }
@@ -1683,7 +1682,7 @@ void WarField::popupFinishMessages(std::vector<std::pair<int, std::wstring>> mes
             popupFinishMessages(messages, index);
         } else {
             cleanup();
-            gWindow->endWar(won_);
+            gWindow->endWar(won_, deadOnLose_);
         }
     });
 }

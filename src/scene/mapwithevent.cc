@@ -94,6 +94,15 @@ runFunc(F f, P *p, const std::vector<std::int16_t> &evlist, size_t &index, size_
     return true;
 }
 
+void MapWithEvent::cleanupEvents() {
+    currEventPaused_ = false;
+    currEventId_ = -1;
+    currEventIndex_ = 0; currEventSize_ = 0;
+    currEventAdvTrue_ = 0; currEventAdvFalse_ = 0;
+    currEventItem_ = -1;
+    currEventList_ = nullptr;
+}
+
 void MapWithEvent::continueEvents(bool result) {
     if (pendingSubEvents_.empty() && !currEventList_) { return; }
     currEventPaused_ = false;
@@ -377,11 +386,16 @@ void MapWithEvent::resetTime() {
 }
 
 void MapWithEvent::frameUpdate() {
-    if (!cameraMoving_.empty()) {
-        std::tie(cameraX_, cameraY_) = cameraMoving_.back();
-        cameraMoving_.pop_back();
+    if (!moving_.empty()) {
+        std::tie(cameraX_, cameraY_) = moving_.back();
+        if (movingChar_) {
+            direction_ = calcDirection(offsetX_, offsetY_, cameraX_, cameraY_);
+            offsetX_ = cameraX_;
+            offsetY_ = cameraY_;
+        }
+        moving_.pop_back();
         drawDirty_ = true;
-        if (cameraMoving_.empty()) {
+        if (moving_.empty()) {
             continueEvents();
         }
     }
@@ -557,8 +571,9 @@ bool MapWithEvent::makeDim(MapWithEvent *map) {
 }
 
 bool MapWithEvent::die(MapWithEvent *map) {
-    /* TODO: implement this */
-    return true;
+    gWindow->playerDie();
+    map->cleanupEvents();
+    return false;
 }
 
 int MapWithEvent::checkTeamMember(MapWithEvent *map, std::int16_t charId) {
@@ -627,17 +642,18 @@ bool MapWithEvent::setAttrPoison(MapWithEvent *map, std::int16_t charId, std::in
 
 bool MapWithEvent::moveCamera(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
     if (map->subMapId_ < 0) { return true; }
-    map->cameraMoving_.clear();
+    map->movingChar_ = false;
+    map->moving_.clear();
     if (y0 != y1) {
         std::int16_t dy = y0 < y1 ? -1 : 1;
         for (std::int16_t y = y1; y != y0; y+= dy) {
-            map->cameraMoving_.emplace_back(std::make_pair(x1, y));
+            map->moving_.emplace_back(std::make_pair(x1, y));
         }
     }
     if (x0 != x1) {
         std::int16_t dx = x0 < x1 ? -1 : 1;
         for (std::int16_t x = x1; x != x0; x+= dx) {
-            map->cameraMoving_.emplace_back(std::make_pair(x, y0));
+            map->moving_.emplace_back(std::make_pair(x, y0));
         }
     }
     return false;
@@ -675,8 +691,22 @@ int MapWithEvent::checkAttack(MapWithEvent *map, std::int16_t charId, std::int16
 }
 
 bool MapWithEvent::walkPath(MapWithEvent *map, std::int16_t x0, std::int16_t y0, std::int16_t x1, std::int16_t y1) {
-    /* TODO: implement this */
-    return true;
+    if (map->subMapId_ < 0) { return true; }
+    map->movingChar_ = true;
+    map->moving_.clear();
+    if (y0 != y1) {
+        std::int16_t dy = y0 < y1 ? -1 : 1;
+        for (std::int16_t y = y1; y != y0; y+= dy) {
+            map->moving_.emplace_back(std::make_pair(x1, y));
+        }
+    }
+    if (x0 != x1) {
+        std::int16_t dx = x0 < x1 ? -1 : 1;
+        for (std::int16_t x = x1; x != x0; x+= dx) {
+            map->moving_.emplace_back(std::make_pair(x, y0));
+        }
+    }
+    return false;
 }
 
 int MapWithEvent::checkMoney(MapWithEvent *map, std::int16_t amount) {
@@ -947,7 +977,73 @@ bool MapWithEvent::removeBarrier(MapWithEvent *map) {
 }
 
 bool MapWithEvent::tournament(MapWithEvent *map) {
-    /* TODO: implement this */
+    static const std::int16_t heads[] = {
+         8, 21, 23, 31, 32, 43,  7, 11, 14, 20, 33, 34, 10, 12, 19, 22,
+        56, 68, 13, 55, 62, 67, 70, 71, 26, 57, 60, 64,  3, 69
+    };
+
+    for (int i = 0; i < 15; ++i) {
+        int n = util::gRandom(2);
+        map->pendingSubEvents_.emplace_back([map, i, n] {
+            doTalk(map, 2854 + i * 2 + n, heads[i * 2 + n], util::gRandom(2) * 4 + util::gRandom(2));
+            return false;
+        });
+        map->pendingSubEvents_.emplace_back([i, n] {
+            gWindow->enterWar(102 + i * 2 + n, false, true);
+            return false;
+        });
+        map->pendingSubEvents_.emplace_back([map] {
+            makeDim(map);
+            return false;
+        });
+        map->pendingSubEvents_.emplace_back([map] {
+            makeBright(map);
+            return false;
+        });
+        if (i % 3 == 2) {
+            map->pendingSubEvents_.emplace_back([map] {
+                doTalk(map, 2891, 70, 4);
+                return false;
+            });
+            map->pendingSubEvents_.emplace_back([map] {
+                sleep(map);
+                makeDim(map);
+                return false;
+            });
+            map->pendingSubEvents_.emplace_back([map] {
+                makeBright(map);
+                return false;
+            });
+        }
+    }
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2884, 0, 3);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2885, 0, 3);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2886, 0, 3);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2887, 0, 3);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2888, 0, 3);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        doTalk(map, 2889, 0, 1);
+        return false;
+    });
+    map->pendingSubEvents_.emplace_back([map] {
+        mem::gBag.add(0x8F, 1);
+        return true;
+    });
     return true;
 }
 

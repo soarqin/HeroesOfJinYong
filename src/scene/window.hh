@@ -63,14 +63,16 @@ public:
     void playAtkSound(int idx);
     void playEffectSound(int idx);
 
+    void title();
     void newGame();
     bool loadGame(int slot);
     bool saveGame(int slot);
     void forceQuit();
     void exitToGlobalMap(int direction);
     void enterSubMap(std::int16_t subMapId, int direction);
-    void enterWar(std::int16_t warId, bool getExpOnLose);
-    void endWar(bool won);
+    void enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose = false);
+    void endWar(bool won, bool instantDie = false);
+    void playerDie();
     void useQuestItem(std::int16_t itemId);
     void forceEvent(std::int16_t eventId);
 

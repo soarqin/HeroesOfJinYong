@@ -52,6 +52,8 @@ public:
     void render() override;
 
 protected:
+    Direction calcDirection(int fx, int fy, int tx, int ty);
+
     virtual void resetTime() {}
     virtual void frameUpdate() {}
 

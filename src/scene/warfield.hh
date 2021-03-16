@@ -79,7 +79,8 @@ public:
 
     void cleanup();
     bool load(std::int16_t warId);
-    void setGetExpOnLose(bool b) { getExpOnLose_ = b; }
+    inline void setGetExpOnLose(bool b) { getExpOnLose_ = b; }
+    inline void setDeadOnLose(bool b) { deadOnLose_ = b; }
     bool getDefaultChars(std::set<std::int16_t> &chars) const;
     void putChars(const std::vector<std::int16_t> &chars);
 
@@ -107,6 +108,7 @@ protected:
 private:
     std::int16_t warId_ = -1;
     bool getExpOnLose_ = false;
+    bool deadOnLose_ = false;
     std::vector<CellInfo> cellInfo_;
     std::set<std::int16_t> warMapLoaded_;
 
