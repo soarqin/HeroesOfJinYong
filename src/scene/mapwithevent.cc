@@ -572,7 +572,6 @@ bool MapWithEvent::makeDim(MapWithEvent *map) {
 
 bool MapWithEvent::die(MapWithEvent *map) {
     gWindow->playerDie();
-    map->cleanupEvents();
     return false;
 }
 
@@ -1040,7 +1039,7 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
         doTalk(map, 2889, 0, 1);
         return false;
     });
-    map->pendingSubEvents_.emplace_back([map] {
+    map->pendingSubEvents_.emplace_back([] {
         mem::gBag.add(0x8F, 1);
         return true;
     });

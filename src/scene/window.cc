@@ -346,6 +346,7 @@ void Window::endWar(bool won, bool instantDie) {
 }
 
 void Window::playerDie() {
+    subMap_->cleanupEvents();
     map_ = nullptr;
     auto *dead = new Dead(renderer_, 0, 0, width_, height_);
     dead->init();
