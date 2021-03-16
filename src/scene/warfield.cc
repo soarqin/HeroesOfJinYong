@@ -598,46 +598,47 @@ void WarField::autoAction() {
     }
     auto *ch = charQueue_.back();
     if (ch->info.stamina < 10) {
-        std::map<mem::PropType, std::int16_t> changes;
-        auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Stamina, changes);
-        if (itemId < 0) {
-            doRest();
-        } else {
-            auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-            msgBox->setCloseHandler([this] {
-                charQueue_.pop_back();
-                stage_ = Idle;
-            });
-        }
-        return;
-    }
-    if (ch->info.hp < 20 || ch->info.hp <= ch->info.maxHp / 20) {
-        std::map<mem::PropType, std::int16_t> changes;
-        auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Hp, changes);
-        if (itemId < 0) {
-            doRest();
-        } else {
-            auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-            msgBox->setCloseHandler([this] {
-                charQueue_.pop_back();
-                stage_ = Idle;
-            });
-        }
-        return;
-    }
-    if (ch->info.poisoned > 33 && ch->side == 1) {
-        std::map<mem::PropType, std::int16_t> changes;
-        auto itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Poisoned, changes);
-        if (itemId < 0) {
-            doRest();
-        } else {
-            auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-            msgBox->setCloseHandler([this] {
-                charQueue_.pop_back();
-                stage_ = Idle;
-            });
-        }
-        return;
+        pendingAutoAction_ = [this, ch]() {
+            std::map<mem::PropType, std::int16_t> changes;
+            auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Stamina, changes);
+            if (itemId < 0) {
+                doRest();
+            } else {
+                auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                msgBox->setCloseHandler([this] {
+                    charQueue_.pop_back();
+                    stage_ = Idle;
+                });
+            }
+        };
+    } else if (ch->info.hp < 20 || ch->info.hp <= ch->info.maxHp / 20) {
+        pendingAutoAction_ = [this, ch]() {
+            std::map<mem::PropType, std::int16_t> changes;
+            auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Hp, changes);
+            if (itemId < 0) {
+                doRest();
+            } else {
+                auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                msgBox->setCloseHandler([this] {
+                    charQueue_.pop_back();
+                    stage_ = Idle;
+                });
+            }
+        };
+    } else if (ch->info.poisoned > 33 && ch->side == 1) {
+        pendingAutoAction_ = [this, ch]() {
+            std::map<mem::PropType, std::int16_t> changes;
+            auto itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Poisoned, changes);
+            if (itemId < 0) {
+                doRest();
+            } else {
+                auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                msgBox->setCloseHandler([this] {
+                    charQueue_.pop_back();
+                    stage_ = Idle;
+                });
+            }
+        };
     }
     struct SkillPredict {
         const mem::SkillData *skill;
@@ -649,32 +650,37 @@ void WarField::autoAction() {
     };
     SkillPredict skills[data::LearnSkillCount];
     int skillCount = 0, maxRange = 0;
-    for (int i = 0; i < data::LearnSkillCount; ++i) {
-        if (ch->info.skillId[i] <= 0) { continue; }
-        const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
-        if (!skill) { continue; }
-        std::int16_t level = mem::calcRealSkillLevel(skill->reqMp, std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9), ch->info.mp);
-        if (level < 0) { continue; }
-        std::int16_t atk = mem::calcRealAttack(&ch->info, knowledge_[ch->side], skill, level);
-        std::int16_t type = skill->attackAreaType, range = skill->selRange[level], area = skill->area[level];
-        skills[skillCount++] = SkillPredict {skill, std::int16_t(i), level, atk, type, range, area};
-        if (type == 0 || type == 3) {
-            maxRange = std::max<int>(maxRange, range);
+    if (!pendingAutoAction_) {
+        for (int i = 0; i < data::LearnSkillCount; ++i) {
+            if (ch->info.skillId[i] <= 0) { continue; }
+            const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
+            if (!skill) { continue; }
+            std::int16_t level = mem::calcRealSkillLevel(skill->reqMp,
+                                                         std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9),
+                                                         ch->info.mp);
+            if (level < 0) { continue; }
+            std::int16_t atk = mem::calcRealAttack(&ch->info, knowledge_[ch->side], skill, level);
+            std::int16_t type = skill->attackAreaType, range = skill->selRange[level], area = skill->area[level];
+            skills[skillCount++] = SkillPredict{skill, std::int16_t(i), level, atk, type, range, area};
+            if (type == 0 || type == 3) {
+                maxRange = std::max<int>(maxRange, range);
+            }
         }
-    }
-    if (!skillCount) {
-        std::map<mem::PropType, std::int16_t> changes;
-        auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Mp, changes);
-        if (itemId < 0) {
-            doRest();
-        } else {
-            auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-            msgBox->setCloseHandler([this] {
-                charQueue_.pop_back();
-                stage_ = Idle;
-            });
+        if (!skillCount) {
+            pendingAutoAction_ = [this, ch]() {
+                std::map<mem::PropType, std::int16_t> changes;
+                auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Mp, changes);
+                if (itemId < 0) {
+                    doRest();
+                } else {
+                    auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                    msgBox->setCloseHandler([this] {
+                        charQueue_.pop_back();
+                        stage_ = Idle;
+                    });
+                }
+            };
         }
-        return;
     }
     CharInfo *enemies[std::max(data::WarFieldEnemyCount, data::TeamMemberCount)];
     int enemyCount = 0;
@@ -682,6 +688,38 @@ void WarField::autoAction() {
     for (auto &ci: chars_) {
         if (ci.side != enemySide || ci.info.hp <= 0) { continue; }
         enemies[enemyCount++] = &ci;
+    }
+    if (pendingAutoAction_) {
+        std::map<std::pair<int, int>, SelectableCell> selCells;
+        getSelectableArea(ch, selCells, ch->steps, 0);
+        int distance = 0;
+        int mx = -1, my = -1;
+        for (auto &c: selCells) {
+            if (c.second.moves < 0) { continue; }
+            std::int16_t x, y;
+            std::tie(x, y) = c.first;
+            for (int i = 0; i < enemyCount; ++i) {
+                auto *enemy = enemies[i];
+                int dist = std::abs(enemy->x - x) + std::abs(enemy->y - y);
+                if (dist > distance) {
+                    distance = dist;
+                    mx = x; my = y;
+                }
+            }
+        }
+        if (mx != ch->x || my != ch->y) {
+            stage_ = Moving;
+            movingPath_.clear();
+            auto sc = &selCells[std::make_pair(mx, my)];
+            while (sc) {
+                movingPath_.emplace_back(std::make_pair(sc->x, sc->y));
+                sc = sc->moveParent;
+            }
+        } else {
+            pendingAutoAction_();
+            pendingAutoAction_ = nullptr;
+        }
+        return;
     }
     std::map<std::pair<int, int>, SelectableCell> selCells;
     int steps = ch->steps;
