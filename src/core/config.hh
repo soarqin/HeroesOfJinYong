@@ -43,6 +43,8 @@ public:
     [[nodiscard]] float scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
+    [[nodiscard]] bool noNameInput() const { return noNameInput_; }
+    [[nodiscard]] const std::wstring &defaultName() const { return defaultName_; }
 
 private:
     std::vector<std::string> dataPath_, fonts_;
@@ -52,6 +54,8 @@ private:
     float scale_ = 2.f;
     float animationSpeed_ = 1.f;
     float fadeSpeed_ = 1.f;
+    bool noNameInput_ = false;
+    std::wstring defaultName_;
 };
 
 extern Config config;

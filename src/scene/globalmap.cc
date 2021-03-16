@@ -157,7 +157,7 @@ void GlobalMap::render() {
                     auto &ci = cellInfo_[offset];
                     renderer_->renderTexture(ci.earth, dx, ty);
                     if (ci.surface) {
-                        renderer_->renderTexture(ci.surface, dx, ty);
+                        renderer_->renderTexture(ci.surface, dx, ty - cellDiffY);
                     }
                 } else {
                     renderer_->renderTexture(deepWaterTex_, dx, ty);

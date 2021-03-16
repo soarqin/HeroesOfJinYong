@@ -320,15 +320,17 @@ void WarField::render() {
                 }
                 auto &ci = cellInfo_[offset];
                 renderer_->renderTexture(ci.earth, dx, ty);
-                if (ci.insideMovingArea == 2) {
-                    maskTex_->setBlendColor(236, 236, 236, 160);
-                    renderer_->renderTexture(maskTex_, dx, ty);
-                } else if (ci.charInfo) {
-                    maskTex_->setBlendColor(192, 192, 192, 160);
-                    renderer_->renderTexture(maskTex_, dx, ty);
-                } else if (selecting && !ci.insideMovingArea) {
-                    maskTex_->setBlendColor(32, 32, 32, 204);
-                    renderer_->renderTexture(maskTex_, dx, ty);
+                if (!acting) {
+                    if (ci.insideMovingArea == 2) {
+                        maskTex_->setBlendColor(236, 236, 236, 128);
+                        renderer_->renderTexture(maskTex_, dx, ty);
+                    } else if (ci.charInfo) {
+                        maskTex_->setBlendColor(192, 192, 192, 128);
+                        renderer_->renderTexture(maskTex_, dx, ty);
+                    } else if (selecting && !ci.insideMovingArea) {
+                        maskTex_->setBlendColor(32, 32, 32, 160);
+                        renderer_->renderTexture(maskTex_, dx, ty);
+                    }
                 }
                 if (ci.building) {
                     renderer_->renderTexture(ci.building, dx, ty);

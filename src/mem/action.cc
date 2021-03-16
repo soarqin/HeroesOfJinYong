@@ -515,7 +515,7 @@ void actRest(CharacterData *c) {
 }
 
 void actLevelup(CharacterData *c) {
-    auto factor = c->potential / 15;
+    auto factor = std::max(1, c->potential / 15);
     ++c->level;
     c->attack = std::clamp<int16_t>(c->attack + factor, 0, data::AttackMax);
     c->defence = std::clamp<int16_t>(c->defence + factor, 0, data::DefenceMax);

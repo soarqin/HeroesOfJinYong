@@ -68,8 +68,15 @@ void Title::handleKeyInput(Node::Key key) {
         case 0:
             switch (currSel_) {
             case 0:
-                mainCharName_.clear();
-                mode_ = 2;
+                if (core::config.noNameInput()) {
+                    mainCharName_ = core::config.defaultName();
+                    mode_ = 3;
+                    mem::gSaveData.newGame();
+                    doRandomBaseInfo();
+                } else {
+                    mainCharName_.clear();
+                    mode_ = 2;
+                }
                 update();
                 break;
             case 1:
@@ -178,7 +185,9 @@ void Title::makeCache() {
     case 2: {
         auto *ttf = renderer_->ttf();
         y = height_ - (ttf->fontSize() + TextLineSpacing) * 5;
-        ttf->render(L"請輸入姓名：" + mainCharName_, width_ / 4, y, false);
+        ttf->setColor(236, 236, 236);
+        ttf->setAltColor(2, 224, 180, 32);
+        ttf->render(L"請輸入姓名：\2" + mainCharName_, width_ / 4, y, false);
         cacheEnd();
         break;
     }
@@ -190,9 +199,10 @@ void Title::makeCache() {
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
         int ox = x, oy = y;
-        auto askText = mainCharName_ + L"  這樣的屬性滿意嗎？";
+        auto askText = L'\2' + mainCharName_ + L"  \1這樣的屬性滿意嗎？";
         auto *data = mem::gSaveData.charInfo[0];
-        ttf->setColor(224, 180, 32);
+        ttf->setColor(236, 236, 236);
+        ttf->setAltColor(2, 224, 180, 32);
         ttf->render(askText, x, y, false);
         y += lineheight * 2;
         drawProperty(L"內力", data->maxMp, 50, x, y, hh, data->mpType);
