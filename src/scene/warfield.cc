@@ -246,9 +246,10 @@ void WarField::render() {
         cx = curX - cx; cy = curY - cy;
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
         bool acting = stage_ == Acting;
+        bool movingOrActing = acting || stage_ == Moving;
         auto *ch = charQueue_.back();
         if (acting && effectTexIdx_ >= 0) {
-            const auto *skillInfo = actId_ >= 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
+            const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
             const auto &effTexMgr = (*gEffect[effectId_]);
             const auto *tex = effTexMgr[effectTexIdx_ < effTexMgr.size() ? effectTexIdx_ : effTexMgr.size() - 1];
             auto mw = mapWidth_;
@@ -320,7 +321,7 @@ void WarField::render() {
                 }
                 auto &ci = cellInfo_[offset];
                 renderer_->renderTexture(ci.earth, dx, ty);
-                if (!acting) {
+                if (!movingOrActing) {
                     if (ci.insideMovingArea == 2) {
                         maskTex_->setBlendColor(236, 236, 236, 128);
                         renderer_->renderTexture(maskTex_, dx, ty);
@@ -362,17 +363,18 @@ void WarField::render() {
                 ty += cellDiffY;
             }
         }
-        if (acting && effectTexIdx_ >= 3) {
+        if (acting && effectTexIdx_ >= 3 && effectTexIdx_ < 13) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
             auto *ttf = renderer_->ttf();
             auto fsize = std::lround(8.f * scale_);
             for (auto &n: popupNumbers_) {
                 int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
+                int texX = ax + (deltax - deltay) * cellDiffX + n.offsetX;
+                int texY = ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - fightFrame_ * 2;
+                ttf->setColor((n.r + 256) / 2, (n.g + 256) / 2, (n.b + 256) / 2);
+                ttf->render(n.str, texX + 1, texY, false, fsize);
                 ttf->setColor(n.r, n.g, n.b);
-                ttf->render(n.str,
-                            ax + (deltax - deltay) * cellDiffX + n.offsetX,
-                            ay + (deltax + deltay) * cellDiffY - cellDiffY * 2 - fsize - fightFrame_ * 2,
-                            true, fsize);
+                ttf->render(n.str, texX, texY, false, fsize);
             }
         }
         renderer_->setTargetTexture(nullptr);
@@ -508,7 +510,7 @@ void WarField::frameUpdate() {
         fightTexIdx_ = std::min(fightTexIdx_ + 1, fightTexCount_ - 1);
         if (fightFrame_ == 0) {
             const mem::SkillData *skillInfo;
-            if (actId_ >= 0 && (skillInfo = mem::gSaveData.skillInfo[actId_]) != nullptr) {
+            if (actId_ > 0 && (skillInfo = mem::gSaveData.skillInfo[actId_]) != nullptr) {
                 gWindow->playAtkSound(skillInfo->soundId);
             } else {
                 gWindow->playAtkSound(0);
@@ -658,7 +660,7 @@ void WarField::autoAction() {
     SkillPredict skills[data::LearnSkillCount];
     int skillCount = 0, maxRange = 0;
     for (int i = 0; i < data::LearnSkillCount; ++i) {
-        if (ch->info.skillId[i] < 0) { continue; }
+        if (ch->info.skillId[i] <= 0) { continue; }
         const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
         if (!skill) { continue; }
         std::int16_t level = mem::calcRealSkillLevel(skill->reqMp, std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9), ch->info.mp);
@@ -1557,7 +1559,7 @@ void WarField::endWar() {
         charInfo->hurt = ci.info.hurt;
         charInfo->stamina = ci.info.stamina;
         for (int i = 0; i < data::LearnSkillCount; ++i) {
-            if (ci.info.skillId[i] < 0) { continue; }
+            if (ci.info.skillId[i] <= 0) { continue; }
             charInfo->skillLevel[i] = ci.info.skillLevel[i];
         }
         if (getExpOnLose_ || charInfo->hp > 0) { alives.push_back(&ci); }
@@ -1580,9 +1582,9 @@ void WarField::endWar() {
                 makingItem = itemInfo->makeItem[0] >= 0;
                 canLearn = true;
                 skillId = itemInfo->skillId;
-                if (skillId >= 0) {
+                if (skillId > 0) {
                     for (int i = 0; i < data::LearnSkillCount; ++i) {
-                        if (charInfo->skillId[i] < 0) {
+                        if (charInfo->skillId[i] <= 0) {
                             skillIndex = i;
                             continue;
                         }
@@ -1628,7 +1630,7 @@ void WarField::endWar() {
             if (expReq > 0 && charInfo->expForItem >= expReq) {
                 charInfo->expForItem -= expReq;
                 int newlevel = 0;
-                if (charInfo->skillId[skillIndex] < 0) {
+                if (charInfo->skillId[skillIndex] <= 0) {
                     charInfo->skillId[skillIndex] = skillId;
                     charInfo->skillLevel[skillIndex] = 0;
                 } else {

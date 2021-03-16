@@ -81,7 +81,7 @@ private:
     static bool changeLayer(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
                             std::int16_t x, std::int16_t y, std::int16_t value);
     static int hasItem(MapWithEvent *map, std::int16_t itemId);
-    static bool setCameraPosition(MapWithEvent *map, std::int16_t x, std::int16_t y);
+    static bool setPlayerPosition(MapWithEvent *map, std::int16_t x, std::int16_t y);
     static int checkTeamFull(MapWithEvent *map);
     static bool leaveTeam(MapWithEvent *map, std::int16_t charId);
     static bool emptyAllMP(MapWithEvent *map);

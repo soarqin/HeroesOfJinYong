@@ -168,7 +168,7 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(16, checkTeamMember);
         OpRun(17, changeLayer);
         OpRun(18, hasItem);
-        OpRun(19, setCameraPosition);
+        OpRun(19, setPlayerPosition);
         OpRun(20, checkTeamFull);
         OpRun(21, leaveTeam);
         OpRun(22, emptyAllMP);
@@ -574,8 +574,8 @@ int MapWithEvent::hasItem(MapWithEvent *map, std::int16_t itemId) {
     return mem::gBag[itemId] > 0 ? 1 : 0;
 }
 
-bool MapWithEvent::setCameraPosition(MapWithEvent *map, std::int16_t x, std::int16_t y) {
-    /* TODO: implement this */
+bool MapWithEvent::setPlayerPosition(MapWithEvent *map, std::int16_t x, std::int16_t y) {
+    map->setPosition(x, y, false);
     return true;
 }
 

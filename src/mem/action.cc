@@ -105,7 +105,7 @@ bool skillFull(std::int16_t charId) {
     const auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     for (auto id: charInfo->skillId) {
-        if (id < 0) { return false; }
+        if (id <= 0) { return false; }
     }
     return true;
 }
@@ -524,7 +524,7 @@ void actLevelup(CharacterData *c) {
     c->maxMp = std::clamp<int16_t>(c->maxMp + 4 * (9 - factor), 0, data::MpMax);
     c->hp = c->maxHp;
     c->mp = c->maxMp;
-    c->poison = 0;
+    c->poisoned = 0;
     c->hurt = 0;
     if (c->medic) { c->medic = std::clamp<int16_t>(c->medic + util::gRandom(3), 0, data::MedicMax); }
     if (c->poison) { c->poison = std::clamp<int16_t>(c->poison + util::gRandom(3), 0, data::PoisonMax); }

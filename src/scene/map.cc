@@ -31,7 +31,7 @@ namespace hojy::scene {
 Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height),
     scale_(scale), auxWidth_(std::lround(float(width_) / scale)), auxHeight_(std::lround(float(height_) / scale)),
     drawDirty_(true), drawingTerrainTex_(Texture::createAsTarget(renderer_, width, height)),
-    eachFrameTime_(std::chrono::microseconds(int(1000000.f / 12.f / core::config.animationSpeed()))) {
+    eachFrameTime_(std::chrono::microseconds(int(1000000.f / 15.f / core::config.animationSpeed()))) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
     textureMgr_.setPalette(gNormalPalette);
