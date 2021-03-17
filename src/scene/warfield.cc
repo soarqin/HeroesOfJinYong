@@ -539,6 +539,7 @@ void Warfield::frameUpdate() {
                 }
             };
             if (skillLevelup_) {
+                skillLevelup_ = false;
                 stage_ = PoppingUp;
                 const auto *skill = mem::gSaveData.skillInfo[actId_];
                 auto *ch = charQueue_.back();
@@ -1601,7 +1602,7 @@ void Warfield::endWar() {
             if (ci.info.skillId[i] <= 0) { continue; }
             charInfo->skillLevel[i] = ci.info.skillLevel[i];
         }
-        if (charInfo->hp > 0) { alives.push_back(&ci); }
+        if (ci.info.hp > 0) { alives.push_back(&ci); }
     }
     const auto *info = data::gWarfieldData.info(warId_);
     auto wexp = info != nullptr ? info->exp : 0;
@@ -1624,7 +1625,7 @@ void Warfield::endWar() {
                     skillId = itemInfo->skillId;
                     if (skillId > 0) {
                         for (int i = 0; i < data::LearnSkillCount; ++i) {
-                            if (charInfo->skillId[i] <= 0) {
+                            if (skillIndex < 0 && charInfo->skillId[i] <= 0) {
                                 skillIndex = i;
                                 continue;
                             }
@@ -1666,10 +1667,15 @@ void Warfield::endWar() {
             }
             if (exp2 && canLearn) {
                 charInfo->expForItem = std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax);
-                auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
-                if (expReq > 0 && charInfo->expForItem >= expReq) {
+                int newlevel = 0;
+                bool levelup = false;
+                for (;;) {
+                    auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
+                    if (expReq <= 0 || charInfo->expForItem < expReq) {
+                        break;
+                    }
+                    levelup = true;
                     charInfo->expForItem -= expReq;
-                    int newlevel = 0;
                     if (charInfo->skillId[skillIndex] <= 0) {
                         charInfo->skillId[skillIndex] = skillId;
                         charInfo->skillLevel[skillIndex] = 0;
@@ -1677,12 +1683,18 @@ void Warfield::endWar() {
                         newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
                         charInfo->skillLevel[skillIndex] = newlevel * 100;
                     }
-                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(97),
-                                                         name, GETITEMNAME(charInfo->learningItem))));
+                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+                    if (itemInfo) {
+                        std::map<mem::PropType, std::int16_t> changes;
+                        mem::applyItemChanges(charInfo, itemInfo, changes);
+                    }
+                }
+                if (levelup) {
+                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(97), name,
+                                                                        GETITEMNAME(charInfo->learningItem))));
                     if (newlevel > 0) {
-                        messages.emplace_back(std::make_pair(1, fmt::format(GETTEXT(98),
-                                                                         GETSKILLNAME(skillId),
-                                                                         newlevel + 1)));
+                        messages.emplace_back(std::make_pair(1, fmt::format(GETTEXT(98), GETSKILLNAME(skillId),
+                                                                            newlevel + 1)));
                     }
                 }
             }

@@ -280,7 +280,7 @@ bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo) {
 std::int16_t getLeaveEventId(std::int16_t id) {
     for (size_t i = 0; i < data::gFactors.leaveTeamChars.size(); ++i) {
         if (data::gFactors.leaveTeamChars[i] == id) {
-            return data::gFactors.leaveTeamStartEvents + std::int16_t(i);
+            return data::gFactors.leaveTeamStartEvents + std::int16_t(i) * 2;
         }
     }
     return -1;

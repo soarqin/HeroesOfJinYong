@@ -49,6 +49,7 @@ bool SubMap::load(std::int16_t subMapId) {
         }
         subMapLoaded_.insert(subMapId);
     }
+    cleanupEvents();
     eventLoop_.clear();
     eventDelay_.clear();
     eventLoop_.resize(data::SubMapEventCount);
@@ -285,18 +286,19 @@ void SubMap::updateMainCharTexture() {
 }
 
 void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
+    auto *texobj = tex <= 0 ? nullptr : textureMgr_[tex];
     switch (layer) {
     case 0:
-        cellInfo_[y * mapWidth_ + x].earth = textureMgr_[tex];
+        cellInfo_[y * mapWidth_ + x].earth = texobj;
         break;
     case 1:
-        cellInfo_[y * mapWidth_ + x].building = textureMgr_[tex];
+        cellInfo_[y * mapWidth_ + x].building = texobj;
         break;
     case 2:
-        cellInfo_[y * mapWidth_ + x].decoration = textureMgr_[tex];
+        cellInfo_[y * mapWidth_ + x].decoration = texobj;
         break;
     case 3:
-        cellInfo_[y * mapWidth_ + x].event = textureMgr_[tex];
+        cellInfo_[y * mapWidth_ + x].event = texobj;
         break;
     default:
         return;

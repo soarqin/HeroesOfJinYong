@@ -44,9 +44,12 @@ void Strings::load(const std::string &filename) {
         strings_[Text].emplace_back(util::Utf8Conv::toUnicode(n.value_or<std::string>("")));
     }
     if (core::config.simplifiedChinese()) {
+        auto backupCharName = strings_[Text][0];
         for (auto &n: strings_[Text]) {
             n = util::trad2SimpConv.convert(n);
         }
+        /* allow traditional chinese chars in default user name */
+        strings_[Text][0] = backupCharName;
     }
 }
 

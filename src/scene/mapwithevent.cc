@@ -419,7 +419,7 @@ void MapWithEvent::frameUpdate() {
         updateMainCharTexture();
     } else {
         for (int i = 0; i < 3; ++i) {
-            if (animEventId_[i] == 0) { continue; }
+            if (animCurrTex_[i] == 0) { continue; }
             auto &evt = mem::gSaveData.subMapEventInfo[subMapId_]->events[animEventId_[i]];
             evt.currTex = evt.begTex = evt.endTex = animCurrTex_[i];
             setCellTexture(evt.x, evt.y, 3, animCurrTex_[i] >> 1);
