@@ -28,6 +28,7 @@ namespace hojy::mem {
 Bag gBag;
 
 void Bag::syncFromSave() {
+    items_.clear();
     for (auto &item : gSaveData.baseInfo->items) {
         if (item.count) {
             items_[item.id] = item.count;

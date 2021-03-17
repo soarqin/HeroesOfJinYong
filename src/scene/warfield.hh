@@ -62,11 +62,6 @@ class Warfield: public Map {
         int x, y, moves, ranges;
         SelectableCell *moveParent, *rangeParent;
     };
-    struct CompareSelCells {
-        bool operator()(const SelectableCell *a, const SelectableCell *b) {
-            return a->moves > b->moves;
-        }
-    };
     struct PopupNumber {
         std::wstring str;
         int x, y;

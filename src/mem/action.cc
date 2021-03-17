@@ -520,6 +520,7 @@ void actLevelup(CharacterData *c) {
     c->maxMp = std::clamp<int16_t>(c->maxMp + 4 * (9 - factor), 0, data::MpMax);
     c->hp = c->maxHp;
     c->mp = c->maxMp;
+    c->stamina = data::StaminaMax;
     c->poisoned = 0;
     c->hurt = 0;
     if (c->medic) { c->medic = std::clamp<int16_t>(c->medic + util::gRandom(3), 0, data::MedicMax); }

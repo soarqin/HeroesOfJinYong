@@ -562,21 +562,26 @@ void Warfield::frameUpdate() {
 }
 
 void Warfield::nextAction() {
-    if (charQueue_.empty()) {
-        charQueue_.reserve(chars_.size());
-        for (auto &c: chars_) {
-            if (c.info.hp > 0) {
-                charQueue_.emplace_back(&c);
-                c.steps = c.info.speed / 15;
-            }
-        }
-        std::stable_sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo *c0, const CharInfo *c1) {
-            return c0->info.speed < c1->info.speed;
-        });
-    }
     CharInfo *ch;
-    while ((ch = charQueue_.back())->info.hp <= 0) {
-        charQueue_.pop_back();
+    for (;;) {
+        if (charQueue_.empty()) {
+            charQueue_.reserve(chars_.size());
+            for (auto &c: chars_) {
+                if (c.info.hp > 0) {
+                    charQueue_.emplace_back(&c);
+                    c.steps = c.info.speed / 15;
+                }
+            }
+            std::stable_sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo *c0, const CharInfo *c1) {
+                return c0->info.speed < c1->info.speed;
+            });
+        }
+        ch = charQueue_.back();
+        if (ch->info.hp <= 0) {
+            charQueue_.pop_back();
+            continue;
+        }
+        break;
     }
     mem::actPoisonDamage(&ch->info);
     cameraX_ = ch->x;
@@ -1045,7 +1050,7 @@ void Warfield::playerMenu() {
                     actId_ = -4;
                     actLevel_ = 0;
                     attackTimesLeft_ = 1;
-                    maskSelectableArea(ch->info.throwing / 15, 0);
+                    maskSelectableArea(0, ch->info.throwing / 15);
                     stage_ = AttackSelecting;
                     drawDirty_ = true;
                 }
@@ -1117,6 +1122,11 @@ void Warfield::unmaskArea() {
 }
 
 void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ranges, bool zoecheck) {
+    struct CompareSelCells {
+        bool operator()(const SelectableCell *a, const SelectableCell *b) {
+            return a->moves > b->moves;
+        }
+    };
     auto myside = ch->side;
     int w = mapWidth_, h = mapHeight_;
     std::vector<SelectableCell*> sortedMovable;
@@ -1129,7 +1139,9 @@ void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
     start.ranges = 0;
     start.moveParent = nullptr;
     start.rangeParent = nullptr;
-    sortedMovable.push_back(&start);
+    if (steps > 0) {
+        sortedMovable.push_back(&start);
+    }
     while (!sortedMovable.empty()) {
         std::pop_heap(sortedMovable.begin(), sortedMovable.end(), CompareSelCells());
         auto *mc = sortedMovable.back();
@@ -1175,7 +1187,7 @@ void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
         for (int i = 0; i < ncnt; ++i) {
             int tx = nx[i], ty = ny[i];
             auto &ci = cellInfo_[ty * w + tx];
-            if (ci.blocked || ci.building) {
+            if (ci.charInfo || ci.blocked || ci.building) {
                 continue;
             }
             auto currMove = mc->moves + 1;
@@ -1325,7 +1337,7 @@ bool Warfield::tryUseSkill(int index) {
             steps = 1;
             break;
         }
-        maskSelectableArea(steps, 0);
+        maskSelectableArea(0, steps);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -1356,7 +1368,7 @@ bool Warfield::tryUseSkill(int index) {
         startActAction();
         return true;
     default:
-        maskSelectableArea(skill->selRange[actLevel_], 0);
+        maskSelectableArea(0, skill->selRange[actLevel_]);
         stage_ = AttackSelecting;
         drawDirty_ = true;
         return true;
@@ -1511,6 +1523,9 @@ void Warfield::startActAction() {
         }
         }
         mem::postDamage(&ch->info, actIndex_, attackTimesLeft_ == 1 ? 3 : 0, skillLevelup_);
+        if (skillLevelup_) {
+            actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[actIndex_] / 100, 0, 9);
+        }
     } else {
         endTurn();
     }

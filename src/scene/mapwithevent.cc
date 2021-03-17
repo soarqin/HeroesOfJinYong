@@ -486,6 +486,7 @@ bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::in
         auto &layer = mem::gSaveData.subMapLayerInfo[subMapId]->data[3];
         layer[ev.y * map->mapWidth_ + ev.x] = -1;
         layer[y * map->mapWidth_ + x] = eventId;
+        map->setCellTexture(ev.x, ev.y, 3, -1);
         ev.x = x; ev.y = y;
     }
     if (currTex > -2) {
