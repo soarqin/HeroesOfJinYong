@@ -240,6 +240,7 @@ bool Window::loadGame(int slot) {
     } else {
         globalMap_->setDirection(Map::Direction(binfo->direction));
         map_ = globalMap_;
+        map_->resetFrame();
         map_->fadeIn([this]() {
             map_->resetFrame();
         });
@@ -269,6 +270,7 @@ void Window::forceQuit() {
 void Window::exitToGlobalMap(int direction) {
     map_->fadeOut([this, direction]() {
         map_ = globalMap_;
+        map_->resetFrame();
         dynamic_cast<MapWithEvent*>(map_)->setDirection(Map::Direction(direction));
         map_->fadeIn([this]() {
             map_->resetFrame();

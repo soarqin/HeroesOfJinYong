@@ -89,13 +89,20 @@ bool Warfield::load(std::int16_t warId) {
         mapWidth_ = data::WarFieldWidth;
         mapHeight_ = data::WarFieldHeight;
         data::GrpData::DataSet dset;
-        if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), dset)) {
-            return false;
+        if (data::GrpData::loadData("WDX", "WMP", dset)) {
+            textureMgr_.loadFromRLE(dset);
+            for (int16_t i = 0; i < 1000; ++i) {
+                warMapLoaded_.insert(i);
+            }
+        } else {
+            if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), dset)) {
+                return false;
+            }
+            if (!textureMgr_.mergeFromRLE(dset)) {
+                return false;
+            }
+            warMapLoaded_.insert(warMapId);
         }
-        if (!textureMgr_.mergeFromRLE(dset)) {
-            return false;
-        }
-        warMapLoaded_.insert(warMapId);
         if (!maskTex_) {
             maskTex_ = new Texture;
             maskTex_->loadFromRLE(renderer_, dset[0], gMaskPalette);

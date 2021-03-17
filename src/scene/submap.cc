@@ -41,13 +41,20 @@ bool SubMap::load(std::int16_t subMapId) {
         mapWidth_ = data::SubMapWidth;
         mapHeight_ = data::SubMapHeight;
         data::GrpData::DataSet dset;
-        if (!data::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
-            return false;
+        if (data::GrpData::loadData("SDX", "SMP", dset)) {
+            textureMgr_.loadFromRLE(dset);
+            for (int16_t i = 0; i < 1000; ++i) {
+                subMapLoaded_.insert(i);
+            }
+        } else {
+            if (!data::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
+                return false;
+            }
+            if (!textureMgr_.mergeFromRLE(dset)) {
+                return false;
+            }
+            subMapLoaded_.insert(subMapId);
         }
-        if (!textureMgr_.mergeFromRLE(dset)) {
-            return false;
-        }
-        subMapLoaded_.insert(subMapId);
     }
     cleanupEvents();
     eventLoop_.clear();
@@ -102,6 +109,7 @@ bool SubMap::load(std::int16_t subMapId) {
         }
         x -= cellDiffX; y += cellDiffY;
     }
+    resetFrame();
 
     subMapId_ = subMapId;
     return true;
