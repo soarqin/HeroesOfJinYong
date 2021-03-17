@@ -80,6 +80,11 @@ enum {
     SubMapLayerCount = 6,
     SubMapEventCount = 200,
 
+    /* Shop Info */
+    ShopEventId = 938,
+    RandomShopEventId = 939,
+    ShopEventTex = 8256,
+
     /* War Field Data */
     WarFieldEnemyCount = 20,
     WarFieldLayerCount = 8,
@@ -90,6 +95,7 @@ enum {
     PoisonEffectID = 30,
     DepoisonEffectID = 36,
     MedicEffectID = 0,
+
 };
 
 }

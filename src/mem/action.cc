@@ -257,7 +257,7 @@ bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo) {
     }
     auto check = [](std::int16_t v, std::int16_t n)->bool {
         if (n < 0) {
-            return v <= -n;
+            return v < -n;
         }
         return v >= n;
     };

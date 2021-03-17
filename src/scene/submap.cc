@@ -249,6 +249,9 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     cameraY_ = y;
     drawDirty_ = true;
     currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
+    if (checkEvent) {
+        onMove();
+    }
     const auto &subMapInfo = mem::gSaveData.subMapInfo[subMapId_];
     for (int i = 0; i < 3; ++i) {
         if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
@@ -266,9 +269,6 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
             gWindow->playMusic(music);
         }
         return true;
-    }
-    if (checkEvent) {
-        onMove();
     }
     return true;
 }

@@ -223,6 +223,7 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(62, goBackHome);
         OpRun(63, setSex);
         OpRun(64, openShop);
+        OpRun(65, randomShop);
         OpRun(66, playMusic);
         OpRun(67, playSound);
         default:
@@ -1085,7 +1086,34 @@ bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t charId, std::int16_t v
     return true;
 }
 
+struct ShopEventInfo {
+    std::int16_t subMapId;
+    std::int16_t shopEventIndex;
+    std::vector<std::int16_t> randomEventIndex;
+};
+
+const ShopEventInfo shopEventInfo[5] = {
+    {1, 16, {17, 18}},
+    {3, 14, {15, 16}},
+    {40, 20, {21, 22}},
+    {60, 16, {17, 18}},
+    {61, 9, {10, 11, 12}},
+};
+
 bool MapWithEvent::openShop(MapWithEvent *map) {
+    if (map->subMapId_ < 0) {
+        return true;
+    }
+    /* set random shop event on exit cells */
+    for (auto &evi: shopEventInfo) {
+        if (evi.subMapId == map->subMapId_) {
+            auto &evts = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
+            for (auto &n: evi.randomEventIndex) {
+                evts[n].event[2] = data::RandomShopEventId;
+            }
+            break;
+        }
+    }
     doTalk(map, 0xB9E, 0x6F, 0);
     /* TODO: popup shop ui */
     map->pendingSubEvents_.emplace_back([map]() {
@@ -1095,12 +1123,36 @@ bool MapWithEvent::openShop(MapWithEvent *map) {
     return false;
 }
 
+bool MapWithEvent::randomShop(MapWithEvent *map) {
+    if (map->subMapId_ < 0) {
+        return true;
+    }
+    /* remove random shop event from exit cells */
+    for (auto &evi: shopEventInfo) {
+        if (evi.subMapId == map->subMapId_) {
+            auto &evts = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
+            auto &ev = evts[evi.shopEventIndex];
+            ev.event[0] = -1;
+            ev.currTex = ev.begTex = ev.endTex = -1;
+            for (auto &n: evi.randomEventIndex) {
+                evts[n].event[2] = -1;
+            }
+            break;
+        }
+    }
+    const auto &evi = shopEventInfo[util::gRandom(5)];
+    auto &ev = mem::gSaveData.subMapEventInfo[evi.subMapId]->events[evi.shopEventIndex];
+    ev.event[0] = data::ShopEventId;
+    ev.begTex = ev.currTex = ev.endTex = data::ShopEventTex;
+    return true;
+}
+
 bool MapWithEvent::playMusic(MapWithEvent *, std::int16_t musicId) {
     gWindow->playMusic(musicId);
     return true;
 }
 
-bool MapWithEvent::playSound(MapWithEvent *map, std::int16_t soundId) {
+bool MapWithEvent::playSound(MapWithEvent *, std::int16_t soundId) {
     gWindow->playAtkSound(soundId);
     return true;
 }
