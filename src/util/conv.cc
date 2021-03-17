@@ -225,7 +225,7 @@ std::wstring Trad2SimpConv::convert(const std::wstring &str) {
                 }
                 node = &ite->second;
             }
-            if (!notfound) {
+            if (!notfound && !node->word.empty()) {
                 res.insert(res.end(), node->word.begin(), node->word.end());
                 i = j;
                 continue;
