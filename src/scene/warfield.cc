@@ -29,14 +29,14 @@
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
+#include "mem/strings.hh"
 #include "util/random.hh"
-#include "util/conv.hh"
 #include <fmt/format.h>
 #include <map>
 
 namespace hojy::scene {
 
-WarField::WarField(Renderer *renderer, int x, int y, int width, int height, float scale):
+Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, float scale):
     Map(renderer, x, y, width, height, scale) {
     fightTextures_.resize(FightTextureListCount);
     for (size_t i = 0; i < FightTextureListCount; ++i) {
@@ -50,11 +50,11 @@ WarField::WarField(Renderer *renderer, int x, int y, int width, int height, floa
     }
 }
 
-WarField::~WarField() {
+Warfield::~Warfield() {
     delete maskTex_;
 }
 
-void WarField::cleanup() {
+void Warfield::cleanup() {
     chars_.clear();
     charQueue_.clear();
     stage_ = Idle;
@@ -78,13 +78,13 @@ void WarField::cleanup() {
     popupNumbers_.clear();
 }
 
-bool WarField::load(std::int16_t warId) {
+bool Warfield::load(std::int16_t warId) {
     cleanup();
 
     warId_ = warId;
-    const auto *info = data::gWarFieldData.info(warId);
+    const auto *info = data::gWarfieldData.info(warId);
     auto warMapId = info->warFieldId;
-    const auto &layers = data::gWarFieldData.layers(warMapId)->layers;
+    const auto &layers = data::gWarfieldData.layers(warMapId)->layers;
     if (warMapLoaded_.find(warMapId) == warMapLoaded_.end()) {
         mapWidth_ = data::WarFieldWidth;
         mapHeight_ = data::WarFieldHeight;
@@ -142,8 +142,8 @@ bool WarField::load(std::int16_t warId) {
     return true;
 }
 
-bool WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
-    const auto *info = data::gWarFieldData.info(warId_);
+bool Warfield::getDefaultChars(std::set<std::int16_t> &chars) const {
+    const auto *info = data::gWarfieldData.info(warId_);
     if (info->forceMembers[0] >= 0) { return false; }
     for (auto &id: info->defaultMembers) {
         if (id >= 0) { chars.insert(id); }
@@ -151,8 +151,8 @@ bool WarField::getDefaultChars(std::set<std::int16_t> &chars) const {
     return true;
 }
 
-void WarField::putChars(const std::vector<std::int16_t> &chars) {
-    const auto *info = data::gWarFieldData.info(warId_);
+void Warfield::putChars(const std::vector<std::int16_t> &chars) {
+    const auto *info = data::gWarfieldData.info(warId_);
     if (info->forceMembers[0] >= 0) {
         for (size_t i = 0; i < data::TeamMemberCount; ++i) {
             auto id = info->forceMembers[i];
@@ -210,7 +210,7 @@ void WarField::putChars(const std::vector<std::int16_t> &chars) {
     }
 }
 
-void WarField::render() {
+void Warfield::render() {
     Map::render();
 
     if (drawDirty_) {
@@ -353,14 +353,14 @@ void WarField::render() {
                 ty += cellDiffY;
             }
         }
-        if (acting && effectTexIdx_ >= 3 && effectTexIdx_ < 13) {
+        if (acting && effectTexIdx_ >= 3) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
             auto *ttf = renderer_->ttf();
             auto fsize = std::lround(8.f * scale_);
             for (auto &n: popupNumbers_) {
                 int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
                 int texX = ax + (deltax - deltay) * cellDiffX + n.offsetX;
-                int texY = ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - fightFrame_ * 2;
+                int texY = ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - effectTexIdx_ * 2;
                 ttf->setColor((n.r + 256) / 2, (n.g + 256) / 2, (n.b + 256) / 2);
                 ttf->render(n.str, texX + 1, texY, false, fsize);
                 ttf->setColor(n.r, n.g, n.b);
@@ -375,7 +375,7 @@ void WarField::render() {
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
 }
 
-void WarField::handleKeyInput(Node::Key key) {
+void Warfield::handleKeyInput(Node::Key key) {
     if (stage_ != MoveSelecting && stage_ != AttackSelecting) {
         if (key == KeyCancel) {
             if (charQueue_.back()->side == 0) {
@@ -460,7 +460,7 @@ void WarField::handleKeyInput(Node::Key key) {
     }
 }
 
-void WarField::frameUpdate() {
+void Warfield::frameUpdate() {
     switch (stage_) {
     case Idle:
         nextAction();
@@ -543,7 +543,7 @@ void WarField::frameUpdate() {
                 const auto *skill = mem::gSaveData.skillInfo[actId_];
                 auto *ch = charQueue_.back();
                 auto *msgBox = new MessageBox(this, 0, height_ / 3, width_, 60);
-                msgBox->popup({fmt::format(L"{} 升級為 第 {} 級", util::big5Conv.toUnicode(skill->name),
+                msgBox->popup({fmt::format(GETTEXT(81), GETSKILLNAME(actId_),
                                            ch->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
                 msgBox->setCloseHandler([this, postFunc]() {
                     stage_ = Acting;
@@ -561,7 +561,7 @@ void WarField::frameUpdate() {
     }
 }
 
-void WarField::nextAction() {
+void Warfield::nextAction() {
     if (charQueue_.empty()) {
         charQueue_.reserve(chars_.size());
         for (auto &c: chars_) {
@@ -590,7 +590,7 @@ void WarField::nextAction() {
     }
 }
 
-void WarField::autoAction() {
+void Warfield::autoAction() {
     if (pendingAutoAction_) {
         pendingAutoAction_();
         pendingAutoAction_ = nullptr;
@@ -939,7 +939,7 @@ void WarField::autoAction() {
     }
 }
 
-void WarField::recalcKnowledge() {
+void Warfield::recalcKnowledge() {
     knowledge_[0] = knowledge_[1] = 0;
     for (auto &ci: chars_) {
         if (ci.info.hp > 0 && ci.info.knowledge >= data::KnowledgeBarrier) {
@@ -948,7 +948,7 @@ void WarField::recalcKnowledge() {
     }
 }
 
-void WarField::playerMenu() {
+void Warfield::playerMenu() {
     stage_ = PlayerMenu;
     auto *ch = charQueue_.back();
     auto *menu = new MenuTextList(this, 40, 40, width_ - 80, height_ - 80);
@@ -958,31 +958,31 @@ void WarField::playerMenu() {
     menuIndices.reserve(10);
     auto &info = ch->info;
     if (ch->steps && info.stamina >= 5) {
-        n.emplace_back(L"移動"); menuIndices.emplace_back(0);
+        n.emplace_back(GETTEXT(82)); menuIndices.emplace_back(0);
     }
     if (info.stamina >= 10) {
-        n.emplace_back(L"攻擊"); menuIndices.emplace_back(1);
+        n.emplace_back(GETTEXT(83)); menuIndices.emplace_back(1);
         if (info.poison) {
-            n.emplace_back(L"用毒"); menuIndices.emplace_back(2);
+            n.emplace_back(GETTEXT(84)); menuIndices.emplace_back(2);
         }
     }
     if (info.stamina >= 50) {
         if (info.depoison) {
-            n.emplace_back(L"解毒");
+            n.emplace_back(GETTEXT(85));
             menuIndices.emplace_back(3);
         }
         if (info.medic) {
-            n.emplace_back(L"醫療");
+            n.emplace_back(GETTEXT(86));
             menuIndices.emplace_back(4);
         }
     }
-    n.emplace_back(L"物品"); menuIndices.emplace_back(5);
+    n.emplace_back(GETTEXT(87)); menuIndices.emplace_back(5);
     if (charQueue_.size() > 1) {
-        n.emplace_back(L"等待"); menuIndices.emplace_back(6);
+        n.emplace_back(GETTEXT(88)); menuIndices.emplace_back(6);
     }
-    n.emplace_back(L"狀態"); menuIndices.emplace_back(7);
-    n.emplace_back(L"休息"); menuIndices.emplace_back(8);
-    n.emplace_back(L"自動"); menuIndices.emplace_back(9);
+    n.emplace_back(GETTEXT(89)); menuIndices.emplace_back(7);
+    n.emplace_back(GETTEXT(90)); menuIndices.emplace_back(8);
+    n.emplace_back(GETTEXT(91)); menuIndices.emplace_back(9);
     menu->popup(n, lastMenuIndex_);
     menu->setHandler([this, menu, menuIndices, ch]() {
         auto index = menu->currIndex();
@@ -1002,11 +1002,7 @@ void WarField::playerMenu() {
                     if (skillId <= 0) {
                         break;
                     }
-                    const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
-                    if (!skillInfo) {
-                        break;
-                    }
-                    items.emplace_back(util::big5Conv.toUnicode(skillInfo->name));
+                    items.emplace_back(GETSKILLNAME(skillId));
                 }
                 submenu->popup(items);
                 submenu->setHandler([this, menu, submenu]() {
@@ -1065,7 +1061,7 @@ void WarField::playerMenu() {
             break;
         case 7: {
             auto *svmenu = new CharListMenu(this, 0, 0, gWindow->width(), gWindow->height());
-            svmenu->initWithTeamMembers({L"要查閱誰的狀態"}, {CharListMenu::LEVEL},
+            svmenu->initWithTeamMembers({GETTEXT(59)}, {CharListMenu::LEVEL},
                                         [this](std::int16_t charId) {
                                             auto *sv = new StatusView(this, 0, 0, 0, 0);
                                             bool found = false;
@@ -1100,7 +1096,7 @@ void WarField::playerMenu() {
     });
 }
 
-void WarField::maskSelectableArea(int steps, int ranges, bool zoecheck) {
+void Warfield::maskSelectableArea(int steps, int ranges, bool zoecheck) {
     auto *ch = charQueue_.back();
     getSelectableArea(ch, selCells_, steps, ranges, zoecheck);
     int w = mapWidth_;
@@ -1112,7 +1108,7 @@ void WarField::maskSelectableArea(int steps, int ranges, bool zoecheck) {
     cursorY_ = ch->y;
 }
 
-void WarField::unmaskArea() {
+void Warfield::unmaskArea() {
     int w = mapWidth_;
     for (auto c: selCells_) {
         cellInfo_[c.first.first + c.first.second * w].insideMovingArea = false;
@@ -1120,7 +1116,7 @@ void WarField::unmaskArea() {
     selCells_.clear();
 }
 
-void WarField::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ranges, bool zoecheck) {
+void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ranges, bool zoecheck) {
     auto myside = ch->side;
     int w = mapWidth_, h = mapHeight_;
     std::vector<SelectableCell*> sortedMovable;
@@ -1307,7 +1303,7 @@ private:
     std::function<void(Map::Direction)> directionHandler_;
 };
 
-bool WarField::tryUseSkill(int index) {
+bool Warfield::tryUseSkill(int index) {
     auto *ch = charQueue_.back();
     if (index < 0) {
         actIndex_ = -1;
@@ -1346,7 +1342,7 @@ bool WarField::tryUseSkill(int index) {
     switch (skill->attackAreaType) {
     case 1: {
         auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-        msgBox->popup({L"選擇攻擊方向"});
+        msgBox->popup({GETTEXT(92)});
         msgBox->setCloseHandler([this]() {
             playerMenu();
         });
@@ -1367,7 +1363,7 @@ bool WarField::tryUseSkill(int index) {
     }
 }
 
-void WarField::startActAction() {
+void Warfield::startActAction() {
     popupNumbers_.clear();
     if (actId_ < 0) {
         auto *target = cellInfo_[cursorY_ * mapWidth_ + cursorX_].charInfo;
@@ -1520,7 +1516,7 @@ void WarField::startActAction() {
     }
 }
 
-void WarField::makeDamage(WarField::CharInfo *ch, int x, int y, int distance) {
+void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
     auto *info = cellInfo_[y * mapWidth_ + x].charInfo;
     if (!info || info->side == ch->side) { return; }
     auto &enemyInfo = info->info;
@@ -1543,13 +1539,13 @@ void WarField::makeDamage(WarField::CharInfo *ch, int x, int y, int distance) {
     }
 }
 
-void WarField::doRest() {
+void Warfield::doRest() {
     auto *ch = charQueue_.back();
     mem::actRest(&ch->info);
     endTurn();
 }
 
-void WarField::endTurn() {
+void Warfield::endTurn() {
     charQueue_.pop_back();
     int aliveCount[2] = {0, 0};
     for (auto &ci: chars_) {
@@ -1574,7 +1570,7 @@ void WarField::endTurn() {
     stage_ = Idle;
 }
 
-void WarField::endWar() {
+void Warfield::endWar() {
     removeAllChildren();
     std::vector<CharInfo*> alives;
     for (auto &ci: chars_) {
@@ -1592,16 +1588,16 @@ void WarField::endWar() {
         }
         if (charInfo->hp > 0) { alives.push_back(&ci); }
     }
-    const auto *info = data::gWarFieldData.info(warId_);
+    const auto *info = data::gWarfieldData.info(warId_);
     auto wexp = info != nullptr ? info->exp : 0;
-    std::vector<std::pair<int, std::wstring>> messages = { {0, won_ ? L"戰鬥勝利" : L"戰鬥失敗"} };
+    std::vector<std::pair<int, std::wstring>> messages = { {0, GETTEXT(won_ ? 93 : 94) } };
     if (won_ || getExpOnLose_) {
         for (auto *ch: alives) {
             ch->exp += wexp / int(alives.size());
             auto *charInfo = mem::gSaveData.charInfo[ch->id];
             if (!charInfo) { continue; }
-            auto name = util::big5Conv.toUnicode(charInfo->name);
-            messages.emplace_back(std::make_pair(0, fmt::format(L"{} 獲得經驗點數 {}", name, ch->exp)));
+            auto name = GETCHARNAME(ch->id);
+            messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(95), name, ch->exp)));
             bool canLearn = false, makingItem = false;
             std::int16_t skillId = 0;
             int skillIndex = -1, skillLevel = 0;
@@ -1650,7 +1646,7 @@ void WarField::endWar() {
                     mem::actLevelup(charInfo);
                 }
                 if (levelup) {
-                    messages.emplace_back(std::make_pair(0, name + L" 升級了"));
+                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(96), name)));
                 }
             }
             if (exp2 && canLearn) {
@@ -1666,18 +1662,12 @@ void WarField::endWar() {
                         newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
                         charInfo->skillLevel[skillIndex] = newlevel * 100;
                     }
-                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-                    const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
-                    if (itemInfo && skillInfo) {
-                        messages.emplace_back(std::make_pair(0,
-                                                             name + L" 修練 " + util::big5Conv.toUnicode(itemInfo->name)
-                                                                 + L" 成功"));
-                        if (newlevel > 0) {
-                            messages.emplace_back(std::make_pair(1,
-                                                                 fmt::format(L"{} 升級為 第 {} 級",
-                                                                             util::big5Conv.toUnicode(skillInfo->name),
-                                                                             newlevel + 1)));
-                        }
+                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(97),
+                                                         name, GETITEMNAME(charInfo->learningItem))));
+                    if (newlevel > 0) {
+                        messages.emplace_back(std::make_pair(1, fmt::format(GETTEXT(98),
+                                                                         GETSKILLNAME(skillId),
+                                                                         newlevel + 1)));
                     }
                 }
             }
@@ -1690,10 +1680,8 @@ void WarField::endWar() {
                         && mem::gBag[itemInfo->reqMaterial] > 0) {
                         mem::gBag.remove(itemInfo->reqMaterial, 1);
                         mem::gBag.add(itemInfo->makeItem[i], itemInfo->makeItemCount[i]);
-                        const auto *targetItemInfo = mem::gSaveData.itemInfo[itemInfo->makeItem[i]];
-                        messages.emplace_back(std::make_pair(0,
-                                                             name + L" 製造出 "
-                                                                 + util::big5Conv.toUnicode(targetItemInfo->name)));
+                        messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(99),
+                                                             name, GETITEMNAME(itemInfo->makeItem[i]))));
                     }
                 }
             }
@@ -1703,7 +1691,7 @@ void WarField::endWar() {
     popupFinishMessages(std::move(messages), 0);
 }
 
-void WarField::popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index) {
+void Warfield::popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index) {
     int y = height_ / 3;
     auto *msgBox = new MessageBox(this, 0, y, width_, 60);
     msgBox->popup({messages[index].second}, MessageBox::PressToCloseThis);

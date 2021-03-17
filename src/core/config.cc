@@ -19,6 +19,7 @@
 
 #include "config.hh"
 
+#include "mem/strings.hh"
 #include "util/file.hh"
 #include "util/conv.hh"
 #include "external/toml.hpp"
@@ -76,17 +77,20 @@ bool Config::load(const std::string &filename) {
     }
     auto ui = tbl["ui"];
     if (ui) {
+        simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(false);
         showPotential_ = ui["show_potential"].value_or<bool>(false);
         scale_ = ui["scale"].value_or<float>(2.f);
         animationSpeed_ = ui["animation_speed"].value_or<float>(1.f);
         fadeSpeed_ = ui["fade_speed"].value_or<float>(1.f);
         noNameInput_ = ui["no_name_input"].value_or<bool>(false);
-        defaultName_ = util::Utf8Conv::toUnicode(ui["default_name"].value_or<std::string>(""));
-    }
-    if (defaultName_.empty()) {
-        defaultName_ = L"徐小俠";
     }
     return true;
+}
+
+void Config::fixOnTextLoaded() {
+    if (defaultName_.empty()) {
+        defaultName_ = GETTEXT(0);
+    }
 }
 
 std::string Config::dataFilePathFirst(const std::string &filename) const {

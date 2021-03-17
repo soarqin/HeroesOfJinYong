@@ -29,7 +29,7 @@ void loadData() {
     gFactors.load("Z.DAT");
     gEvent.loadEvent("KDEF");
     gEvent.loadTalk("TALK");
-    gWarFieldData.load("WAR.STA", "WARFLD");
+    gWarfieldData.load("WAR.STA", "WARFLD");
 }
 
 }

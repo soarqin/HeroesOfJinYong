@@ -34,6 +34,7 @@ std::wstring Conv::toUnicode(std::string_view str) {
     result.reserve(len);
     while (cstr < cstrEnd) {
         auto c = std::uint8_t(*cstr);
+        if (c == 0) { break; }
         if (c < 0x80) {
             result += wchar_t(c);
             ++cstr;

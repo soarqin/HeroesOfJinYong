@@ -10,8 +10,8 @@ width = 640
 height = 480
 
 [ui]
+simplified_chinese = false
 no_name_input = false
-default_name = "徐小俠"
 show_potential = true
 scale = 2.0
 animation_speed = 1.0

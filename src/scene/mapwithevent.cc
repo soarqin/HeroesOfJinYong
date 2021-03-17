@@ -23,8 +23,9 @@
 #include "mask.hh"
 #include "data/event.hh"
 #include "mem/savedata.hh"
+#include "mem/strings.hh"
 #include "util/random.hh"
-#include "util/conv.hh"
+#include <fmt/format.h>
 
 namespace hojy::scene {
 
@@ -458,7 +459,7 @@ bool MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t h
 
 bool MapWithEvent::addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount) {
     mem::gBag.add(itemId, itemCount);
-    gWindow->popupMessageBox({L"獲得 " + util::big5Conv.toUnicode(mem::gSaveData.itemInfo[itemId]->name) + L'x' + std::to_wstring(itemCount)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}x{}", GETTEXT(71), GETITEMNAME(itemId), std::to_wstring(itemCount))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -499,7 +500,7 @@ int MapWithEvent::useItem(MapWithEvent *map, std::int16_t itemId) {
 }
 
 int MapWithEvent::askForWar(MapWithEvent *map) {
-    gWindow->popupMessageBox({L"是否與之過招？"}, MessageBox::YesNo);
+    gWindow->popupMessageBox({GETTEXT(72)}, MessageBox::YesNo);
     return -1;
 }
 
@@ -509,7 +510,7 @@ bool MapWithEvent::changeExitMusic(MapWithEvent *map, std::int16_t music) {
 }
 
 int MapWithEvent::askForJoinTeam(MapWithEvent *map) {
-    gWindow->popupMessageBox({L"是否要求加入？"}, MessageBox::YesNo);
+    gWindow->popupMessageBox({GETTEXT(73)}, MessageBox::YesNo);
     return -1;
 }
 
@@ -538,7 +539,7 @@ bool MapWithEvent::joinTeam(MapWithEvent *map, std::int16_t charId) {
 }
 
 int MapWithEvent::wantSleep(MapWithEvent *map) {
-    gWindow->popupMessageBox({L"請選擇是或否？"}, MessageBox::YesNo);
+    gWindow->popupMessageBox({GETTEXT(74)}, MessageBox::YesNo);
     return -1;
 }
 
@@ -747,7 +748,7 @@ bool MapWithEvent::learnSkill(MapWithEvent *map, std::int16_t charId, std::int16
     if (quiet) {
         return true;
     }
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 習得武學 " + util::big5Conv.toUnicode(skillInfo->name)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {} {}", GETCHARNAME(charId), GETTEXT(75), GETSKILLNAME(skillId))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -755,7 +756,7 @@ bool MapWithEvent::addPotential(MapWithEvent *map, std::int16_t charId, std::int
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     charInfo->potential = std::clamp<std::int16_t>(charInfo->potential + value, 0, data::PotentialMax);
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 資質增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}{} {}", GETCHARNAME(charId), GETTEXT(29), GETTEXT(33), std::to_wstring(value))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -878,7 +879,7 @@ bool MapWithEvent::addSpeed(MapWithEvent *map, std::int16_t charId, std::int16_t
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     charInfo->speed = std::clamp<std::int16_t>(charInfo->speed + value, 0, data::SpeedMax);
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 輕功增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}{} {}", GETCHARNAME(charId), GETTEXT(9), GETTEXT(33), std::to_wstring(value))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -886,7 +887,7 @@ bool MapWithEvent::addMaxMP(MapWithEvent *map, std::int16_t charId, std::int16_t
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     charInfo->maxMp = std::clamp<std::int16_t>(charInfo->maxMp + value, 0, data::MpMax);
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 內力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}{} {}", GETCHARNAME(charId), GETTEXT(7), GETTEXT(33), std::to_wstring(value))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -894,7 +895,7 @@ bool MapWithEvent::addAttack(MapWithEvent *map, std::int16_t charId, std::int16_
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     charInfo->attack = std::clamp<std::int16_t>(charInfo->attack + value, 0, data::AttackMax);
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 武力增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}{} {}", GETCHARNAME(charId), GETTEXT(8), GETTEXT(33), std::to_wstring(value))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -902,7 +903,7 @@ bool MapWithEvent::addMaxHP(MapWithEvent *map, std::int16_t charId, std::int16_t
     auto *charInfo = mem::gSaveData.charInfo[charId];
     if (!charInfo) { return true; }
     charInfo->maxHp = std::clamp<std::int16_t>(charInfo->maxHp + value, 0, data::HpMax);
-    gWindow->popupMessageBox({util::big5Conv.toUnicode(charInfo->name) + L" 生命增加 " + std::to_wstring(value)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({fmt::format(L"{} {}{} {}", GETCHARNAME(charId), GETTEXT(2), GETTEXT(33), std::to_wstring(value))}, MessageBox::PressToCloseTop);
     return false;
 }
 
@@ -929,14 +930,14 @@ bool MapWithEvent::tutorialTalk(MapWithEvent *map) {
 bool MapWithEvent::showIntegrity(MapWithEvent *map) {
     auto *charInfo = mem::gSaveData.charInfo[0];
     if (!charInfo) { return true; }
-    gWindow->popupMessageBox({L"你的道德指數為 " + std::to_wstring(charInfo->integrity)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({GETTEXT(76) + L' ' + std::to_wstring(charInfo->integrity)}, MessageBox::PressToCloseTop);
     return false;
 }
 
 bool MapWithEvent::showReputation(MapWithEvent *map) {
     auto *charInfo = mem::gSaveData.charInfo[0];
     if (!charInfo) { return true; }
-    gWindow->popupMessageBox({L"你的聲望指數為 " + std::to_wstring(charInfo->reputation)}, MessageBox::PressToCloseTop);
+    gWindow->popupMessageBox({GETTEXT(77) + L' ' + std::to_wstring(charInfo->reputation)}, MessageBox::PressToCloseTop);
     return false;
 }
 

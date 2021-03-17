@@ -22,7 +22,7 @@
 #include "window.hh"
 #include "charlistmenu.hh"
 #include "mem/savedata.hh"
-#include "util/conv.hh"
+#include "mem/strings.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -94,7 +94,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         case 1:
         case 2: {
             auto *clm = new CharListMenu(this, 0, 0, width_, height_);
-            clm->initWithTeamMembers({type == 1 ? L"誰要配備 " : L"誰要修練 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+            clm->initWithTeamMembers({GETTEXT(type == 1 ? 38 : 39) + GETITEMNAME(id)}, {},
                                      [this, itemInfo, id, type, clm](std::int16_t charId) {
                                          if (type == 2 && itemInfo->user >= 0) {
                                              auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
@@ -105,14 +105,14 @@ void ItemView::handleKeyInput(Node::Key key) {
                                                                                    0,
                                                                                    gWindow->width(),
                                                                                    gWindow->height());
-                                                     msgBox->popup({L"一人只能修練十種功夫"}, MessageBox::PressToCloseThis);
+                                                     msgBox->popup({GETTEXT(42)}, MessageBox::PressToCloseThis);
                                                  } else if (!mem::equipItem(charId, id)) {
                                                      auto *msgBox = new MessageBox(parent_,
                                                                                    0,
                                                                                    0,
                                                                                    gWindow->width(),
                                                                                    gWindow->height());
-                                                     msgBox->popup({L"此人不適合修練此物品"}, MessageBox::PressToCloseThis);
+                                                     msgBox->popup({GETTEXT(43)}, MessageBox::PressToCloseThis);
                                                  } else {
                                                      update();
                                                  }
@@ -120,11 +120,11 @@ void ItemView::handleKeyInput(Node::Key key) {
                                              }, [clm]() {
                                                  delete clm;
                                              });
-                                             msgBox->popup({L"此物品現在已經有人修練了", L"是否要換人修練？"}, MessageBox::YesNo);
+                                             msgBox->popup({GETTEXT(44), GETTEXT(45)}, MessageBox::YesNo);
                                          } else {
                                              if (!mem::equipItem(charId, id)) {
                                                  auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                                                 msgBox->popup({L"此人不適合配備此物品"}, MessageBox::PressToCloseThis);
+                                                 msgBox->popup({GETTEXT(46)}, MessageBox::PressToCloseThis);
                                              } else {
                                                  update();
                                              }
@@ -137,17 +137,13 @@ void ItemView::handleKeyInput(Node::Key key) {
         case 3: {
             int x = width_ / 3, y = height_ * 2 / 7;
             auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
-            clm->initWithTeamMembers({L"誰要使用 " + util::big5Conv.toUnicode(itemInfo->name)}, {},
+            clm->initWithTeamMembers({GETTEXT(36) + L' ' + GETITEMNAME(id)}, {},
                                      [this, &ipair, itemInfo, id, type, clm](std::int16_t charId) {
                                          std::map<mem::PropType, std::int16_t> changes;
                                          if (ipair.second && mem::useItem(charId, id, changes)) {
-                                             std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+                                             std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
                                              for (auto &c: changes) {
-                                                 if (c.second) {
-                                                     messages.emplace_back(fmt::format(L"{} 提升 {}", mem::propToName(c.first), c.second));
-                                                 } else {
-                                                     messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
-                                                 }
+                                                 messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
                                              }
                                              auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
                                              msgBox->popup(messages, MessageBox::PressToCloseParent);
@@ -248,13 +244,9 @@ void ItemView::handleKeyInput(Node::Key key) {
 
 MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<mem::PropType, std::int16_t> &changes) {
     const auto *itemInfo = mem::gSaveData.itemInfo[id];
-    std::vector<std::wstring> messages = {L"使用 " + util::big5Conv.toUnicode(itemInfo->name)};
+    std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
     for (auto &c: changes) {
-        if (c.second) {
-            messages.emplace_back(fmt::format(L"{} 提昇 {}", mem::propToName(c.first), c.second));
-        } else {
-            messages.emplace_back(fmt::format(L"{} 減少 {}", mem::propToName(c.first), c.second));
-        }
+        messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
     }
     auto *msgBox = new MessageBox(parent, 0, 0, gWindow->width(), gWindow->height());
     msgBox->popup(messages, MessageBox::PressToCloseThis);
@@ -291,21 +283,22 @@ void ItemView::makeCache() {
     }
 
     idx = currTop_ * cols_ + currSel_;
-    const auto *itemInfo = mem::gSaveData.itemInfo[items_[idx].first];
+    auto itemId = items_[idx].first;
+    const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
     if (itemInfo) {
         /* show description */
         std::wstring display;
         if (items_[idx].second > 1) {
-            display = fmt::format(L"{} x{}", util::big5Conv.toUnicode(itemInfo->name), items_[idx].second);
+            display = fmt::format(L"{} x{}", GETITEMNAME(itemId), items_[idx].second);
         } else {
-            display = fmt::format(L"{}", util::big5Conv.toUnicode(itemInfo->name), items_[idx].second);
+            display = fmt::format(L"{}", GETITEMNAME(itemId), items_[idx].second);
         }
         std::wstring desc;
         if (items_[idx].first == data::ItemIDCompass) {
             auto *map = gWindow->globalMap();
-            desc = fmt::format(L"人 ({},{})  船 ({},{})", map->currX(), map->currY(), mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
+            desc = fmt::format(GETTEXT(40), map->currX(), map->currY(), mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
         } else {
-            desc = util::big5Conv.toUnicode(itemInfo->desc);
+            desc = GETITEMDESC(itemId);
         }
         auto lineheight = ttf->fontSize() + TextLineSpacing;
         int dx, dy;
@@ -327,7 +320,7 @@ void ItemView::makeCache() {
         if (itemInfo->user < 0 || mem::gSaveData.charInfo[itemInfo->user] == nullptr) {
             ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
         } else {
-            ttf->render(display + L"  (" + util::big5Conv.toUnicode(mem::gSaveData.charInfo[itemInfo->user]->name) + L')', dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
+            ttf->render(display + L"  (" + GETCHARNAME(itemInfo->user) + L')', dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
         }
         dy += lineheight;
         ttf->setColor(252, 148, 16);

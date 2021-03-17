@@ -20,6 +20,7 @@
 #include "action.hh"
 
 #include "savedata.hh"
+#include "strings.hh"
 #include "data/factors.hh"
 #include "util/random.hh"
 #include <algorithm>
@@ -27,12 +28,7 @@
 namespace hojy::mem {
 
 const std::wstring &propToName(PropType type) {
-    static const std::wstring names[] = {
-        L"生命", L"生命最大值", L"中毒程度", L"體力", L"內力性質", L"內力", L"內力最大值",
-        L"攻擊力", L"輕功", L"防御力", L"醫療能力", L"用毒能力", L"解毒能力", L"抗毒能力",
-        L"拳掌功夫", L"御劍能力", L"耍刀技巧", L"特殊兵器", L"暗器技巧", L"武學常識", L"道德", L"左右互搏", L"功夫帶毒",
-    };
-    return names[int(type)];
+    return GETTEXT(std::int16_t(type) + 1);
 }
 
 void addUpPropFromEquipToChar(CharacterData *info) {

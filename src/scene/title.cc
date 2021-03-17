@@ -24,6 +24,7 @@
 #include "menu.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
+#include "mem/strings.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
 #include "core/config.hh"
@@ -96,7 +97,7 @@ void Title::handleKeyInput(Node::Key key) {
                 gWindow->closePopup();
             } else {
                 auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
-                msgBox->popup({L"讀檔失敗"}, MessageBox::PressToCloseThis);
+                msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
             }
             break;
         }
@@ -187,7 +188,7 @@ void Title::makeCache() {
         y = height_ - (ttf->fontSize() + TextLineSpacing) * 5;
         ttf->setColor(236, 236, 236);
         ttf->setAltColor(2, 224, 180, 32);
-        ttf->render(L"請輸入姓名：\2" + mainCharName_, width_ / 4, y, false);
+        ttf->render(GETTEXT(41) + L'\2' + mainCharName_, width_ / 4, y, false);
         cacheEnd();
         break;
     }
@@ -199,28 +200,28 @@ void Title::makeCache() {
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
         int ox = x, oy = y;
-        auto askText = L'\2' + mainCharName_ + L"  \1這樣的屬性滿意嗎？";
+        auto askText = L'\2' + mainCharName_ + L"  \1" + GETTEXT(100);
         auto *data = mem::gSaveData.charInfo[0];
         ttf->setColor(236, 236, 236);
         ttf->setAltColor(2, 224, 180, 32);
         ttf->render(askText, x, y, false);
         y += lineheight * 2;
-        drawProperty(L"內力", data->maxMp, 50, x, y, hh, data->mpType);
-        drawProperty(L"武力", data->attack, 30, x + colwidth, y, hh);
-        drawProperty(L"輕功", data->speed, 30, x + colwidth * 2, y, hh);
-        drawProperty(L"防禦", data->defence, 30, x + colwidth * 3, y, hh);
+        drawProperty(GETTEXT(26), data->maxMp, 50, x, y, hh, data->mpType);
+        drawProperty(GETTEXT(101), data->attack, 30, x + colwidth, y, hh);
+        drawProperty(GETTEXT(9), data->speed, 30, x + colwidth * 2, y, hh);
+        drawProperty(GETTEXT(102), data->defence, 30, x + colwidth * 3, y, hh);
         y += lineheight;
-        drawProperty(L"生命", data->maxHp, 50, x, y, hh);
-        drawProperty(L"醫療", data->medic, 30, x + colwidth, y, hh);
-        drawProperty(L"使毒", data->poison, 30, x + colwidth * 2, y, hh);
-        drawProperty(L"解毒", data->depoison, 30, x + colwidth * 3, y, hh);
+        drawProperty(GETTEXT(25), data->maxHp, 50, x, y, hh);
+        drawProperty(GETTEXT(103), data->medic, 30, x + colwidth, y, hh);
+        drawProperty(GETTEXT(104), data->poison, 30, x + colwidth * 2, y, hh);
+        drawProperty(GETTEXT(105), data->depoison, 30, x + colwidth * 3, y, hh);
         y += lineheight;
-        drawProperty(L"拳掌", data->fist, 30, x, y, hh);
-        drawProperty(L"劍術", data->sword, 30, x + colwidth, y, hh);
-        drawProperty(L"刀術", data->blade, 30, x + colwidth * 2, y, hh);
-        drawProperty(L"暗器", data->special, 30, x + colwidth * 3, y, hh);
+        drawProperty(GETTEXT(106), data->fist, 30, x, y, hh);
+        drawProperty(GETTEXT(107), data->sword, 30, x + colwidth, y, hh);
+        drawProperty(GETTEXT(108), data->blade, 30, x + colwidth * 2, y, hh);
+        drawProperty(GETTEXT(109), data->special, 30, x + colwidth * 3, y, hh);
         if (core::config.showPotential()) {
-            drawProperty(L"資質", data->potential, 100, x + colwidth * 4, y, hh);
+            drawProperty(GETTEXT(29), data->potential, 100, x + colwidth * 4, y, hh);
         }
         cacheEnd();
         if (mode_ == 3 && menu_ == nullptr) {
@@ -239,7 +240,7 @@ void Title::makeCache() {
                 memset(charInfo->name, 0, 10);
                 memcpy(charInfo->name, big5Name.data(), big5Name.length());
                 auto *subMap = mem::gSaveData.subMapInfo[data::gFactors.initSubMapId];
-                auto tailName = util::big5Conv.fromUnicode(L"居");
+                auto tailName = util::big5Conv.fromUnicode(GETTEXT(110));
                 memset(subMap->name, 0, 10);
                 memcpy(subMap->name, big5Name.data(), big5Name.length());
                 memcpy(subMap->name + big5Name.length(), tailName.data(), tailName.length());
@@ -283,7 +284,7 @@ void Title::doRandomBaseInfo() {
 void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType) {
     auto ttf = renderer_->ttf();
     bool shadow = false;
-    auto dispString = name + L"：" + std::to_wstring(value);
+    auto dispString = name + L": " + std::to_wstring(value);
     if (value >= maxValue) {
         renderer_->fillRect(x, y, ttf->stringWidth(dispString) + 2, h, 216, 20, 24, 255);
         shadow = true;

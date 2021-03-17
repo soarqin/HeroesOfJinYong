@@ -21,10 +21,9 @@
 
 #include "window.hh"
 #include "menu.hh"
-#include "mem/savedata.hh"
+#include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/file.hh"
-#include "util/conv.hh"
 #include <fmt/format.h>
 #include <ctime>
 
@@ -66,15 +65,15 @@ void Dead::makeCache() {
     auto *ttf = renderer_->ttf();
     auto fsize = ttf->fontSize() * 3 / 2;
     ttf->setColor(68, 68, 68);
-    ttf->render(util::big5Conv.toUnicode(mem::gSaveData.charInfo[0]->name), x + 100 * w / 320, y + 48 * h / 200, false, fsize);
+    ttf->render(GETCHARNAME(0), x + 100 * w / 320, y + 48 * h / 200, false, fsize);
     ttf->setColor(176, 4, 8);
     auto clock = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(clock);
     tm ltm = *localtime(&t);
     ttf->render(fmt::format(L"{}/{:>2}/{:>2}", ltm.tm_year + 1900, ltm.tm_mon + 1, ltm.tm_mday), x + 190 * w / 320, y + 10 * h / 200, false, fsize);
-    ttf->render(L"在地球的某處", x + 185 * w / 320, y + 30 * h / 200, false, fsize);
-    ttf->render(L"當地人口的失蹤數", x + 185 * w / 320, y + 50 * h / 200, false, fsize);
-    ttf->render(L"又多了一筆………", x + 185 * w / 320, y + 70 * h / 200, false, fsize);
+    ttf->render(GETTEXT(111), x + 185 * w / 320, y + 30 * h / 200, false, fsize);
+    ttf->render(GETTEXT(112), x + 185 * w / 320, y + 50 * h / 200, false, fsize);
+    ttf->render(GETTEXT(113), x + 185 * w / 320, y + 70 * h / 200, false, fsize);
     cacheEnd();
 }
 

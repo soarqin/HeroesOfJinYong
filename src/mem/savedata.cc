@@ -19,7 +19,7 @@
 
 #include "savedata.hh"
 
-#include <data/grpdata.hh>
+#include "data/grpdata.hh"
 
 namespace hojy::mem {
 

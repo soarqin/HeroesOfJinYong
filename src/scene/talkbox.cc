@@ -76,7 +76,6 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     for (auto &l: lines) {
         size_t len = l.length();
         if (!len) {
-            text_.emplace_back(L"");
             continue;
         }
         idx = 0;

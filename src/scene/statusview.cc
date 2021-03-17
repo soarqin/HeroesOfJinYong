@@ -22,8 +22,8 @@
 #include "window.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
+#include "mem/strings.hh"
 #include "core/config.hh"
-#include "util/conv.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -82,29 +82,29 @@ void StatusView::makeCache() {
     ttf->setAltColor(5, 244, 128, 132);
     ttf->setAltColor(6, 28, 104, 16);
     ttf->setAltColor(7, 96, 176, 64);
-    ttf->render(L"攻擊力", x2, y, true);
+    ttf->render(GETTEXT(8), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.attack), x3, y, true);
     y += lineheight;
-    ttf->render(L"防禦力", x2, y, true);
+    ttf->render(GETTEXT(10), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.defence), x3, y, true);
     y += lineheight;
-    ttf->render(L"輕功", x2, y, true);
+    ttf->render(GETTEXT(9), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.speed), x3, y, true);
     y += lineheight;
-    ttf->render(L"醫療能力", x2, y, true);
+    ttf->render(GETTEXT(11), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.medic), x3, y, true);
     y += lineheight;
-    auto name = util::big5Conv.toUnicode(data_.name);
+    auto name = GETCHARNAME(data_.id);
     ttf->render(name, (x2 - ttf->stringWidth(name)) / 2, y, true);
-    ttf->render(L"用毒能力", x2, y, true);
+    ttf->render(GETTEXT(12), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.poison), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3等級", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(24), x0, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.level), x1, y, true);
-    ttf->render(L"解毒能力", x2, y, true);
+    ttf->render(GETTEXT(13), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.depoison), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3生命", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(25), x0, y, true);
     wchar_t c1 = L'\2', c2 = L'\3';
     if (data_.hurt > 66) {
         c1 = L'\4';
@@ -117,43 +117,43 @@ void StatusView::makeCache() {
         c2 = L'\7';
     }
     ttf->render(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
-    ttf->render(L"拳掌功夫", x2, y, true);
+    ttf->render(GETTEXT(15), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.fist), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3內力", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(26), x0, y, true);
     std::uint8_t r, g, b;
     std::tie(r, g, b) = mem::calcColorForMpType(data_.mpType);
     ttf->setAltColor(16, r, g, b);
     ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
-    ttf->render(L"御劍能力", x2, y, true);
+    ttf->render(GETTEXT(16), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.sword), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3體力", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(4), x0, y, true);
     ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, data::StaminaMax), x1, y, true);
-    ttf->render(L"耍刀技巧", x2, y, true);
+    ttf->render(GETTEXT(17), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.blade), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3經驗", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(27), x0, y, true);
     ttf->render(fmt::format(L"\2{:>5}", data_.exp), x1, y, true);
-    ttf->render(L"特殊兵器", x2, y, true);
+    ttf->render(GETTEXT(18), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.special), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3升級", x0, y, true);
+    ttf->render(L"\3" + GETTEXT(28), x0, y, true);
     auto exp = mem::getExpForLevelUp(data_.level);
     if (exp) {
         ttf->render(fmt::format(L"\2{:>5}", exp), x1, y, true);
     } else {
         ttf->render(L"\2  =", x1, y, true);
     }
-    ttf->render(L"暗器技巧", x2, y, true);
+    ttf->render(GETTEXT(19), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.throwing), x3, y, true);
     if (showPotential) {
         y += lineheight;
-        ttf->render(L"\3資質", x0, y, true);
+        ttf->render(L"\3" + GETTEXT(29), x0, y, true);
         ttf->render(fmt::format(L"\2{:>5}", data_.potential), x1, y, true);
     }
     y = SubWindowBorder;
-    ttf->render(L"\3所會功夫", x4, y, true);
+    ttf->render(L"\3" + GETTEXT(30), x4, y, true);
     std::int16_t learningSkillId = -1, learningLevel = 0;
     if (data_.learningItem >= 0) {
         learningSkillId = mem::gSaveData.itemInfo[data_.learningItem]->skillId;
@@ -161,7 +161,7 @@ void StatusView::makeCache() {
     for (int i = 0; i < data::LearnSkillCount; ++i) {
         y += lineheight;
         if (data_.skillId[i] <= 0) { continue; }
-        ttf->render(L'\2' + util::big5Conv.toUnicode(mem::gSaveData.skillInfo[data_.skillId[i]]->name), x4, y, true);
+        ttf->render(L'\2' + GETSKILLNAME(data_.skillId[i]), x4, y, true);
         std::int16_t level = std::clamp<int16_t>(data_.skillLevel[i] / 100, 0, 9) + 1;
         ttf->render(fmt::format(L"{:>2}", level), x5, y, true);
         if (data_.skillId[i] == learningSkillId) {
@@ -169,17 +169,17 @@ void StatusView::makeCache() {
         }
     }
     y = SubWindowBorder + lineheight * 12;
-    ttf->render(L"\3裝備物品", x0, y, true); ttf->render(L"\3修練物品", x2, y, true);
+    ttf->render(L"\3" + GETTEXT(31), x0, y, true); ttf->render(L"\3" + GETTEXT(32), x2, y, true);
     y += lineheight;
     if (data_.equip[0] >= 0) {
-        ttf->render(L'\2' + util::big5Conv.toUnicode(mem::gSaveData.itemInfo[data_.equip[0]]->name), x0, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.equip[0]), x0, y, true);
     }
     if (data_.learningItem >= 0) {
-        ttf->render(L'\2' + util::big5Conv.toUnicode(mem::gSaveData.itemInfo[data_.learningItem]->name), x2, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.learningItem), x2, y, true);
     }
     y += lineheight;
     if (data_.equip[1] >= 0) {
-        ttf->render(L'\2' + util::big5Conv.toUnicode(mem::gSaveData.itemInfo[data_.equip[1]]->name), x0, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.equip[1]), x0, y, true);
     }
     if (data_.learningItem >= 0) {
         std::uint16_t expForItem = mem::getExpForSkillLearn(data_.learningItem, learningLevel, data_.potential);

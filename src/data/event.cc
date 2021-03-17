@@ -20,6 +20,7 @@
 #include "event.hh"
 
 #include "grpdata.hh"
+#include "core/config.hh"
 #include "util/conv.hh"
 
 namespace hojy::data {
@@ -47,7 +48,12 @@ void Event::loadTalk(const std::string &name) {
         for (auto &c: t) {
             if (c) { c = ~c; }
         }
-        talks_[i] = /*util::trad2SimpConv.convert*/(util::big5Conv.toUnicode(t.c_str()));
+        talks_[i] = util::big5Conv.toUnicode(t.c_str());
+    }
+    if (core::config.simplifiedChinese()) {
+        for (auto &t: talks_) {
+            t = util::trad2SimpConv.convert(t);
+        }
     }
 }
 

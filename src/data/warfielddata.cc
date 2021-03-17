@@ -25,9 +25,9 @@
 
 namespace hojy::data {
 
-WarFieldData gWarFieldData;
+WarfieldData gWarfieldData;
 
-void WarFieldData::load(const std::string &warsta, const std::string &warfld) {
+void WarfieldData::load(const std::string &warsta, const std::string &warfld) {
     util::File::getFileContent(core::config.dataFilePath(warsta), info_);
     GrpData::DataSet dset;
     if (GrpData::loadData(warfld, dset)) {
@@ -39,14 +39,14 @@ void WarFieldData::load(const std::string &warsta, const std::string &warfld) {
     }
 }
 
-const WarFieldInfo *WarFieldData::info(std::int16_t id) const {
+const WarfieldInfo *WarfieldData::info(std::int16_t id) const {
     if (id < 0 || id >= info_.size()) {
         return nullptr;
     }
     return &info_[id];
 }
 
-const WarFieldLayers *WarFieldData::layers(std::int16_t id) const {
+const WarfieldLayers *WarfieldData::layers(std::int16_t id) const {
     if (id < 0 || id >= layers_.size()) {
         return nullptr;
     }

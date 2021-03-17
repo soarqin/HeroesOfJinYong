@@ -131,7 +131,6 @@ void GlobalMap::render() {
         drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
-        int curX = currX_, curY = currY_;
         int camX = cameraX_, camY = cameraY_;
         int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
         int ny = int(auxHeight_) / 2 + cellHeight_ * 2;

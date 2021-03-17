@@ -27,7 +27,7 @@
 
 namespace hojy::scene {
 
-class WarField: public Map {
+class Warfield: public Map {
     enum {
         FightTextureListCount = 110,
     };
@@ -74,8 +74,8 @@ class WarField: public Map {
         std::uint8_t r, g, b;
     };
 public:
-    WarField(Renderer *renderer, int x, int y, int width, int height, float scale);
-    ~WarField() override;
+    Warfield(Renderer *renderer, int x, int y, int width, int height, float scale);
+    ~Warfield() override;
 
     void cleanup();
     bool load(std::int16_t warId);

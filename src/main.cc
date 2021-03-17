@@ -19,12 +19,15 @@
 
 #include "core/config.hh"
 #include "data/loader.hh"
+#include "mem/strings.hh"
 #include "scene/window.hh"
 
 using namespace hojy;
 
 int main() {
     core::config.load("config.toml");
+    mem::gStrings.load("strings.toml");
+    core::config.fixOnTextLoaded();
     data::loadData();
     scene::Window win(core::config.windowWidth(), core::config.windowHeight());
     // win.newGame();

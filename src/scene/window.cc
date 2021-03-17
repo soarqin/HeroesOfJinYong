@@ -37,6 +37,7 @@
 #include "audio/channelwav.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
+#include "mem/strings.hh"
 #include "mem/savedata.hh"
 #include "core/config.hh"
 #include "util/conv.hh"
@@ -84,8 +85,6 @@ Window::Window(int w, int h): width_(w), height_(h) {
         gMaskPalette.create(n);
     }
 
-    SDL_ShowWindow(win);
-
     globalTextureMgr_.setPalette(gNormalPalette);
     globalTextureMgr_.setRenderer(renderer_);
     headTextureMgr_.setPalette(gNormalPalette);
@@ -100,8 +99,9 @@ Window::Window(int w, int h): width_(w), height_(h) {
 
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
-    warfield_ = new WarField(renderer_, 0, 0, w, h, core::config.scale());
+    warfield_ = new Warfield(renderer_, 0, 0, w, h, core::config.scale());
 
+    SDL_ShowWindow(win);
     audio::gMixer.init(3);
     audio::gMixer.pause(false);
     title();
@@ -210,6 +210,7 @@ void Window::title() {
 }
 
 void Window::newGame() {
+    mem::gStrings.saveDataLoaded();
     map_ = subMap_;
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     dynamic_cast<SubMap*>(subMap_)->load(data::gFactors.initSubMapId);
@@ -224,6 +225,7 @@ void Window::newGame() {
 
 bool Window::loadGame(int slot) {
     if (!mem::gSaveData.load(slot)) { return false; }
+    mem::gStrings.saveDataLoaded();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
     if (binfo->subMap > 0) {
@@ -293,7 +295,7 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
         }
         dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y, false);
         auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
-        tips->popup({util::big5Conv.toUnicode(smi->name)}, MessageBox::Normal);
+        tips->popup({GETSUBMAPNAME(subMapId)}, MessageBox::Normal);
         map_->fadeIn([this, tips, x, y] {
             delete tips;
             dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y);
@@ -303,7 +305,7 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
 }
 
 void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
-    auto *wf = dynamic_cast<WarField*>(warfield_);
+    auto *wf = dynamic_cast<Warfield*>(warfield_);
     wf->setGetExpOnLose(getExpOnLose);
     wf->setDeadOnLose(deadOnLose);
     wf->load(warId);
@@ -313,7 +315,7 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
         clm->enableCheckBox(true, [defaultChars](std::int16_t charId)->bool {
             return defaultChars.find(charId) == defaultChars.end();
         });
-        clm->initWithTeamMembers({L"請選擇參與戰鬥之人物"}, {CharListMenu::LEVEL}, [this, clm, wf](std::int16_t) {
+        clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm, wf](std::int16_t) {
             wf->putChars(clm->getSelectedCharIds());
             map_ = warfield_;
             closePopup();
@@ -417,14 +419,13 @@ void Window::showMainMenu(bool inSubMap) {
             closePopup();
             return false;
         });
-        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態", L"離隊", L"系統"});
     }
     popup_ = mainMenu_;
     freeOnClose_ = false;
     if (inSubMap) {
-        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態"});
+        dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50)});
     } else {
-        dynamic_cast<MenuTextList*>(mainMenu_)->popup({L"醫療", L"解毒", L"物品", L"狀態", L"離隊", L"系統"});
+        dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50), GETTEXT(51), GETTEXT(52)});
     }
 }
 
@@ -458,7 +459,7 @@ static void medicMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"誰要使用醫術"}, {CharListMenu::MEDIC},
+    menu->initWithTeamMembers({GETTEXT(53)}, {CharListMenu::MEDIC},
                               [mainMenu](std::int16_t charId) {
                                   medicTargetMenu(mainMenu, charId);
                               }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
@@ -470,12 +471,12 @@ static void medicTargetMenu(Node *mainMenu, int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"要醫治誰"}, {CharListMenu::HP},
+    menu->initWithTeamMembers({GETTEXT(54)}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
                                   int res = mem::actMedic(mem::gSaveData.charInfo[charId],
                                                           mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
-                                  gWindow->popupMessageBox({L"恢復生命 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                                  gWindow->popupMessageBox({GETTEXT(55) + L' ' + std::to_wstring(res)}, MessageBox::PressToCloseTop);
                               }, nullptr);
 }
 
@@ -483,7 +484,7 @@ static void depoisonMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"誰要幫人解毒"}, {CharListMenu::MEDIC},
+    menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::MEDIC},
                               [mainMenu](std::int16_t charId) {
                                   depoisonTargetMenu(mainMenu, charId);
                               }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
@@ -495,12 +496,12 @@ static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"替誰解毒"}, {CharListMenu::HP},
+    menu->initWithTeamMembers({GETTEXT(57)}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
                                   int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
                                                              mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
-                                  gWindow->popupMessageBox({L"幫助解毒 " + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                                  gWindow->popupMessageBox({GETTEXT(58) + L' ' + std::to_wstring(res)}, MessageBox::PressToCloseTop);
                               }, nullptr);
 }
 
@@ -517,7 +518,7 @@ static void statusMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"要查閱誰的狀態"}, {CharListMenu::LEVEL},
+    menu->initWithTeamMembers({GETTEXT(59)}, {CharListMenu::LEVEL},
                               [mainMenu](std::int16_t charId) {
                                   showCharStatus(mainMenu, charId);
                               }, nullptr);
@@ -534,10 +535,10 @@ static void leaveTeamMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({L"要求誰離隊"}, {CharListMenu::LEVEL},
+    menu->initWithTeamMembers({GETTEXT(60)}, {CharListMenu::LEVEL},
                               [](std::int16_t charId) {
                                   if (charId == 0) {
-                                      gWindow->popupMessageBox({L"抱歉，沒有你遊戲進行不下去"}, MessageBox::PressToCloseThis);
+                                      gWindow->popupMessageBox({GETTEXT(61)}, MessageBox::PressToCloseThis);
                                       return;
                                   }
                                   if (mem::leaveTeam(charId)) {
@@ -554,7 +555,7 @@ static void systemMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->popup({L"讀檔", L"存檔", L"離開"});
+    subMenu->popup({GETTEXT(62), GETTEXT(63), GETTEXT(64)});
     subMenu->forceUpdate();
     x += subMenu->width() + 10;
     subMenu->setHandler([mainMenu, subMenu, x, y]() {
@@ -580,17 +581,17 @@ static void systemMenu(Node *mainMenu) {
 
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->popup({L"一", L"二", L"三"});
+    subMenu->popup({GETTEXT(65), GETTEXT(66), GETTEXT(67)});
     subMenu->setHandler([subMenu, isSave]() {
         auto index = subMenu->currIndex();
         if (isSave) {
             gWindow->saveGame(index + 1);
-            gWindow->popupMessageBox({L"存檔完成"}, MessageBox::PressToCloseTop);
+            gWindow->popupMessageBox({GETTEXT(68)}, MessageBox::PressToCloseTop);
         } else {
             if (gWindow->loadGame(index + 1)) {
                 gWindow->closePopup();
             } else {
-                gWindow->popupMessageBox({L"讀檔失敗"}, MessageBox::PressToCloseTop);
+                gWindow->popupMessageBox({GETTEXT(69)}, MessageBox::PressToCloseTop);
             }
         }
     }, nullptr);

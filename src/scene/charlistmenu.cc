@@ -21,8 +21,8 @@
 
 #include "messagebox.hh"
 #include "window.hh"
+#include "mem/strings.hh"
 #include "mem/savedata.hh"
-#include "util/conv.hh"
 
 #include <fmt/format.h>
 
@@ -57,28 +57,28 @@ void getNameFromTypeList(const std::vector<CharListMenu::ValueType> &valueTypes,
         if (!result.empty()) { result += L'|'; }
         switch (t) {
         case CharListMenu::LEVEL:
-            result.append(L"等級");
+            result.append(GETTEXT(24));
             break;
         case CharListMenu::HP:
-            result.append(L"生命點數");
+            result.append(GETTEXT(1));
             break;
         case CharListMenu::MAXHP:
-            result.append(L"最大生命點數");
+            result.append(GETTEXT(2));
             break;
         case CharListMenu::MP:
-            result.append(L"内力點數");
+            result.append(GETTEXT(6));
             break;
         case CharListMenu::MAXMP:
-            result.append(L"最大内力點數");
+            result.append(GETTEXT(7));
             break;
         case CharListMenu::MEDIC:
-            result.append(L"醫療能力");
+            result.append(GETTEXT(11));
             break;
         case CharListMenu::DEPOISON:
-            result.append(L"解毒能力");
+            result.append(GETTEXT(13));
             break;
         case CharListMenu::POISONED:
-            result.append(L"中毒程度");
+            result.append(GETTEXT(3));
             break;
         default:
             break;
@@ -93,7 +93,7 @@ void listNamesFromTypeList(const std::vector<std::int16_t> &charIdList,
     for (auto id: charIdList) {
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (!charInfo) { continue; }
-        names.emplace_back(util::big5Conv.toUnicode(charInfo->name));
+        names.emplace_back(GETCHARNAME(id));
         if (valueTypes.empty()) { continue; }
         std::wstring value;
         for (auto t: valueTypes) {

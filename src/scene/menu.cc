@@ -20,6 +20,7 @@
 #include "menu.hh"
 
 #include "window.hh"
+#include "mem/strings.hh"
 
 namespace hojy::scene {
 
@@ -29,7 +30,7 @@ void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
     if (checkbox_) {
         selected_.clear();
         selected_.resize(items_.size(), false);
-        items_.emplace_back(L"結束");
+        items_.emplace_back(GETTEXT(80));
     }
     update();
 }
@@ -41,7 +42,7 @@ void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::
     if (checkbox_) {
         selected_.clear();
         selected_.resize(items_.size(), false);
-        items_.emplace_back(L"結束");
+        items_.emplace_back(GETTEXT(80));
         values_.emplace_back(L"");
     }
     update();
@@ -241,7 +242,7 @@ void MenuYesNo::handleKeyInput(Node::Key key) {
 }
 
 void MenuYesNo::popupWithYesNo() {
-    popup({L"是", L"否"}, -1);
+    popup({GETTEXT(78), GETTEXT(79)}, -1);
 }
 
 void MenuYesNo::onOK() {

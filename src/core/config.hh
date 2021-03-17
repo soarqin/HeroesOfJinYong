@@ -27,6 +27,7 @@ namespace hojy::core {
 class Config {
 public:
     bool load(const std::string &filename);
+    void fixOnTextLoaded();
 
     [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
     [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
@@ -39,6 +40,7 @@ public:
     [[nodiscard]] int windowWidth() const { return windowWidth_; }
     [[nodiscard]] int windowHeight() const { return windowHeight_; }
 
+    [[nodiscard]] bool simplifiedChinese() const { return simplifiedChinese_; }
     [[nodiscard]] bool showPotential() const { return showPotential_; }
     [[nodiscard]] float scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
@@ -50,6 +52,7 @@ private:
     std::vector<std::string> dataPath_, fonts_;
     std::string musicPath_, soundPath_, savePath_;
     int windowWidth_ = 640, windowHeight_ = 480;
+    bool simplifiedChinese_ = false;
     bool showPotential_ = false;
     float scale_ = 2.f;
     float animationSpeed_ = 1.f;

@@ -26,7 +26,7 @@
 
 namespace hojy::data {
 
-struct WarFieldInfo {
+struct WarfieldInfo {
     std::int16_t id;
     char name[10];
     std::int16_t warFieldId;
@@ -36,21 +36,22 @@ struct WarFieldInfo {
     std::int16_t enemy[WarFieldEnemyCount], enemyX[WarFieldEnemyCount], enemyY[WarFieldEnemyCount];
 };
 
-struct WarFieldLayers {
+struct WarfieldLayers {
     std::int16_t layers[data::WarFieldLayerCount][data::WarFieldWidth *data::WarFieldHeight];
 };
 
-class WarFieldData {
+class WarfieldData {
 public:
     void load(const std::string &warsta, const std::string &warfld);
-    [[nodiscard]] const WarFieldInfo *info(std::int16_t id) const;
-    [[nodiscard]] const WarFieldLayers *layers(std::int16_t id) const;
+    [[nodiscard]] size_t size() const { return info_.size(); }
+    [[nodiscard]] const WarfieldInfo *info(std::int16_t id) const;
+    [[nodiscard]] const WarfieldLayers *layers(std::int16_t id) const;
 
 private:
-    std::vector<WarFieldInfo> info_;
-    std::vector<WarFieldLayers> layers_;
+    std::vector<WarfieldInfo> info_;
+    std::vector<WarfieldLayers> layers_;
 };
 
-extern WarFieldData gWarFieldData;
+extern WarfieldData gWarfieldData;
 
 }
