@@ -1,8 +1,7 @@
 Lower number=higher priority
 
-1. MP Drain skills
-2. Shop menu
-3. Random shop position
-4. Boat logic
-5. End screen (aka video/text after game passed)
-6. Implement music fade in/out
+1. Shop menu
+2. Random shop position
+3. Boat logic
+4. End screen (aka video/text after game passed)
+5. Implement music fade in/out

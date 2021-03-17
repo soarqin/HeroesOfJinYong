@@ -660,7 +660,7 @@ void Warfield::autoAction() {
         for (int i = 0; i < data::LearnSkillCount; ++i) {
             if (ch->info.skillId[i] <= 0) { continue; }
             const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[i]];
-            if (!skill) { continue; }
+            if (!skill || skill->damageType > 0) { continue; }
             std::int16_t level = mem::calcRealSkillLevel(skill->reqMp,
                                                          std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9),
                                                          ch->info.mp);
@@ -1540,18 +1540,25 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
     bool dead = false;
     bool wasDead = enemyInfo.hp <= 0;
     if (mem::actDamage(&ch->info, &enemyInfo, knowledge_[0], knowledge_[1],
-                   distance, actIndex_, actLevel_, dmg, ps, dead)) {
+                       distance, actIndex_, actLevel_, dmg, ps, dead)) {
         if (!wasDead && dead) {
             ch->exp += dmg * 2 / 3;
             recalcKnowledge();
         } else {
             ch->exp += dmg / 3;
         }
-        auto txt = fmt::format(L"{:+}", -dmg);
         auto *ttf = renderer_->ttf();
-        popupNumbers_.emplace_back(PopupNumber {txt, x, y,
-                                                -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
-                                                232, 32, 44});
+        if (dmg < 0) {
+            auto txt = fmt::format(L"{:+}", dmg);
+            popupNumbers_.emplace_back(PopupNumber{txt, x, y,
+                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
+                                                   112, 12, 112});
+        } else {
+            auto txt = fmt::format(L"{:+}", -dmg);
+            popupNumbers_.emplace_back(PopupNumber{txt, x, y,
+                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
+                                                   232, 32, 44});
+        }
     }
 }
 
@@ -1676,17 +1683,23 @@ void Warfield::endWar() {
                     }
                     levelup = true;
                     charInfo->expForItem -= expReq;
+                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+                    if (itemInfo) {
+                        std::map<mem::PropType, std::int16_t> changes;
+                        mem::applyItemChanges(charInfo, itemInfo, changes);
+                        if (itemInfo->skillId) {
+                            const auto *skillInfo = mem::gSaveData.skillInfo[itemInfo->skillId];
+                            auto addMp = skillInfo->addMp[skillLevel];
+                            charInfo->maxMp = std::clamp<std::int16_t>(
+                                charInfo->maxMp + util::gRandom(addMp / 2 + 1), 0, data::MpMax);
+                        }
+                    }
                     if (charInfo->skillId[skillIndex] <= 0) {
                         charInfo->skillId[skillIndex] = skillId;
                         charInfo->skillLevel[skillIndex] = 0;
                     } else {
                         newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
                         charInfo->skillLevel[skillIndex] = newlevel * 100;
-                    }
-                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-                    if (itemInfo) {
-                        std::map<mem::PropType, std::int16_t> changes;
-                        mem::applyItemChanges(charInfo, itemInfo, changes);
                     }
                 }
                 if (levelup) {

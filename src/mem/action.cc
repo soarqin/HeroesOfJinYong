@@ -359,6 +359,14 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
     auto skillId = c1->skillId[index];
     const auto *skill = mem::gSaveData.skillInfo[skillId];
     if (!skill) { return false; }
+    if (skill->damageType > 0) {
+        std::int16_t drainMp = skill->drainMp[level] + util::gRandom(5) - util::gRandom(5);
+        std::int16_t oldMp = c2->mp;
+        c1->mp = std::clamp<std::int16_t>(c1->mp + drainMp, 0, c1->maxMp);
+        c2->mp = std::clamp<std::int16_t>(c2->mp - drainMp, 0, c2->maxMp);
+        damage = -drainMp;
+        return true;
+    }
     if (c1->mp < skill->reqMp) { return false; }
     c1->mp = std::max(0, c1->mp - skill->reqMp);
     int atk = calcRealAttack(c1, knowledge1, skill, level);
