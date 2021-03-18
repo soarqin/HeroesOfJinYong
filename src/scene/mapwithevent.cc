@@ -161,6 +161,10 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(4, useItem);
         OpRun(5, askForWar);
         case 6:
+#ifndef NDEBUG
+            fprintf(stdout, "{ %d %d %d %d }\n", evlist[currEventIndex_], evlist[currEventIndex_ + 1], evlist[currEventIndex_ + 2], evlist[currEventIndex_ + 3]);
+            fflush(stdout);
+#endif
             currEventAdvTrue_ = evlist[currEventIndex_ + 1];
             currEventAdvFalse_ = evlist[currEventIndex_ + 2];
             gWindow->enterWar(evlist[currEventIndex_], evlist[currEventIndex_ + 3] > 0);
