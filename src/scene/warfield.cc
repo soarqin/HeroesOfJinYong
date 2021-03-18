@@ -618,6 +618,7 @@ void Warfield::autoAction() {
             if (itemId < 0) {
                 doRest();
             } else {
+                stage_ = PoppingUp;
                 auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
                 msgBox->setCloseHandler([this] {
                     charQueue_.pop_back();
@@ -632,6 +633,7 @@ void Warfield::autoAction() {
             if (itemId < 0) {
                 doRest();
             } else {
+                stage_ = PoppingUp;
                 auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
                 msgBox->setCloseHandler([this] {
                     charQueue_.pop_back();
@@ -646,6 +648,7 @@ void Warfield::autoAction() {
             if (itemId < 0) {
                 doRest();
             } else {
+                stage_ = PoppingUp;
                 auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
                 msgBox->setCloseHandler([this] {
                     charQueue_.pop_back();
@@ -687,6 +690,7 @@ void Warfield::autoAction() {
                 if (itemId < 0) {
                     doRest();
                 } else {
+                    stage_ = PoppingUp;
                     auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
                     msgBox->setCloseHandler([this] {
                         charQueue_.pop_back();
@@ -777,7 +781,7 @@ void Warfield::autoAction() {
                 }
                 for (std::int16_t i = 0; i < 4; ++i) {
                     if (totalDmg[i] > 0) {
-                        scores.emplace_back(PredictScore{totalDmg[i], x, y, i, -1, j});
+                        scores.emplace_back(PredictScore{totalDmg[i], x, y, i, -1, skills[j].index});
                     }
                 }
                 break;
@@ -800,7 +804,7 @@ void Warfield::autoAction() {
                     }
                 }
                 if (totalDmg > 0) {
-                    scores.emplace_back(PredictScore{totalDmg, x, y, x, y, j});
+                    scores.emplace_back(PredictScore{totalDmg, x, y, x, y, skills[j].index});
                 }
                 break;
             }
@@ -829,7 +833,7 @@ void Warfield::autoAction() {
                     totalDmg += dmg;
                 }
                 if (totalDmg > 0) {
-                    scores.emplace_back(PredictScore{totalDmg, mx, my, x, y, j});
+                    scores.emplace_back(PredictScore{totalDmg, mx, my, x, y, skills[j].index});
                 }
                 break;
             }
@@ -851,7 +855,7 @@ void Warfield::autoAction() {
                                                  ch->info.stamina, enemy->info.hurt,
                                                  distance);
                 if (dmg >= enemy->info.hp) { dmg = dmg * 3 / 2; }
-                scores.emplace_back(PredictScore{dmg, mx, my, x, y, j});
+                scores.emplace_back(PredictScore{dmg, mx, my, x, y, skills[j].index});
                 break;
             }
             }
@@ -1695,11 +1699,13 @@ void Warfield::endWar() {
                     if (itemInfo) {
                         std::map<mem::PropType, std::int16_t> changes;
                         mem::applyItemChanges(charInfo, itemInfo, changes);
-                        if (itemInfo->skillId) {
-                            const auto *skillInfo = mem::gSaveData.skillInfo[itemInfo->skillId];
+                        const mem::SkillData *skillInfo;
+                        if ((skillInfo = mem::gSaveData.skillInfo[itemInfo->skillId]) != nullptr) {
                             auto addMp = skillInfo->addMp[skillLevel];
-                            charInfo->maxMp = std::clamp<std::int16_t>(
-                                charInfo->maxMp + util::gRandom(addMp / 2 + 1), 0, data::MpMax);
+                            if (addMp) {
+                                charInfo->maxMp = std::clamp<std::int16_t>(
+                                    charInfo->maxMp + util::gRandom(1, addMp / 2), 0, data::MpMax);
+                            }
                         }
                     }
                     if (charInfo->skillId[skillIndex] <= 0) {
