@@ -62,6 +62,7 @@ protected:
     virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
 
 private:
+    static bool closePopup(MapWithEvent *map);
     static bool doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position);
     static bool addItem(MapWithEvent *map, std::int16_t itemId, std::int16_t itemCount);
     static bool modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::int16_t eventId, std::int16_t blocked,
@@ -70,6 +71,7 @@ private:
                             std::int16_t x, std::int16_t y);
     static int useItem(MapWithEvent *map, std::int16_t itemId);
     static int askForWar(MapWithEvent *map);
+    static bool exitEventList(MapWithEvent *map);
     static bool changeExitMusic(MapWithEvent *map, std::int16_t music);
     static int askForJoinTeam(MapWithEvent *map);
     static bool joinTeam(MapWithEvent *map, std::int16_t charId);

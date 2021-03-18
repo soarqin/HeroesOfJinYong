@@ -137,24 +137,9 @@ void MapWithEvent::continueEvents(bool result) {
 #ifndef NDEBUG
         fprintf(stdout, "%2d: ", op);
 #endif
-        if (op == 0) {
-#ifndef NDEBUG
-            fprintf(stdout, "\n");
-            fflush(stdout);
-#endif
-            gWindow->closePopup();
-            continue;
-        }
-        if (op == -1 || op == 7) {
-            currEventIndex_ = currEventSize_;
-#ifndef NDEBUG
-            fprintf(stdout, "\n");
-            fflush(stdout);
-#endif
-            gWindow->closePopup();
-            break;
-        }
         switch (op) {
+        OpRun(-1, exitEventList);
+        OpRun(0, closePopup);
         OpRun(1, doTalk);
         OpRun(2, addItem);
         OpRun(3, modifyEvent);
@@ -171,6 +156,7 @@ void MapWithEvent::continueEvents(bool result) {
             currEventIndex_ += 4;
             currEventPaused_ = true;
             break;
+        OpRun(7, exitEventList);
         OpRun(8, changeExitMusic);
         OpRun(9, askForJoinTeam);
         OpRun(10, joinTeam);
@@ -458,7 +444,12 @@ bool MapWithEvent::checkTime() {
     return true;
 }
 
-bool MapWithEvent::doTalk(MapWithEvent *map, std::int16_t talkId, std::int16_t headId, std::int16_t position) {
+bool MapWithEvent::closePopup(MapWithEvent *) {
+    gWindow->closePopup();
+    return true;
+}
+
+bool MapWithEvent::doTalk(MapWithEvent *, std::int16_t talkId, std::int16_t headId, std::int16_t position) {
     gWindow->runTalk(data::gEvent.talk(talkId), headId, position);
     return false;
 }
@@ -513,6 +504,12 @@ int MapWithEvent::useItem(MapWithEvent *map, std::int16_t itemId) {
 int MapWithEvent::askForWar(MapWithEvent *map) {
     gWindow->popupMessageBox({GETTEXT(72)}, MessageBox::YesNo);
     return -1;
+}
+
+bool MapWithEvent::exitEventList(MapWithEvent *map) {
+    map->currEventIndex_ = map->currEventSize_;
+    gWindow->closePopup();
+    return true;
 }
 
 bool MapWithEvent::changeExitMusic(MapWithEvent *map, std::int16_t music) {

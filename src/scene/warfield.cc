@@ -1685,7 +1685,7 @@ void Warfield::endWar() {
             }
             if (exp) {
                 charInfo->exp = std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax);
-                std::int16_t expReq;
+                std::uint16_t expReq;
                 bool levelup = false;
                 while ((expReq = mem::getExpForLevelUp(charInfo->level)) > 0 && charInfo->exp >= expReq) {
                     levelup = true;
