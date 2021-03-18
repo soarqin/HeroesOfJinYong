@@ -519,13 +519,13 @@ void actRest(CharacterData *c) {
 }
 
 void actLevelup(CharacterData *c) {
-    auto factor = std::max(1, c->potential / 15);
+    auto factor = util::gRandom(1, c->potential / 15);
     ++c->level;
     c->attack = std::clamp<int16_t>(c->attack + factor, 0, data::AttackMax);
     c->defence = std::clamp<int16_t>(c->defence + factor, 0, data::DefenceMax);
     c->speed = std::clamp<int16_t>(c->speed + factor, 0, data::SpeedMax);
     c->maxHp = std::clamp<int16_t>(c->maxHp + c->hpAddOnLevelUp * 3 + util::gRandom(7), 0, data::HpMax);
-    c->maxMp = std::clamp<int16_t>(c->maxMp + 4 * (9 - factor), 0, data::MpMax);
+    c->maxMp = std::clamp<int16_t>(c->maxMp + 3 * (9 - factor), 0, data::MpMax);
     c->hp = c->maxHp;
     c->mp = c->maxMp;
     c->stamina = data::StaminaMax;
