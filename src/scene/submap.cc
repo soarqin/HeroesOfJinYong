@@ -87,11 +87,15 @@ bool SubMap::load(std::int16_t subMapId) {
         for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
             auto &ci = cellInfo_[pos];
             auto texId = layers[0][pos] >> 1;
-            ci.isWater = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
+            ci.blocked = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
+            ci.earthTex = layers[0][pos];
             ci.earth = textureMgr_[texId];
             texId = layers[1][pos] >> 1;
             if (texId) {
                 ci.building = textureMgr_[texId];
+                if (!ci.building) {
+                    ci.blocked = true;
+                }
             }
             texId = layers[2][pos] >> 1;
             if (texId) {
@@ -146,8 +150,8 @@ void SubMap::render() {
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
         tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(auxHeight_) / 2 - (cx + cy) * cellDiffY;
-        cx = curX - cx; cy = curY - cy;
+        ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
+        cx = camX - cx; cy = camY - cy;
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -242,7 +246,7 @@ void SubMap::handleKeyInput(Key key) {
 bool SubMap::tryMove(int x, int y, bool checkEvent) {
     auto pos = y * mapWidth_ + x;
     auto &ci = cellInfo_[pos];
-    if (ci.building || ci.isWater) {
+    if (ci.building || ci.blocked) {
         return true;
     }
     auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;

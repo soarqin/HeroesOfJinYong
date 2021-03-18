@@ -73,12 +73,6 @@ bool leaveTeam(std::int16_t id) {
     if (!charInfo) { return false; }
     for (int i = 0; i < data::TeamMemberCount; ++i) {
         if (mem::gSaveData.baseInfo->members[i] != id) { continue; }
-        if (i < data::TeamMemberCount - 1) {
-            memmove(mem::gSaveData.baseInfo->members + i,
-                    mem::gSaveData.baseInfo->members + i + 1,
-                    sizeof(std::int16_t) * (data::TeamMemberCount - i - 1));
-        }
-        mem::gSaveData.baseInfo->members[data::TeamMemberCount - 1] = -1;
         for (auto &eq: charInfo->equip) {
             if (eq >= 0) {
                 auto *itemInfo = mem::gSaveData.itemInfo[eq];
@@ -91,6 +85,12 @@ bool leaveTeam(std::int16_t id) {
             if (itemInfo) { itemInfo->user = -1; }
             charInfo->learningItem = -1;
         }
+        if (i < data::TeamMemberCount - 1) {
+            memmove(mem::gSaveData.baseInfo->members + i,
+                    mem::gSaveData.baseInfo->members + i + 1,
+                    sizeof(std::int16_t) * (data::TeamMemberCount - i - 1));
+        }
+        mem::gSaveData.baseInfo->members[data::TeamMemberCount - 1] = -1;
         return true;
     }
     return false;

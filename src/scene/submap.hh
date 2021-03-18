@@ -29,7 +29,8 @@ class SubMap final: public MapWithEvent {
     struct CellInfo {
         const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
         int buildingDeltaY = 0, decorationDeltaY = 0;
-        bool isWater = false;
+        std::int16_t earthTex = 0;
+        bool blocked = false;
     };
 public:
     SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);

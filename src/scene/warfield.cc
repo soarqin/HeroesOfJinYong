@@ -337,8 +337,9 @@ void Warfield::render() {
                     }
                 } else {
                     if (ci.charInfo) {
-                        if (acting && ci.charInfo == ch) {
-                            renderer_->renderTexture((*fightTexMgr_)[fightTexIdx_], dx, ty);
+                        const Texture *tex;
+                        if (acting && ci.charInfo == ch && (tex = (*fightTexMgr_)[fightTexIdx_]) != nullptr) {
+                            renderer_->renderTexture(tex, dx, ty);
                         } else {
                             renderer_->renderTexture(textureMgr_[2553 + 4 * ci.charInfo->texId
                                 + int(ci.charInfo->direction)], dx, ty);

@@ -288,7 +288,7 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
         const auto *smi = mem::gSaveData.subMapInfo[subMapId];
         dynamic_cast<SubMap *>(map_)->load(subMapId);
         std::int16_t x, y;
-        if (switching && smi->globalEnterX1 == 0) {
+        if (switching && smi->subMapEnterX) {
             x = smi->subMapEnterX;
             y = smi->subMapEnterY;
         } else {

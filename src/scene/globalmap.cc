@@ -102,8 +102,15 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                 const auto *tex2 = textureMgr_[n1];
                 if (tex2) {
                     auto centerX = tx - tex2->originX() + tex2->width() / 2;
-                    auto centerY =
-                        ty - tex2->originY() + (tex2->height() < 36 ? tex2->height() * 4 / 5 : tex2->height() * 3 / 4);
+                    auto th = tex2->height();
+                    if (th < 36) {
+                        th = th * 4 / 5;
+                    } else if (th < 72) {
+                        th = th * 3 / 4;
+                    } else {
+                        th = th * 2 / 3;
+                    }
+                    auto centerY = ty - tex2->originY() + th;
                     buildingTex_.emplace_back(BuildingTex{centerY * texWidth_ + centerX, tx, ty, tex2});
                 }
             }

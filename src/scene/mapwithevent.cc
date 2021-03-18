@@ -22,6 +22,7 @@
 #include "window.hh"
 #include "mask.hh"
 #include "data/event.hh"
+#include "mem/action.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
 #include "util/random.hh"
@@ -487,12 +488,16 @@ bool MapWithEvent::modifyEvent(MapWithEvent *map, std::int16_t subMapId, std::in
         auto &layer = mem::gSaveData.subMapLayerInfo[subMapId]->data[3];
         layer[ev.y * map->mapWidth_ + ev.x] = -1;
         layer[y * map->mapWidth_ + x] = eventId;
-        map->setCellTexture(ev.x, ev.y, 3, -1);
+        if (subMapId == map->subMapId_) {
+            map->setCellTexture(ev.x, ev.y, 3, -1);
+        }
         ev.x = x; ev.y = y;
     }
     if (currTex > -2) {
         ev.currTex = currTex;
-        map->setCellTexture(x, y, 3, currTex >> 1);
+        if (subMapId == map->subMapId_) {
+            map->setCellTexture(x, y, 3, currTex >> 1);
+        }
     }
     return true;
 }
@@ -589,8 +594,13 @@ int MapWithEvent::checkTeamMember(MapWithEvent *map, std::int16_t charId) {
 
 bool MapWithEvent::changeLayer(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
                                std::int16_t x, std::int16_t y, std::int16_t value) {
-    mem::gSaveData.subMapLayerInfo[map->subMapId_]->data[layer][y * map->mapWidth_ + x] = value;
-    map->setCellTexture(x, y, layer, value >> 1);
+    if (subMapId < 0) {
+        subMapId = map->subMapId_;
+    }
+    mem::gSaveData.subMapLayerInfo[subMapId]->data[layer][y * map->mapWidth_ + x] = value;
+    if (subMapId == map->subMapId_) {
+        map->setCellTexture(x, y, layer, value >> 1);
+    }
     return true;
 }
 
@@ -613,15 +623,7 @@ int MapWithEvent::checkTeamFull(MapWithEvent *map) {
 }
 
 bool MapWithEvent::leaveTeam(MapWithEvent *map, std::int16_t charId) {
-    for (size_t i = 0; i < data::TeamMemberCount; ++i) {
-        if (mem::gSaveData.baseInfo->members[i] == charId) {
-            for (size_t j = i; j < data::TeamMemberCount - 1; ++j) {
-                mem::gSaveData.baseInfo->members[j] = mem::gSaveData.baseInfo->members[j + 1];
-            }
-            mem::gSaveData.baseInfo->members[data::TeamMemberCount - 1] = -1;
-            break;
-        }
-    }
+    mem::leaveTeam(charId);
     return true;
 }
 
@@ -1132,6 +1134,7 @@ bool MapWithEvent::randomShop(MapWithEvent *map) {
         if (evi.subMapId == map->subMapId_) {
             auto &evts = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
             auto &ev = evts[evi.shopEventIndex];
+            ev.blocked = 0;
             ev.event[0] = -1;
             ev.currTex = ev.begTex = ev.endTex = -1;
             for (auto &n: evi.randomEventIndex) {
@@ -1142,6 +1145,7 @@ bool MapWithEvent::randomShop(MapWithEvent *map) {
     }
     const auto &evi = shopEventInfo[util::gRandom(5)];
     auto &ev = mem::gSaveData.subMapEventInfo[evi.subMapId]->events[evi.shopEventIndex];
+    ev.blocked = 1;
     ev.event[0] = data::ShopEventId;
     ev.begTex = ev.currTex = ev.endTex = data::ShopEventTex;
     return true;
