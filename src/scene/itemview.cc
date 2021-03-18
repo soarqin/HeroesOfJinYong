@@ -66,10 +66,11 @@ void ItemView::handleKeyInput(Node::Key key) {
             switch (itemInfo->itemType) {
             case 3: {
                 std::map<mem::PropType, std::int16_t> changes;
-                if (mem::useItem(charId_, id, changes)) {
+                if (mem::useItem(charInfo_, id, changes)) {
                     auto fn = std::move(resultFunc_);
+                    auto *parent = parent_;
                     delete this;
-                    auto *msgBox = popupUseResult(parent_, id, changes);
+                    auto *msgBox = popupUseResult(parent, id, changes);
                     msgBox->setCloseHandler([fn] {
                         if (fn) { fn(-1); }
                     });
@@ -138,9 +139,9 @@ void ItemView::handleKeyInput(Node::Key key) {
             int x = width_ / 3, y = height_ * 2 / 7;
             auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
             clm->initWithTeamMembers({GETTEXT(36) + L' ' + GETITEMNAME(id)}, {},
-                                     [this, &ipair, itemInfo, id, type, clm](std::int16_t charId) {
+                                     [this, &ipair, id](std::int16_t charId) {
                                          std::map<mem::PropType, std::int16_t> changes;
-                                         if (ipair.second && mem::useItem(charId, id, changes)) {
+                                         if (ipair.second && mem::useItem(mem::gSaveData.charInfo[charId], id, changes)) {
                                              std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
                                              for (auto &c: changes) {
                                                  messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));

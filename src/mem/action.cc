@@ -151,9 +151,7 @@ bool equipItem(std::int16_t charId, std::int16_t itemId) {
     return true;
 }
 
-bool useItem(std::int16_t charId, std::int16_t itemId, std::map<PropType, std::int16_t> &changes) {
-    if (charId < 0) { return false; }
-    auto *charInfo = mem::gSaveData.charInfo[charId];
+bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes) {
     if (!charInfo) { return false; }
     auto *itemInfo = mem::gSaveData.itemInfo[itemId];
     if (!itemInfo) { return false; }
@@ -519,7 +517,7 @@ void actRest(CharacterData *c) {
 }
 
 void actLevelup(CharacterData *c) {
-    auto factor = util::gRandom(1, c->potential / 15);
+    auto factor = util::gRandom(1, std::max(c->potential / 15, 3));
     ++c->level;
     c->attack = std::clamp<int16_t>(c->attack + factor, 0, data::AttackMax);
     c->defence = std::clamp<int16_t>(c->defence + factor, 0, data::DefenceMax);

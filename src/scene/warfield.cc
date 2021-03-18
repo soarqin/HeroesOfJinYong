@@ -433,8 +433,9 @@ void Warfield::handleKeyInput(Node::Key key) {
         x = cursorX_; y = cursorY_;
         switch (stage_) {
         case MoveSelecting: {
-            if (x == cameraX_ && y == cameraY_) { break; }
+            if (x == cameraX_ && y == cameraY_) { stage_ = Idle; break; }
             if (cellInfo_[y * mapWidth_ + x].charInfo) {
+                stage_ = Idle;
                 break;
             }
             auto ite = selCells_.find(std::make_pair(x, y));
@@ -819,6 +820,7 @@ void Warfield::autoAction() {
                 break;
             }
             case 3: {
+                if (c.second.ranges > skills[j].skillRange) { continue; }
                 int totalDmg = 0;
                 auto r = skills[j].area;
                 auto *n = &c.second;
@@ -848,7 +850,7 @@ void Warfield::autoAction() {
                 break;
             }
             default: {
-                if (c.second.moves > steps + skills[j].skillRange) { continue; }
+                if (c.second.ranges > skills[j].skillRange) { continue; }
                 auto *enemy = cellInfo_[y * mapWidth_ + x].charInfo;
                 if (!enemy || enemy->side != enemySide) { continue; }
                 auto *n = &c.second;
@@ -1063,7 +1065,7 @@ void Warfield::playerMenu() {
             return;
         case 5: {
             auto *iv = new ItemView(this, 40, 40, gWindow->width() - 40, gWindow->height() - 40);
-            iv->setUser(ch->id);
+            iv->setCharInfo(&ch->info);
             iv->show(true, [this](std::int16_t itemId) {
                 if (itemId < 0) {
                     endTurn();
@@ -1697,10 +1699,10 @@ void Warfield::endWar() {
             }
             if (exp2 && canLearn) {
                 charInfo->expForItem = std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax);
-                int newlevel = 0;
+                int newlevel = skillLevel;
                 bool levelup = false;
                 for (;;) {
-                    auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel, charInfo->potential);
+                    auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, newlevel, charInfo->potential);
                     if (expReq <= 0 || charInfo->expForItem < expReq) {
                         break;
                     }
@@ -1711,7 +1713,7 @@ void Warfield::endWar() {
                         mem::applyItemChanges(charInfo, itemInfo, changes);
                         const mem::SkillData *skillInfo;
                         if (skillId >= 0 && (skillInfo = mem::gSaveData.skillInfo[skillId]) != nullptr) {
-                            auto addMp = skillInfo->addMp[skillLevel];
+                            auto addMp = skillInfo->addMp[newlevel];
                             if (addMp) {
                                 charInfo->maxMp = std::clamp<std::int16_t>(
                                     charInfo->maxMp + util::gRandom(1, addMp / 2), 0, data::MpMax);

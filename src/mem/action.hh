@@ -42,7 +42,7 @@ std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::
 bool leaveTeam(std::int16_t id);
 bool skillFull(std::int16_t charId);
 bool equipItem(std::int16_t charId, std::int16_t itemId);
-bool useItem(std::int16_t charId, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
+bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
 std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::map<PropType, std::int16_t> &changes);
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);

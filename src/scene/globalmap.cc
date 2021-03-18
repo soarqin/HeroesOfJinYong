@@ -105,8 +105,6 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                     auto th = tex2->height();
                     if (th < 36) {
                         th = th * 4 / 5;
-                    } else if (th < 72) {
-                        th = th * 3 / 4;
                     } else {
                         th = th * 2 / 3;
                     }

@@ -36,6 +36,7 @@ Random::IntType Random::operator()(Random::IntType modulo) {
 }
 
 Random::IntType Random::operator()(Random::IntType min, Random::IntType max) {
+    if (min > max) { return min; }
     return rand_() % (max - min + 1) + min;
 }
 
