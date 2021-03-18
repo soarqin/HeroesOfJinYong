@@ -37,6 +37,7 @@
 #include "audio/channelwav.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
+#include "data/event.hh"
 #include "mem/strings.hh"
 #include "mem/savedata.hh"
 #include "core/config.hh"
@@ -446,6 +447,46 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
     dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
     popup_ = talkBox_;
     freeOnClose_ = false;
+}
+
+bool Window::runShop(std::int16_t id) {
+    auto *shopInfo = mem::gSaveData.shopInfo[id];
+    if (!shopInfo) {
+        return false;
+    }
+    auto *subMenu = new MenuTextList(popup_, 0, 0, gWindow->width(), gWindow->height());
+    std::vector<std::wstring> items;
+    std::vector<std::wstring> prices;
+    std::vector<int> indices;
+    for (int i = 0; i < data::ShopItemCount; ++i) {
+        if (shopInfo->id[i] <= 0 || shopInfo->total[i] <= 0) { continue; }
+        items.emplace_back(GETITEMNAME(shopInfo->id[i]));
+        prices.emplace_back(std::to_wstring(shopInfo->price[i]));
+        indices.emplace_back(i);
+    }
+    subMenu->popup(items, prices);
+    subMenu->makeCenter(gWindow->width(), gWindow->height());
+    subMenu->setHandler([subMenu, shopInfo, indices]() {
+        int index = subMenu->currIndex();
+        if (index < 0 || index >= indices.size()) { return; }
+        index = indices[index];
+        auto price = shopInfo->price[index];
+        if (!mem::gBag.remove(data::ItemIDMoney, price)) {
+            gWindow->closePopup();
+            gWindow->runTalk(data::gEvent.talk(0xB9F), 0x6F, 0);
+            return;
+        }
+        mem::gBag.add(shopInfo->id[index], 1);
+        if (shopInfo->total[index] < 1000) {
+            --shopInfo->total[index];
+        }
+        gWindow->closePopup();
+        gWindow->runTalk(data::gEvent.talk(0xBA0), 0x6F, 0);
+    }, [this]() {
+        subMap_->continueEvents(false);
+        return false;
+    });
+    return true;
 }
 
 void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type) {

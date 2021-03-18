@@ -31,7 +31,7 @@ public:
     using Map::Map;
 
     void cleanupEvents();
-    void continueEvents(bool result = true);
+    void continueEvents(bool result);
     void runEvent(std::int16_t evt);
     void onUseItem(std::int16_t itemId);
 

@@ -244,7 +244,7 @@ void MapWithEvent::runEvent(std::int16_t evt) {
     currEventSize_ = currEventList_->size();
     currEventIndex_ = 0;
 
-    continueEvents();
+    continueEvents(false);
 }
 
 void MapWithEvent::onUseItem(std::int16_t itemId) {
@@ -399,7 +399,7 @@ void MapWithEvent::frameUpdate() {
         moving_.pop_back();
         drawDirty_ = true;
         if (moving_.empty()) {
-            continueEvents();
+            continueEvents(false);
         }
     }
     if (animCurrTex_[0] == 0) { return; }
@@ -409,7 +409,7 @@ void MapWithEvent::frameUpdate() {
             animCurrTex_[i] = 0;
             animEndTex_[i] = 0;
         }
-        continueEvents();
+        continueEvents(false);
         return;
     }
     for (int i = 0; i < 3; ++i) {
@@ -566,14 +566,14 @@ bool MapWithEvent::sleep(MapWithEvent *map) {
 
 bool MapWithEvent::makeBright(MapWithEvent *map) {
     map->fadeIn([map]() {
-        map->continueEvents();
+        map->continueEvents(false);
     });
     return false;
 }
 
 bool MapWithEvent::makeDim(MapWithEvent *map) {
     map->fadeOut([map]() {
-        map->continueEvents();
+        map->continueEvents(false);
     });
     return false;
 }
@@ -1109,8 +1109,10 @@ bool MapWithEvent::openShop(MapWithEvent *map) {
     if (map->subMapId_ < 0) {
         return true;
     }
+    int i;
     /* set random shop event on exit cells */
-    for (auto &evi: shopEventInfo) {
+    for (i = 0; i < 5; ++i) {
+        auto &evi = shopEventInfo[i];
         if (evi.subMapId == map->subMapId_) {
             auto &evts = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
             for (auto &n: evi.randomEventIndex) {
@@ -1120,12 +1122,10 @@ bool MapWithEvent::openShop(MapWithEvent *map) {
         }
     }
     doTalk(map, 0xB9E, 0x6F, 0);
-    /* TODO: popup shop ui */
-    map->pendingSubEvents_.emplace_back([map]() {
-        gWindow->closePopup();
-        return doTalk(map, 0xBA0, 0x6F, 0);
-    });
-    return false;
+    if (i >= 5) {
+        return false;
+    }
+    return !gWindow->runShop(i);
 }
 
 bool MapWithEvent::randomShop(MapWithEvent *map) {

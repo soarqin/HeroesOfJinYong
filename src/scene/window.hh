@@ -81,6 +81,7 @@ public:
 
     void showMainMenu(bool inSubMap);
     void runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position);
+    bool runShop(std::int16_t id);
     void popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type = MessageBox::Normal);
 
 private:
