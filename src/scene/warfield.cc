@@ -203,8 +203,15 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
         chars_.emplace_back(CharInfo {1, id, charInfo->headId, info->enemyX[i], info->enemyY[i],
                                       DirRight, *charInfo});
     }
-    for (auto &ci: chars_) {
+    auto ite = chars_.begin();
+    while (ite != chars_.end()) {
+        auto &ci = *ite;
         auto &cell = cellInfo_[ci.y * mapWidth_ + ci.x];
+        /* NOTE: remove duplicate chars */
+        if (cell.charInfo != nullptr) {
+            ite = chars_.erase(ite);
+            continue;
+        }
         mem::addUpPropFromEquipToChar(&ci.info);
         if (ci.side == 1) {
             ci.info.hp = ci.info.maxHp;
@@ -212,6 +219,7 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
             ci.info.stamina = data::StaminaMax;
         }
         cell.charInfo = &ci;
+        ++ite;
     }
     recalcKnowledge();
     frameUpdate();
@@ -889,6 +897,10 @@ void Warfield::autoAction() {
                 }
             }
         }
+#ifndef NDEBUG
+        fmt::print(stdout, "({},{})->({},{})\n", ch->x, ch->y, mx, my);
+        fflush(stdout);
+#endif
         pendingAutoAction_ = [this]() {
             doRest();
         };
