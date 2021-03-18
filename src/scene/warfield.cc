@@ -320,13 +320,13 @@ void Warfield::render() {
                 renderer_->renderTexture(ci.earth, dx, ty);
                 if (!movingOrActing) {
                     if (ci.insideMovingArea == 2) {
-                        maskTex_->setBlendColor(236, 236, 236, 128);
+                        maskTex_->setBlendColor(128, 128, 128, 128);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     } else if (ci.charInfo) {
-                        maskTex_->setBlendColor(192, 192, 192, 128);
+                        maskTex_->setBlendColor(128, 128, 128, 96);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     } else if (selecting && !ci.insideMovingArea) {
-                        maskTex_->setBlendColor(32, 32, 32, 160);
+                        maskTex_->setBlendColor(128, 128, 128, 192);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     }
                 }
@@ -1636,8 +1636,9 @@ void Warfield::endWar() {
             bool canLearn = false, makingItem = false;
             std::int16_t skillId = 0;
             int skillIndex = -1, skillLevel = 0;
+            const mem::ItemData *itemInfo = nullptr;
             if (charInfo->learningItem >= 0) {
-                const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+                itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
                 if (itemInfo) {
                     makingItem = itemInfo->makeItem[0] >= 0;
                     canLearn = true;
@@ -1695,12 +1696,11 @@ void Warfield::endWar() {
                     }
                     levelup = true;
                     charInfo->expForItem -= expReq;
-                    const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
                     if (itemInfo) {
                         std::map<mem::PropType, std::int16_t> changes;
                         mem::applyItemChanges(charInfo, itemInfo, changes);
                         const mem::SkillData *skillInfo;
-                        if ((skillInfo = mem::gSaveData.skillInfo[itemInfo->skillId]) != nullptr) {
+                        if (skillId >= 0 && (skillInfo = mem::gSaveData.skillInfo[skillId]) != nullptr) {
                             auto addMp = skillInfo->addMp[skillLevel];
                             if (addMp) {
                                 charInfo->maxMp = std::clamp<std::int16_t>(
@@ -1708,12 +1708,14 @@ void Warfield::endWar() {
                             }
                         }
                     }
-                    if (charInfo->skillId[skillIndex] <= 0) {
-                        charInfo->skillId[skillIndex] = skillId;
-                        charInfo->skillLevel[skillIndex] = 0;
-                    } else {
-                        newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
-                        charInfo->skillLevel[skillIndex] = newlevel * 100;
+                    if (skillIndex >= 0) {
+                        if (charInfo->skillId[skillIndex] <= 0) {
+                            charInfo->skillId[skillIndex] = skillId;
+                            charInfo->skillLevel[skillIndex] = 0;
+                        } else {
+                            newlevel = charInfo->skillLevel[skillIndex] / 100 + 1;
+                            charInfo->skillLevel[skillIndex] = newlevel * 100;
+                        }
                     }
                 }
                 if (levelup) {
@@ -1726,17 +1728,19 @@ void Warfield::endWar() {
                 }
             }
             if (makingItem) {
-                const auto *itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
                 charInfo->expForMakeItem += ch->exp;
-                bool itemMade = false;
-                for (int i = 0; i < data::MakeItemCount; ++i) {
-                    if (itemInfo->makeItem[i] >= 0 && charInfo->expForMakeItem >= itemInfo->reqExpForMakeItem
-                        && mem::gBag[itemInfo->reqMaterial] > 0) {
-                        mem::gBag.remove(itemInfo->reqMaterial, 1);
-                        mem::gBag.add(itemInfo->makeItem[i], itemInfo->makeItemCount[i]);
-                        messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(99),
-                                                             name, GETITEMNAME(itemInfo->makeItem[i]))));
+                if (charInfo->expForMakeItem >= itemInfo->reqExpForMakeItem && mem::gBag[itemInfo->reqMaterial] > 0) {
+                    int count = 0;
+                    while (count < data::MakeItemCount) {
+                        if (itemInfo->makeItem[count] < 0) { break; }
+                        ++count;
                     }
+                    charInfo->expForMakeItem = 0;
+                    mem::gBag.remove(itemInfo->reqMaterial, 1);
+                    auto index = util::gRandom(count);
+                    mem::gBag.add(itemInfo->makeItem[index], itemInfo->makeItemCount[index]);
+                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(99),
+                                                                        name, GETITEMNAME(itemInfo->makeItem[index]))));
                 }
             }
         }

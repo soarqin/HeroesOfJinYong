@@ -330,6 +330,9 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
         clm->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
         popup_ = clm;
         freeOnClose_ = true;
+    } else {
+        wf->putChars({});
+        map_ = warfield_;
     }
 }
 
@@ -486,7 +489,7 @@ static void depoisonMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + 10;
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::MEDIC},
+    menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::DEPOISON},
                               [mainMenu](std::int16_t charId) {
                                   depoisonTargetMenu(mainMenu, charId);
                               }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {

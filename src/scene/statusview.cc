@@ -151,6 +151,17 @@ void StatusView::makeCache() {
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(29), x0, y, true);
         ttf->render(fmt::format(L"\2{:>5}", data_.potential), x1, y, true);
+        y += lineheight;
+        ttf->render(L"\3" + GETTEXT(20), x0, y, true);
+        ttf->render(fmt::format(L"\2{:>5}", data_.knowledge), x1, y, true);
+        if (data_.id == 0) {
+            y += lineheight;
+            ttf->render(L"\3" + GETTEXT(21), x0, y, true);
+            ttf->render(fmt::format(L"\2{:>5}", data_.integrity), x1, y, true);
+            y += lineheight;
+            ttf->render(L"\3" + GETTEXT(114), x0, y, true);
+            ttf->render(fmt::format(L"\2{:>5}", data_.reputation), x1, y, true);
+        }
     }
     y = SubWindowBorder;
     ttf->render(L"\3" + GETTEXT(30), x4, y, true);
@@ -169,21 +180,21 @@ void StatusView::makeCache() {
         }
     }
     y = SubWindowBorder + lineheight * 12;
-    ttf->render(L"\3" + GETTEXT(31), x0, y, true); ttf->render(L"\3" + GETTEXT(32), x2, y, true);
+    ttf->render(L"\3" + GETTEXT(31), x2, y, true); ttf->render(L"\3" + GETTEXT(32), x4, y, true);
     y += lineheight;
     if (data_.equip[0] >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.equip[0]), x0, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.equip[0]), x2, y, true);
     }
     if (data_.learningItem >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.learningItem), x2, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.learningItem), x4, y, true);
     }
     y += lineheight;
     if (data_.equip[1] >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.equip[1]), x0, y, true);
+        ttf->render(L'\2' + GETITEMNAME(data_.equip[1]), x2, y, true);
     }
     if (data_.learningItem >= 0) {
-        std::uint16_t expForItem = mem::getExpForSkillLearn(data_.learningItem, learningLevel, data_.potential);
-        ttf->render(L'\2' + fmt::format(L"{:>5}/{:>5}", data_.expForItem, expForItem), x2, y, true);
+        std::uint16_t expForItem = mem::getExpForSkillLearn(data_.learningItem, learningLevel - 1, data_.potential);
+        ttf->render(L'\2' + fmt::format(L"{:>5}/{:>5}", data_.expForItem, expForItem), x4, y, true);
     }
     cacheEnd();
 }

@@ -392,9 +392,9 @@ void MapWithEvent::frameUpdate() {
     if (!moving_.empty()) {
         std::tie(cameraX_, cameraY_) = moving_.back();
         if (movingChar_) {
-            direction_ = calcDirection(offsetX_, offsetY_, cameraX_, cameraY_);
-            offsetX_ = cameraX_;
-            offsetY_ = cameraY_;
+            direction_ = calcDirection(currX_, currY_, cameraX_, cameraY_);
+            currX_ = cameraX_;
+            currY_ = cameraY_;
         }
         moving_.pop_back();
         drawDirty_ = true;
@@ -788,7 +788,10 @@ bool MapWithEvent::addIntegrity(MapWithEvent *map, std::int16_t value) {
 
 bool MapWithEvent::modifySubMapLayerTex(MapWithEvent *map, std::int16_t subMapId, std::int16_t layer,
                                         std::int16_t oldTex, std::int16_t newTex) {
-    auto &l = mem::gSaveData.subMapLayerInfo[subMapId < 0 ? map->subMapId_ : subMapId]->data[layer];
+    if (subMapId < 0) {
+        subMapId = map->subMapId_;
+    }
+    auto &l = mem::gSaveData.subMapLayerInfo[subMapId]->data[layer];
     auto pos = 0;
     bool currentMap = subMapId == map->subMapId_;
     for (int y = 0; y < data::SubMapHeight; ++y) {
