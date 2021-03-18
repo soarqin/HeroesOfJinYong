@@ -51,6 +51,7 @@ Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, floa
 }
 
 Warfield::~Warfield() {
+    delete statusPanel_;
     delete maskTex_;
 }
 
@@ -145,7 +146,9 @@ bool Warfield::load(std::int16_t warId) {
 
     subMapId_ = warMapId;
     resetFrame();
-
+    if (!statusPanel_) {
+        statusPanel_ = new StatusView(renderer_, x_, y_, width_, height_);
+    }
     return true;
 }
 
@@ -381,6 +384,9 @@ void Warfield::render() {
 
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    if (stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving) {
+        statusPanel_->render();
+    }
 }
 
 void Warfield::handleKeyInput(Node::Key key) {
@@ -596,6 +602,10 @@ void Warfield::nextAction() {
     cameraX_ = ch->x;
     cameraY_ = ch->y;
     drawDirty_ = true;
+    auto *sv = dynamic_cast<StatusView*>(statusPanel_);
+    sv->show(&ch->info, false, true);
+    sv->forceUpdate();
+    sv->setPosition(ch->side == 1 ? 40 : (width_ - 40 - sv->width()), height_ * 2 / 5 - sv->height() / 2);
     if (ch->side == 1 || autoControl_) {
         autoAction();
     } else {
@@ -1747,6 +1757,8 @@ void Warfield::endWar() {
     }
     stage_ = Finished;
     popupFinishMessages(std::move(messages), 0);
+    delete statusPanel_;
+    statusPanel_ = nullptr;
 }
 
 void Warfield::popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index) {

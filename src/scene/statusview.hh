@@ -28,7 +28,7 @@ class StatusView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    void show(const mem::CharacterData *data, bool calcEquip);
+    void show(const mem::CharacterData *data, bool calcEquip, bool simpleMode = false);
     void show(std::int16_t charId);
 
     void handleKeyInput(Key key) override;
@@ -38,6 +38,7 @@ protected:
 
 protected:
     mem::CharacterData data_ {};
+    bool simpleMode_ = false;
 };
 
 }

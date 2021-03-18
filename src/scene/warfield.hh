@@ -126,6 +126,7 @@ private:
     std::vector<PopupNumber> popupNumbers_;
     std::function<void()> pendingAutoAction_;
 
+    Node *statusPanel_ = nullptr;
     Texture *maskTex_ = nullptr;
     std::vector<TextureMgr> fightTextures_;
 };

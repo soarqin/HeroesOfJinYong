@@ -28,9 +28,10 @@
 
 namespace hojy::scene {
 
-void StatusView::show(const mem::CharacterData *data, bool calcEquip) {
+void StatusView::show(const mem::CharacterData *data, bool calcEquip, bool simpleMode) {
     if (!data) { return; }
     data_ = *data;
+    simpleMode_ = simpleMode;
     if (calcEquip) { mem::addUpPropFromEquipToChar(&data_); }
 }
 
@@ -54,6 +55,59 @@ void StatusView::makeCache() {
     auto lineheight = fontSize + TextLineSpacing;
     int x0 = SubWindowBorder;
     int x1 = x0 + fontSize * 5 / 2;
+    if (simpleMode_) {
+        int w = x1 + fontSize * 9 / 2 + SubWindowBorder;
+        int h = SubWindowBorder * 2 + lineheight * 8 - TextLineSpacing;
+        width_ = w;
+        height_ = h;
+
+        cacheBegin();
+        renderer_->clear(0, 0, 0, 0);
+        renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
+        int y = SubWindowBorder;
+        const auto *headTex = gWindow->headTexture(data_.headId);
+        if (headTex) {
+            auto height = float(headTex->height());
+            float scale = float(lineheight * 4 - TextLineSpacing) / height;
+            renderer_->renderTexture(headTex, (float(w) - float(headTex->width()) * scale) / 2.f, float(y + lineheight * 4 - TextLineSpacing) - height * scale, scale, true);
+        }
+        ttf->setColor(236, 236, 236);
+        ttf->setAltColor(2, 236, 200, 40);
+        ttf->setAltColor(3, 252, 148, 16);
+        ttf->setAltColor(4, 196, 8, 16);
+        ttf->setAltColor(5, 244, 128, 132);
+        ttf->setAltColor(6, 28, 104, 16);
+        ttf->setAltColor(7, 96, 176, 64);
+        y += lineheight * 4;
+        auto name = GETCHARNAME(data_.id);
+        ttf->render(name, (w - ttf->stringWidth(name)) / 2, y, true);
+        y += lineheight;
+        ttf->render(L"\3" + GETTEXT(4), x0, y, true);
+        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, data::StaminaMax), x1, y, true);
+        y += lineheight;
+        ttf->render(L"\3" + GETTEXT(25), x0, y, true);
+        wchar_t c1 = L'\2', c2 = L'\3';
+        if (data_.hurt > 66) {
+            c1 = L'\4';
+        } else if (data_.hurt > 33) {
+            c1 = L'\5';
+        }
+        if (data_.poisoned >= 50) {
+            c2 = L'\6';
+        } else if (data_.poisoned > 0) {
+            c2 = L'\7';
+        }
+        ttf->render(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
+        y += lineheight;
+        ttf->render(L"\3" + GETTEXT(26), x0, y, true);
+        std::uint8_t r, g, b;
+        std::tie(r, g, b) = mem::calcColorForMpType(data_.mpType);
+        ttf->setAltColor(16, r, g, b);
+        ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
+        cacheEnd();
+        return;
+    }
     int x2 = x1 + fontSize * 9 / 2 + SubWindowBorder;
     int x3 = x2 + fontSize * 9 / 2;
     int x4 = x3 + fontSize * 2 + SubWindowBorder;
