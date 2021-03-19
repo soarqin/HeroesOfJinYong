@@ -65,6 +65,7 @@ public:
     void setPalette(const ColorPalette &col);
     bool loadFromRLE(const std::vector<std::string> &data);
     bool mergeFromRLE(const std::vector<std::string> &data);
+    bool loadFromRAW(const std::vector<std::string> &data, int width, int height);
     Texture *loadFromRAW(const std::string &data, int width, int height);
     const Texture *operator[](std::int32_t id) const;
     void clear() { textures_.clear(); }

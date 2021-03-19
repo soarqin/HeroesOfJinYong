@@ -365,6 +365,7 @@ bool MapWithEvent::getFaceOffset(int &x, int &y) {
 }
 
 void MapWithEvent::renderChar(int deltaY) {
+    if (!showChar_ || !mainCharTex_) { return; }
     int dx = currX_ - cameraX_;
     int dy = currY_ - cameraY_;
     int cellDiffY = cellHeight_ / 2;
@@ -553,7 +554,7 @@ int MapWithEvent::wantSleep(MapWithEvent *map) {
 
 bool MapWithEvent::sleep(MapWithEvent *map) {
     for (auto id: mem::gSaveData.baseInfo->members) {
-        if (id <= 0) { continue; }
+        if (id < 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[id];
         if (!charInfo) { continue; }
         charInfo->stamina = data::StaminaMax;
@@ -997,6 +998,7 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
             return false;
         });
         map->pendingSubEvents_.emplace_back([i, n] {
+            gWindow->closePopup();
             gWindow->enterWar(102 + i * 2 + n, false, true);
             return false;
         });
@@ -1014,6 +1016,7 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
                 return false;
             });
             map->pendingSubEvents_.emplace_back([map] {
+                gWindow->closePopup();
                 sleep(map);
                 makeDim(map);
                 return false;
@@ -1029,35 +1032,43 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
         return false;
     });
     map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
         doTalk(map, 2885, 0, 3);
         return false;
     });
     map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
         doTalk(map, 2886, 0, 3);
         return false;
     });
     map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
         doTalk(map, 2887, 0, 3);
         return false;
     });
     map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
         doTalk(map, 2888, 0, 3);
         return false;
     });
     map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
         doTalk(map, 2889, 0, 1);
         return false;
     });
-    map->pendingSubEvents_.emplace_back([] {
-        mem::gBag.add(0x8F, 1);
-        return true;
+    map->pendingSubEvents_.emplace_back([map] {
+        gWindow->closePopup();
+        return MapWithEvent::addItem(map, 0x8F, 1);
     });
     return true;
 }
 
 bool MapWithEvent::disbandTeam(MapWithEvent *map) {
-    for (int i = 1; i < data::TeamMemberCount; ++i) {
-        mem::gSaveData.baseInfo->members[i] = -1;
+    for (int i = data::TeamMemberCount - 1; i > 0; --i) {
+        auto charId = mem::gSaveData.baseInfo->members[i];
+        if (charId > 0) {
+            mem::leaveTeam(charId);
+        }
     }
     return true;
 }
@@ -1081,8 +1092,12 @@ int MapWithEvent::checkAllStoryBooks(MapWithEvent *map) {
 
 bool MapWithEvent::goBackHome(MapWithEvent *map, std::int16_t eventId, std::int16_t begTex, std::int16_t endTex,
                               std::int16_t eventId2, std::int16_t begTex2, std::int16_t endTex2) {
-    /* TODO: implement this */
-    return true;
+    map->showChar(false);
+    map->pendingSubEvents_.emplace_back([]() {
+        gWindow->endscreen();
+        return true;
+    });
+    return animation2(map, eventId, begTex, endTex, eventId2, begTex2, endTex2);
 }
 
 bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t charId, std::int16_t value) {

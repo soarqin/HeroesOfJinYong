@@ -48,6 +48,7 @@ void addUpPropFromEquipToChar(CharacterData *info) {
         AddProp(sword, Sword);
         AddProp(blade, Blade);
         AddProp(special, Special);
+        AddProp(throwing, Throwing);
         AddProp(knowledge, Knowledge);
         AddProp(poisonAmp, PoisonAmp);
 #undef AddProp
@@ -234,6 +235,7 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
     ChangeProp(sword, Sword)
     ChangeProp(blade, Blade)
     ChangeProp(special, Special)
+    ChangeProp(throwing, Throwing)
     ChangeProp(knowledge, Knowledge)
     ChangeProp(integrity, Integrity)
     if (itemInfo->addDoubleAttack > 0 && charInfo->doubleAttack != itemInfo->addDoubleAttack) {
@@ -259,8 +261,6 @@ bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo) {
         }
         return v >= n;
     };
-    std::int16_t reqMpType, reqMp, reqAttack, reqSpeed, reqPoison, reqMedic, reqDepoison;
-    std::int16_t reqFist, reqSword, reqBlade, reqSpecial, reqHiddenWeapon, reqPotential;
     return check(charInfo->mp, itemInfo->reqMp)
         && check(charInfo->attack, itemInfo->reqAttack)
         && check(charInfo->speed, itemInfo->reqSpeed)

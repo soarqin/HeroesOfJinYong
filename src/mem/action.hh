@@ -33,7 +33,7 @@ namespace hojy::mem {
 enum class PropType {
     Hp = 0, MaxHp, Poisoned, Stamina, MpType, Mp, MaxMp,
     Attack, Speed, Defence, Medic, Poison, Depoison, Antipoison,
-    Fist, Sword, Blade, Special, HiddenWeapon, Knowledge, Integrity, DoubleAttack, PoisonAmp,
+    Fist, Sword, Blade, Special, Throwing, Knowledge, Integrity, DoubleAttack, PoisonAmp,
 };
 const std::wstring &propToName(PropType type);
 void addUpPropFromEquipToChar(CharacterData *info);

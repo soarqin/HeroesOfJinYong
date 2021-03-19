@@ -1792,7 +1792,7 @@ void Warfield::popupFinishMessages(std::vector<std::pair<int, std::wstring>> mes
             popupFinishMessages(messages, index);
         } else {
             cleanup();
-            gWindow->endWar(won_, deadOnLose_);
+            gWindow->endWar(won_, !won_ && deadOnLose_);
         }
     });
 }

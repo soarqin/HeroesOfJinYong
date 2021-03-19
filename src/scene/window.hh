@@ -64,6 +64,7 @@ public:
     void playEffectSound(int idx);
 
     void title();
+    void endscreen();
     void newGame();
     bool loadGame(int slot);
     bool saveGame(int slot);

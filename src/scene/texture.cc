@@ -195,6 +195,19 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
     return true;
 }
 
+bool TextureMgr::loadFromRAW(const std::vector<std::string> &data, int width, int height) {
+    auto sz = data.size();
+    textures_.resize(sz);
+    for (size_t i = 0; i < sz; ++i) {
+        Texture tex;
+        if (!tex.loadFromRAW(renderer_, data[i], width, height, *palette_)) {
+            continue;
+        }
+        textures_[i] = std::move(tex);
+    }
+    return true;
+}
+
 Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height) {
     auto *tex = new Texture;
     if (!tex->loadFromRAW(renderer_, data, width, height, *palette_)) {

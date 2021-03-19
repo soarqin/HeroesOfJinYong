@@ -27,6 +27,7 @@
 #include "talkbox.hh"
 #include "title.hh"
 #include "dead.hh"
+#include "endscreen.hh"
 #include "menu.hh"
 #include "charlistmenu.hh"
 #include "itemview.hh"
@@ -208,6 +209,15 @@ void Window::title() {
     title->init();
     freeOnClose_ = true;
     popup_ = title;
+}
+
+void Window::endscreen() {
+    subMap_->cleanupEvents();
+    map_ = nullptr;
+    auto *endScreen = new EndScreen(renderer_, 0, 0, width_, height_);
+    endScreen->init();
+    freeOnClose_ = true;
+    popup_ = endScreen;
 }
 
 void Window::newGame() {
@@ -428,11 +438,13 @@ void Window::showMainMenu(bool inSubMap) {
     }
     popup_ = mainMenu_;
     freeOnClose_ = false;
+    /*
     if (inSubMap) {
         dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50)});
     } else {
+     */
         dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50), GETTEXT(51), GETTEXT(52)});
-    }
+    /* } */
 }
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {

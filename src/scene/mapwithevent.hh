@@ -52,6 +52,7 @@ protected:
 
     bool getFaceOffset(int &x, int &y);
     void renderChar(int deltaY = 0);
+    inline void showChar(bool show = true) { showChar_ = show; }
 
     virtual bool tryMove(int x, int y, bool checkEvent) { return false; }
     virtual void updateMainCharTexture() {}
@@ -152,6 +153,7 @@ protected:
     std::int32_t currX_ = 0, currY_ = 0;
     Direction direction_ = DirUp;
 
+    bool showChar_ = true;
     bool resting_ = false;
     std::int32_t currMainCharFrame_ = 0;
     std::chrono::steady_clock::time_point nextMainTexTime_;

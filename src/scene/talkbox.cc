@@ -171,7 +171,7 @@ void TalkBox::makeCache() {
         textX = 0;
     } else {
         if (headTex_) {
-            headX = headY = 0;
+            headX = 0;
             textX = headW + 10;
         } else {
             textX = 0;
