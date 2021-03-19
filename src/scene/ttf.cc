@@ -61,6 +61,7 @@ TTF::~TTF() {
 void TTF::init(int size, std::uint8_t width) {
     fontSize_ = size;
     monoWidth_ = width;
+    newRectPack();
 }
 
 void TTF::deinit() {
@@ -98,7 +99,6 @@ bool TTF::add(const std::string &filename, int index) {
     fi.font = info;
     fonts_.emplace_back(std::move(fi));
 #endif
-    newRectPack();
     return true;
 }
 
