@@ -123,6 +123,23 @@ Window::~Window() {
 }
 
 bool Window::processEvents() {
+    static const std::map<SDL_Scancode, Node::Key> inputMap = {
+        { SDL_SCANCODE_UP, Node::KeyUp },
+        { SDL_SCANCODE_KP_8, Node::KeyUp },
+        { SDL_SCANCODE_DOWN, Node::KeyDown },
+        { SDL_SCANCODE_KP_2, Node::KeyDown },
+        { SDL_SCANCODE_LEFT, Node::KeyLeft },
+        { SDL_SCANCODE_KP_4, Node::KeyLeft },
+        { SDL_SCANCODE_RIGHT, Node::KeyRight },
+        { SDL_SCANCODE_KP_6, Node::KeyRight },
+        { SDL_SCANCODE_RETURN, Node::KeyOK },
+        { SDL_SCANCODE_KP_ENTER, Node::KeyOK },
+        { SDL_SCANCODE_ESCAPE, Node::KeyCancel },
+        { SDL_SCANCODE_DELETE, Node::KeyCancel },
+        { SDL_SCANCODE_KP_PERIOD, Node::KeyCancel },
+        { SDL_SCANCODE_SPACE, Node::KeySpace },
+        { SDL_SCANCODE_BACKSPACE, Node::KeyBackspace },
+    };
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
@@ -132,33 +149,10 @@ bool Window::processEvents() {
             break;
         }
         case SDL_KEYDOWN: {
-            auto *node = popup_ ? popup_ : map_;
-            switch (e.key.keysym.scancode) {
-            case SDL_SCANCODE_UP:
-                node->doHandleKeyInput(Node::KeyUp);
-                break;
-            case SDL_SCANCODE_RIGHT:
-                node->doHandleKeyInput(Node::KeyRight);
-                break;
-            case SDL_SCANCODE_LEFT:
-                node->doHandleKeyInput(Node::KeyLeft);
-                break;
-            case SDL_SCANCODE_DOWN:
-                node->doHandleKeyInput(Node::KeyDown);
-                break;
-            case SDL_SCANCODE_RETURN:
-                node->doHandleKeyInput(Node::KeyOK);
-                break;
-            case SDL_SCANCODE_ESCAPE: case SDL_SCANCODE_DELETE:
-                node->doHandleKeyInput(Node::KeyCancel);
-                break;
-            case SDL_SCANCODE_SPACE:
-                node->doHandleKeyInput(Node::KeySpace);
-                break;
-            case SDL_SCANCODE_BACKSPACE:
-                node->doHandleKeyInput(Node::KeyBackspace);
-                break;
-            default:
+            auto ite = inputMap.find(e.key.keysym.scancode);
+            if (ite != inputMap.end()) {
+                auto *node = popup_ ? popup_ : map_;
+                node->doHandleKeyInput(ite->second);
                 break;
             }
             break;
