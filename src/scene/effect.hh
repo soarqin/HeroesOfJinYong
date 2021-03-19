@@ -29,6 +29,7 @@ class Effect {
 public:
     void load(Renderer *renderer_, const std::string &filename);
     const TextureMgr *operator[](std::int16_t index) const;
+    void clear() { effectTexMgr_.clear(); }
 
 private:
     std::vector<TextureMgr> effectTexMgr_;

@@ -110,9 +110,14 @@ Window::Window(int w, int h): width_(w), height_(h) {
 }
 
 Window::~Window() {
+    closePopup();
+    globalTextureMgr_.clear();
+    headTextureMgr_.clear();
+    gEffect.clear();
     delete talkBox_;
     delete globalMap_;
     delete subMap_;
+    delete warfield_;
     delete renderer_;
     SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
 }

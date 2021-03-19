@@ -1,6 +1,8 @@
 project(SDL2_gfx)
 
-find_package(SDL2 REQUIRED)
+if(NOT TARGET SDL2::SDL2-static AND NOT TARGET SDL2::SDL2)
+    find_package(SDL2 REQUIRED)
+endif()
 
 option(SDL2_GFX_USE_MMX "Use MMX for SDL2_gfx" ON)
 
