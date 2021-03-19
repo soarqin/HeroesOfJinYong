@@ -4,6 +4,7 @@ project(HeroesOfJinYong)
 set(CMAKE_CXX_STANDARD 17)
 
 option(USE_STATIC_CRT "Use static C runtime" OFF)
+option(USE_FREETYPE "Use freetype instead of stb_truetype" OFF)
 
 if(USE_STATIC_CRT)
     if(CMAKE_COMPILER_IS_GNUCXX)

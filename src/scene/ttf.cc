@@ -89,7 +89,7 @@ bool TTF::add(const std::string &filename, int index) {
     FontInfo fi;
 #ifdef USE_FREETYPE
     if (FT_New_Face(ftLib_, filename.c_str(), index, &fi.face)) return false;
-    fonts.emplace_back(fi);
+    fonts_.emplace_back(fi);
 #else
     if (!util::File::getFileContent(filename, fi.ttf_buffer)) {
         return false;
@@ -205,15 +205,16 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     uint32_t index = 0;
 #endif
     for (auto &f: fonts_) {
-        fi = &f;
 #ifdef USE_FREETYPE
         auto index = FT_Get_Char_Index(f.face, ch);
         if (index == 0) continue;
-        if (!FT_Load_Glyph(f.face, index, FT_LOAD_DEFAULT)) break;
+        FT_Set_Pixel_Sizes(f.face, 0, fontSize);
+        auto err = FT_Load_Glyph(f.face, index, FT_LOAD_DEFAULT);
+        if (!err) { fi = &f; break; }
 #else
         info = static_cast<stbtt_fontinfo*>(f.font);
         index = stbtt_FindGlyphIndex(info, ch);
-        if (index != 0) break;
+        if (index != 0) { fi = &f; break; }
 #endif
     }
     std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
@@ -224,13 +225,12 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     }
 
 #ifdef USE_FREETYPE
-    FT_Set_Pixel_Sizes(fi.face, 0, fontSize);
     unsigned char *srcPtr;
     int bitmapPitch;
     if (FT_Render_Glyph(fi->face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
     FT_GlyphSlot slot = fi->face->glyph;
     fd->ix0 = slot->bitmap_left;
-    fd->iy0 = -slot->bitmap_top;
+    fd->iy0 = fontSize * 7 / 8 - slot->bitmap_top;
     fd->w = slot->bitmap.width;
     fd->h = slot->bitmap.rows;
     fd->advW = slot->advance.x >> 6;
