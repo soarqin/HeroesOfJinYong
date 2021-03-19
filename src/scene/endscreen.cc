@@ -173,7 +173,7 @@ void EndScreen::makeCache() {
             renderer_->renderTexture(tex, i == 22 ? 10 : 20, cy);
             cy += (i >= 20 ? 100 : 15) + tex->height();
         }
-        cy -= 100;
+        cy -= 85;
         th_ = cy;
         w_ = tw_ * w / 320;
         h_ = th_ * h / 200;
