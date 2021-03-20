@@ -66,6 +66,7 @@ private:
     std::uint32_t sampleRate_ = 0;
     std::uint16_t format_ = 0;
     std::vector<ChannelInfo> channels_;
+    std::vector<std::uint8_t> cache_;
     std::mutex playMutex_;
 };
 

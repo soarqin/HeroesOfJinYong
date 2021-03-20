@@ -140,7 +140,6 @@ void SubMap::render() {
         int delta = -mapWidth_ + 1;
 
         renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->setClipRect(0, 0, 2048, 2048);
         renderer_->clear(0, 0, 0, 0);
 
 /* NOTE: Do we really need to do this?
@@ -199,7 +198,6 @@ void SubMap::render() {
                 }
                 if (x == curX && y == curY) {
                     renderer_->setTargetTexture(drawingTerrainTex2_);
-                    renderer_->setClipRect(0, 0, 2048, 2048);
                     renderer_->clear(0, 0, 0, 0);
                     charHeight_ = h;
                 }
@@ -221,7 +219,6 @@ void SubMap::render() {
             }
         }
         renderer_->setTargetTexture(nullptr);
-        renderer_->unsetClipRect();
     }
 
     renderer_->clear(0, 0, 0, 0);

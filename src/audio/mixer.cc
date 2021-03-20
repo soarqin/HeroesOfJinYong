@@ -53,6 +53,7 @@ void Mixer::init(int channels) {
     sampleRate_ = obtained.freq;
     format_ = obtained.format;
     channels_.resize(channels);
+    cache_.resize(obtained.size);
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
@@ -100,16 +101,39 @@ Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
 
 void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
-    memset(stream, 0, len);
-    std::vector<std::uint8_t> channelData(len);
+    auto &cache = mixer->cache_;
     std::scoped_lock lk(mixer->playMutex_);
-    for (auto &chi: mixer->channels_) {
-        if (!chi.ch) { continue; }
-        auto rsize = chi.ch->readData(channelData.data(), len);
-        if (rsize) {
-            SDL_MixAudioFormat(stream, channelData.data(), mixer->format_, rsize, chi.volume);
-        } else {
-            chi.reset();
+    auto &channels = mixer->channels_;
+    auto &chi0 = channels[0];
+    if (chi0.volume < VolumeMax) {
+        memset(stream, 0, len);
+        for (auto &chi: channels) {
+            if (!chi.ch) { continue; }
+            auto rsize = chi.ch->readData(cache.data(), len);
+            if (rsize) {
+                SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, chi.volume);
+            } else {
+                chi.reset();
+            }
+        }
+    } else {
+        auto rsize = chi0.ch->readData(stream, len);
+        if (!rsize) {
+            chi0.reset();
+        }
+        if (rsize < len) {
+            memset(stream + rsize, 0, len - rsize);
+        }
+        size_t sz = channels.size();
+        for (size_t i = 1; i < sz; ++i) {
+            auto &chi = channels[i];
+            if (!chi.ch) { continue; }
+            rsize = chi.ch->readData(cache.data(), len);
+            if (rsize) {
+                SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, chi.volume);
+            } else {
+                chi.reset();
+            }
         }
     }
 }

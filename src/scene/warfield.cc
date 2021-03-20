@@ -244,7 +244,6 @@ void Warfield::render() {
         int delta = -mapWidth_ + 1;
 
         renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->setClipRect(0, 0, 2048, 2048);
         renderer_->clear(0, 0, 0, 0);
 
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
@@ -387,7 +386,6 @@ void Warfield::render() {
             }
         }
         renderer_->setTargetTexture(nullptr);
-        renderer_->unsetClipRect();
     }
 
     renderer_->clear(0, 0, 0, 0);

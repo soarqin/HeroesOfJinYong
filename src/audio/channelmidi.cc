@@ -66,6 +66,7 @@ void ChannelMIDI::load() {
         ok_ = false;
         return;
     }
+    adl_switchEmulator(static_cast<ADL_MIDIPlayer*>(midiplayer_), ADLMIDI_EMU_DOSBOX);
     if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
         ok_ = false;
         return;

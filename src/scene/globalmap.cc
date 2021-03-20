@@ -147,7 +147,6 @@ void GlobalMap::render() {
         int ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
         cx = camX - cx; cy = camY - cy;
         renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->setClipRect(0, 0, 2048, 2048);
         renderer_->clear(0, 0, 0, 0);
         int delta = -mapWidth_ + 1;
         for (int j = hcount; j; --j) {
@@ -190,7 +189,6 @@ void GlobalMap::render() {
         auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
         auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());
         renderer_->setTargetTexture(drawingBuildingTex_[0]);
-        renderer_->setClipRect(0, 0, 2048, 1024);
         renderer_->clear(0, 0, 0, 0);
         while (ite != ite_mid) {
             if (ite->x < l || ite->x >= r) {
@@ -201,7 +199,6 @@ void GlobalMap::render() {
             ++ite;
         }
         renderer_->setTargetTexture(drawingBuildingTex_[1]);
-        renderer_->setClipRect(0, 0, 2048, 1024);
         renderer_->clear(0, 0, 0, 0);
         while (ite != ite_end) {
             if (ite->x < l || ite->x >= r) {
@@ -212,7 +209,6 @@ void GlobalMap::render() {
             ++ite;
         }
         renderer_->setTargetTexture(nullptr);
-        renderer_->unsetClipRect();
     }
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
