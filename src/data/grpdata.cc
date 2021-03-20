@@ -24,8 +24,6 @@
 
 namespace hojy::data {
 
-GrpData gGrpData;
-
 bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset, bool isSave) {
     util::File ifs, ifs2;
     if (isSave) {
@@ -81,38 +79,6 @@ bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset, bo
         ifs.write(&offset, sizeof(std::uint32_t));
     }
     return true;
-}
-
-const GrpData::DataSet &GrpData::lazyLoad(const std::string &idx, const std::string &grp) {
-    auto pos = grp.find('.');
-    std::string grpName;
-    if (pos != std::string::npos) {
-        grpName = grp.substr(0, pos);
-    } else {
-        grpName = grp;
-    }
-    auto &res = data_[grpName];
-    if (res.empty()) {
-        loadData(idx, grp, res);
-    }
-    return res;
-}
-
-const GrpData::DataSet &GrpData::lazyLoad(const std::string &name) {
-    auto &res = data_[name];
-    if (res.empty()) {
-        loadData(name, res);
-    }
-    return res;
-}
-
-const GrpData::DataSet &GrpData::operator[](const std::string &name) const {
-    auto ite = data_.find(name);
-    if (ite == data_.end()) {
-        static const DataSet empty;
-        return empty;
-    }
-    return ite->second;
 }
 
 }

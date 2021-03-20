@@ -88,7 +88,6 @@ bool SubMap::load(std::int16_t subMapId) {
             auto &ci = cellInfo_[pos];
             auto texId = layers[0][pos] >> 1;
             ci.blocked = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
-            ci.earthTex = layers[0][pos];
             ci.earth = textureMgr_[texId];
             texId = layers[1][pos] >> 1;
             if (texId) {

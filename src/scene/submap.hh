@@ -28,8 +28,7 @@ namespace hojy::scene {
 class SubMap final: public MapWithEvent {
     struct CellInfo {
         const Texture *earth = nullptr, *building = nullptr, *decoration = nullptr, *event = nullptr;
-        int buildingDeltaY = 0, decorationDeltaY = 0;
-        std::int16_t earthTex = 0;
+        std::int16_t buildingDeltaY = 0, decorationDeltaY = 0;
         bool blocked = false;
     };
 public:
