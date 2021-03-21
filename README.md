@@ -16,5 +16,5 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
 * LGPLv2.1 licensed:
    * [soxr](http://soxr.sourceforge.net/) ([deps/soxr](deps/soxr))
 * Zlib licensed:
-   * [SDL2](https://www.libsdl.org/)
+   * [SDL2](https://www.libsdl.org/) (use [deps/SDL2](deps/SDL2) in Windows for Input Method support, and find system SDL2 in other OSes)
    * [SDL2_gfx](https://sourceforge.net/projects/sdl2gfx/) ([deps/SDL2_gfx](deps/SDL2_gfx))
