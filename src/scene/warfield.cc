@@ -330,13 +330,13 @@ void Warfield::render() {
                 renderer_->renderTexture(ci.earth, dx, ty);
                 if (!movingOrActing) {
                     if (ci.insideMovingArea == 2) {
-                        maskTex_->setBlendColor(128, 128, 128, 128);
+                        maskTex_->setBlendColor(160, 160, 160, 160);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     } else if (ci.charInfo) {
-                        maskTex_->setBlendColor(128, 128, 128, 96);
+                        maskTex_->setBlendColor(160, 160, 160, 128);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     } else if (selecting && !ci.insideMovingArea) {
-                        maskTex_->setBlendColor(128, 128, 128, 192);
+                        maskTex_->setBlendColor(160, 160, 160, 208);
                         renderer_->renderTexture(maskTex_, dx, ty);
                     }
                 }
@@ -1084,26 +1084,43 @@ void Warfield::playerMenu() {
             break;
         case 1:
             if (ch->info.skillId[1] > 0) {
-                auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + 10, 40, width_ - menu->x() + menu->width() - 10, height_ - 80);
                 std::vector<std::wstring> items;
-                for (auto skillId: ch->info.skillId) {
-                    if (skillId <= 0) {
-                        break;
-                    }
+                std::vector<int> indices;
+                for (int i = 0; i < data::LearnSkillCount; ++i) {
+                    auto skillId = ch->info.skillId[i];
+                    if (skillId <= 0) { continue; }
+                    const auto *skillInfo = mem::gSaveData.skillInfo[skillId];
+                    if (!skillInfo) { continue; }
+                    auto skillLevel =
+                        mem::calcRealSkillLevel(skillInfo->reqMp,
+                                                std::clamp<std::int16_t>(ch->info.skillLevel[i] / 100, 0, 9),
+                                                ch->info.mp);
+                    if (skillLevel < 0) { continue; }
+                    indices.emplace_back(i);
                     items.emplace_back(GETSKILLNAME(skillId));
                 }
-                submenu->popup(items);
-                submenu->setHandler([this, menu, submenu]() {
-                    if (tryUseSkill(submenu->currIndex())) {
-                        delete menu;
-                    } else {
-                        delete submenu;
-                    }
-                });
+                if (!items.empty()) {
+                    auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + 10, 40,
+                                                     width_ - menu->x() + menu->width() - 10, height_ - 80);
+                    submenu->popup(items);
+                    submenu->setHandler([this, menu, submenu, indices]() {
+                        if (tryUseSkill(indices[submenu->currIndex()])) {
+                            delete menu;
+                        } else {
+                            delete submenu;
+                        }
+                    });
+                    return;
+                }
             } else {
                 if (tryUseSkill(0)) {
                     delete menu;
+                    return;
                 }
+            }
+            {
+                auto *msgBox = new MessageBox(this, 0, height_ / 3, width_, 60);
+                msgBox->popup({GETTEXT(115)}, MessageBox::PressToCloseThis);
             }
             return;
         case 2:
@@ -1430,14 +1447,14 @@ bool Warfield::tryUseSkill(int index) {
         return true;
     }
     const auto *skill = mem::gSaveData.skillInfo[std::max<std::int16_t>(ch->info.skillId[index], 0)];
-    if (!skill) {
-        return false;
-    }
+    if (!skill) { return false; }
+    auto skillLevel = std::clamp<std::int16_t>(ch->info.skillLevel[index] / 100, 0, 9);
+    skillLevel = mem::calcRealSkillLevel(skill->reqMp, skillLevel, ch->info.mp);
+    if (skillLevel < 0) { return false; }
     actIndex_ = index;
     actId_ = ch->info.skillId[index];
     attackTimesLeft_ = ch->info.doubleAttack ? 2 : 1;
-    actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[index] / 100, 0, 9);
-    actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp);
+    actLevel_ = skillLevel;
     switch (skill->attackAreaType) {
     case 1: {
         auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
