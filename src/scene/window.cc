@@ -70,6 +70,10 @@ Window::Window(int w, int h): width_(w), height_(h) {
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         SDL_Init(SDL_INIT_VIDEO);
     }
+    if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
+        SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
+    }
+    SDL_GameControllerEventState(SDL_ENABLE);
     auto *win = SDL_CreateWindow("Heroes of Jin Yong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
     win_ = win;
@@ -123,6 +127,14 @@ Window::~Window() {
 }
 
 bool Window::processEvents() {
+    for (auto &p: pressedKeys_) {
+        if (currTime_ >= p.second.first) {
+            p.second.first += std::chrono::milliseconds(30);
+            if (p.second.first < currTime_) { p.second.first = currTime_; }
+            auto *node = popup_ ? popup_ : map_;
+            if (node) { node->doHandleKeyInput(p.second.second); }
+        }
+    }
     static const std::map<SDL_Scancode, Node::Key> inputMap = {
         { SDL_SCANCODE_UP, Node::KeyUp },
         { SDL_SCANCODE_KP_8, Node::KeyUp },
@@ -140,20 +152,60 @@ bool Window::processEvents() {
         { SDL_SCANCODE_SPACE, Node::KeySpace },
         { SDL_SCANCODE_BACKSPACE, Node::KeyBackspace },
     };
+    static const std::map<SDL_GameControllerButton, Node::Key> buttonMap = {
+        { SDL_CONTROLLER_BUTTON_DPAD_UP, Node::KeyUp },
+        { SDL_CONTROLLER_BUTTON_DPAD_DOWN, Node::KeyDown },
+        { SDL_CONTROLLER_BUTTON_DPAD_LEFT, Node::KeyLeft },
+        { SDL_CONTROLLER_BUTTON_DPAD_RIGHT, Node::KeyRight },
+        { SDL_CONTROLLER_BUTTON_A, Node::KeyOK },
+        { SDL_CONTROLLER_BUTTON_B, Node::KeyCancel },
+    };
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
+        case SDL_CONTROLLERDEVICEADDED: {
+            SDL_GameControllerOpen(e.cdevice.which);
+            break;
+        }
+        case SDL_CONTROLLERDEVICEREMOVED: {
+            SDL_GameControllerClose(SDL_GameControllerFromInstanceID(e.cdevice.which));
+            break;
+        }
+        case SDL_CONTROLLERBUTTONDOWN: {
+            auto ite = buttonMap.find(SDL_GameControllerButton(e.cbutton.button));
+            if (ite != buttonMap.end()) {
+                pressedKeys_[-int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(150), ite->second);
+                auto *node = popup_ ? popup_ : map_;
+                if (node) { node->doHandleKeyInput(ite->second); }
+            }
+            break;
+        }
+        case SDL_CONTROLLERBUTTONUP: {
+            auto ite = buttonMap.find(SDL_GameControllerButton(e.cbutton.button));
+            if (ite != buttonMap.end()) {
+                pressedKeys_.erase(-int(ite->first));
+            }
+            break;
+        }
         case SDL_TEXTINPUT: {
             auto *node = popup_ ? popup_ : map_;
             node->doTextInput(util::Utf8Conv::toUnicode(e.text.text));
             break;
         }
         case SDL_KEYDOWN: {
+            if (e.key.repeat) { break; }
             auto ite = inputMap.find(e.key.keysym.scancode);
             if (ite != inputMap.end()) {
+                pressedKeys_[int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(150), ite->second);
                 auto *node = popup_ ? popup_ : map_;
-                node->doHandleKeyInput(ite->second);
-                break;
+                if (node) { node->doHandleKeyInput(ite->second); }
+            }
+            break;
+        }
+        case SDL_KEYUP: {
+            auto ite = inputMap.find(e.key.keysym.scancode);
+            if (ite != inputMap.end()) {
+                pressedKeys_.erase(int(ite->first));
             }
             break;
         }

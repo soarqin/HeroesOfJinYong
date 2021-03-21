@@ -25,6 +25,7 @@
 #include "messagebox.hh"
 
 #include <chrono>
+#include <map>
 #include <string>
 #include <cstdint>
 
@@ -100,6 +101,7 @@ private:
     TextureMgr globalTextureMgr_, headTextureMgr_;
 
     std::chrono::steady_clock::time_point currTime_;
+    std::map<int, std::pair<std::chrono::steady_clock::time_point, Node::Key>> pressedKeys_;
     int playingMusic_ = -1;
 };
 
