@@ -91,9 +91,13 @@ void listNamesFromTypeList(const std::vector<std::int16_t> &charIdList,
                            std::vector<std::wstring> &names, std::vector<std::wstring> &values) {
     names.clear();
     for (auto id: charIdList) {
-        auto *charInfo = mem::gSaveData.charInfo[id];
+        auto *charInfo = mem::gSaveData.charInfo[std::abs(id)];
         if (!charInfo) { continue; }
-        names.emplace_back(GETCHARNAME(id));
+        if (id < 0) {
+            names.emplace_back(L'\x0F' + GETCHARNAME(-id));
+        } else {
+            names.emplace_back(GETCHARNAME(id));
+        }
         if (valueTypes.empty()) { continue; }
         std::wstring value;
         for (auto t: valueTypes) {
@@ -140,12 +144,12 @@ std::vector<std::int16_t> CharListMenu::getSelectedCharIds() const {
     if (checkbox_) {
         for (size_t i = 0; i < selected_.size(); ++i) {
             if (selected_[i]) {
-                res.emplace_back(charIdList_[i]);
+                res.emplace_back(std::abs(charIdList_[i]));
             }
         }
     } else {
         if (currIndex_ >= 0) {
-            res.emplace_back(charIdList_[currIndex_]);
+            res.emplace_back(std::abs(charIdList_[currIndex_]));
         }
     }
     return res;
@@ -189,6 +193,8 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
         getNameFromTypeList(valueTypes, subTitle);
         setTitle(subTitle);
     }
+    auto *ttf = renderer_->ttf();
+    ttf->setAltColor(15, 252, 100, 12);
     popup(names, values);
     setHandler([this, okHandler]() {
         if (!okHandler) { return; }
@@ -197,7 +203,7 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
             return;
         }
         if (currIndex_ >= 0) {
-            okHandler(charIdList_[currIndex_]);
+            okHandler(std::abs(charIdList_[currIndex_]));
         }
     }, [this, cancelHandler]()->bool {
         if (cancelHandler) { return cancelHandler(); }
@@ -225,7 +231,7 @@ void CharListMenu::enableCheckBox(bool b, const std::function<bool(std::int16_t)
         onCheckBoxToggle2_ = onCheckBoxToggle;
         Menu::enableCheckBox(true, [this](int index)->bool {
             if (index < 0) { return false; }
-            return onCheckBoxToggle2_(charIdList_[index]);
+            return onCheckBoxToggle2_(std::abs(charIdList_[currIndex_]));
         });
     }
 }

@@ -1148,23 +1148,27 @@ void Warfield::playerMenu() {
             stage_ = Idle;
             break;
         case 7: {
+            std::vector<std::int16_t> idlist;
+            for (auto &c: chars_) {
+                idlist.emplace_back(c.side == 1 ? -c.id : c.id);
+            }
             auto *svmenu = new CharListMenu(this, 0, 0, gWindow->width(), gWindow->height());
-            svmenu->initWithTeamMembers({GETTEXT(59)}, {CharListMenu::LEVEL},
-                                        [this](std::int16_t charId) {
-                                            auto *sv = new StatusView(this, 0, 0, 0, 0);
-                                            bool found = false;
-                                            for (auto &p: chars_) {
-                                                if (p.id == charId && p.side == 0) {
-                                                    sv->show(&p.info, false);
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                            if (!found) {
-                                                sv->show(charId);
-                                            }
-                                            sv->makeCenter(gWindow->width(), gWindow->height());
-                                        }, nullptr);
+            svmenu->init({GETTEXT(59)}, idlist, {CharListMenu::LEVEL},
+                         [this](std::int16_t charId) {
+                             auto *sv = new StatusView(this, 0, 0, 0, 0);
+                             bool found = false;
+                             for (auto &p: chars_) {
+                                 if (p.id == charId && p.side == 0) {
+                                     sv->show(&p.info, false);
+                                     found = true;
+                                     break;
+                                 }
+                             }
+                             if (!found) {
+                                 sv->show(charId);
+                             }
+                             sv->makeCenter(gWindow->width(), gWindow->height());
+                         }, nullptr);
             svmenu->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
             return;
         }
