@@ -19,9 +19,9 @@
 
 #include "title.hh"
 
-#include "colorpalette.hh"
 #include "window.hh"
 #include "menu.hh"
+#include "colorpalette.hh"
 #include "mem/savedata.hh"
 #include "mem/action.hh"
 #include "mem/strings.hh"
@@ -44,7 +44,11 @@ void Title::init() {
     titleTextureMgr_.setRenderer(renderer_);
 
     renderer_->enableLinear(true);
-    big_ = gWindow->globalTextureMgr().loadFromRAW(util::File::getFileContent(core::config.dataFilePath("TITLE.BIG")), 320, 200);
+    big_ = new Texture;
+    if (!big_->loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("TITLE.BIG")), 320, 200, gNormalPalette)) {
+        delete big_;
+        big_ = nullptr;
+    }
     renderer_->enableLinear(false);
 
     std::vector<std::string> dset;

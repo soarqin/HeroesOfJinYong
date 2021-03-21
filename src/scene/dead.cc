@@ -21,6 +21,7 @@
 
 #include "window.hh"
 #include "menu.hh"
+#include "colorpalette.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/file.hh"
@@ -35,7 +36,11 @@ Dead::~Dead() {
 
 void Dead::init() {
     renderer_->enableLinear(true);
-    big_ = gWindow->globalTextureMgr().loadFromRAW(util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200);
+    big_ = new Texture;
+    if (!big_->loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200, gNormalPalette)) {
+        delete big_;
+        big_ = nullptr;
+    }
     renderer_->enableLinear(false);
 }
 

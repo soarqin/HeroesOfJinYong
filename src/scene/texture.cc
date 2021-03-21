@@ -208,15 +208,6 @@ bool TextureMgr::loadFromRAW(const std::vector<std::string> &data, int width, in
     return true;
 }
 
-Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height) {
-    auto *tex = new Texture;
-    if (!tex->loadFromRAW(renderer_, data, width, height, *palette_)) {
-        delete tex;
-        return nullptr;
-    }
-    return tex;
-}
-
 const Texture *TextureMgr::operator[](std::int32_t id) const {
     if (id < 0 || id >= textures_.size()) { return nullptr; }
     return &textures_[id];
