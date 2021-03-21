@@ -43,7 +43,7 @@ struct rect_pack_data;
 class TTF final {
 protected:
     struct FontData {
-        int16_t rpx, rpy;
+        std::int16_t rpx, rpy;
         std::uint8_t rpidx;
 
         std::int8_t ix0, iy0;

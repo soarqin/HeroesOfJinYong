@@ -54,8 +54,8 @@ public:
     [[nodiscard]] inline int height() const { return height_; }
     inline void setPosition(int x, int y) { x_ = x; y_ = y; }
 
-    void fadeIn(const std::function<void()> &postAction);
-    void fadeOut(const std::function<void()> &postAction);
+    void fadeIn(const std::function<void()> &postAction = nullptr);
+    void fadeOut(const std::function<void()> &postAction = nullptr);
     void fadeEnd();
 
     virtual void makeCenter(int w, int h, int x = 0, int y = 0);

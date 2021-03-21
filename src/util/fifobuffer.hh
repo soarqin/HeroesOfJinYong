@@ -39,7 +39,7 @@ public:
     inline void reset() {
         std::unique_lock<std::mutex> lk(mutex_);
         for (auto &s: slices_) {
-            delete[] static_cast<uint8_t *>(s.buf);
+            delete[] static_cast<std::uint8_t *>(s.buf);
         }
         slices_.clear();
         pos_ = 0;
@@ -49,10 +49,10 @@ public:
         if (!size) {
             return nullptr;
         }
-        return new(std::nothrow) uint8_t[unitSize_ * size];
+        return new(std::nothrow) std::uint8_t[unitSize_ * size];
     }
     inline static void dealloc(void *buf) {
-        delete[] static_cast<uint8_t *>(buf);
+        delete[] static_cast<std::uint8_t *>(buf);
     }
     inline void push(void *buf, size_t size) {
         std::unique_lock<std::mutex> lk(mutex_);
@@ -61,7 +61,7 @@ public:
     }
     inline size_t pop(void *data, size_t count, size_t space) {
         std::unique_lock<std::mutex> lk(mutex_);
-        auto *buf = static_cast<uint8_t *>(data);
+        auto *buf = static_cast<std::uint8_t *>(data);
         size_t size = count;
         size_t step = unitSize_;
         bool needSkip = space > step;
@@ -70,14 +70,14 @@ public:
             if (pos_ + size >= slice.size) {
                 size_t readsz = slice.size - pos_;
                 if (needSkip) {
-                    auto *rbuf = static_cast<uint8_t *>(slice.buf) + pos_ * step;
+                    auto *rbuf = static_cast<std::uint8_t *>(slice.buf) + pos_ * step;
                     for (size_t i = readsz; i; --i) {
                         memcpy(buf, rbuf, step);
                         buf += space;
                         rbuf += step;
                     }
                 } else {
-                    memcpy(buf, static_cast<uint8_t *>(slice.buf) + pos_, readsz * step);
+                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_, readsz * step);
                     buf += readsz;
                 }
                 size -= readsz;
@@ -86,14 +86,14 @@ public:
                 slices_.pop_front();
             } else {
                 if (needSkip) {
-                    auto *rbuf = static_cast<uint8_t *>(slice.buf) + pos_ * step;
+                    auto *rbuf = static_cast<std::uint8_t *>(slice.buf) + pos_ * step;
                     for (size_t i = size; i; --i) {
                         memcpy(buf, rbuf, step);
                         buf += space;
                         rbuf += step;
                     }
                 } else {
-                    memcpy(buf, static_cast<uint8_t *>(slice.buf) + pos_, size * step);
+                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_, size * step);
                 }
                 pos_ += size;
                 size = 0;

@@ -53,9 +53,9 @@ namespace hojy::scene {
 Window *gWindow = nullptr;
 
 static void medicMenu(Node *mainMenu);
-static void medicTargetMenu(Node *mainMenu, int16_t charId);
+static void medicTargetMenu(Node *mainMenu, std::int16_t charId);
 static void depoisonMenu(Node *mainMenu);
-static void depoisonTargetMenu(Node *mainMenu, int16_t charId);
+static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId);
 static void showItems(Node *mainMenu);
 static void statusMenu(Node *mainMenu);
 static void showCharStatus(Node *parent, std::int16_t charId);
@@ -327,10 +327,11 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
         clm->enableCheckBox(true, [defaultChars](std::int16_t charId)->bool {
             return defaultChars.find(charId) == defaultChars.end();
         });
-        clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm, wf](std::int16_t) {
-            wf->putChars(clm->getSelectedCharIds());
+        clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm](std::int16_t) {
+            dynamic_cast<Warfield*>(warfield_)->putChars(clm->getSelectedCharIds());
             map_ = warfield_;
             closePopup();
+            map_->fadeIn();
         }, []()->bool { return false; });
         for (size_t i = 0; i < clm->charCount(); ++i) {
             if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
@@ -343,23 +344,26 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
     } else {
         wf->putChars({});
         map_ = warfield_;
+        map_->fadeIn();
     }
 }
 
 void Window::endWar(bool won, bool instantDie) {
     if (instantDie) { playerDie(); return; }
     map_ = subMap_;
-    subMap_->continueEvents(won);
-    auto *subMapInfo = mem::gSaveData.subMapInfo[subMap_->subMapId()];
-    if (subMapInfo) {
-        auto music = subMapInfo->enterMusic;
-        if (music < 0) {
-            music = subMapInfo->exitMusic;
+    subMap_->fadeIn([this, won]() {
+        subMap_->continueEvents(won);
+        auto *subMapInfo = mem::gSaveData.subMapInfo[subMap_->subMapId()];
+        if (subMapInfo) {
+            auto music = subMapInfo->enterMusic;
+            if (music < 0) {
+                music = subMapInfo->exitMusic;
+            }
+            if (music >= 0) {
+                gWindow->playMusic(music);
+            }
         }
-        if (music >= 0) {
-            gWindow->playMusic(music);
-        }
-    }
+    });
 }
 
 void Window::playerDie() {
@@ -524,7 +528,7 @@ static void medicMenu(Node *mainMenu) {
                               });
 }
 
-static void medicTargetMenu(Node *mainMenu, int16_t charId) {
+static void medicTargetMenu(Node *mainMenu, std::int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
@@ -549,7 +553,7 @@ static void depoisonMenu(Node *mainMenu) {
                               });
 }
 
-static void depoisonTargetMenu(Node *mainMenu, int16_t charId) {
+static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + 30;
     auto y = mainMenu->y() + 20;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);

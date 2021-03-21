@@ -41,7 +41,7 @@ void ColorPalette::load(const std::string &name) {
     for (size_t i = 0; i < 256; ++i) {
         ifs.read(c, 3);
         for (int j = 0; j < 3; ++j) {
-            c[j] = uint8_t(uint32_t(c[j]) * 4);
+            c[j] = std::uint8_t(std::uint32_t(c[j]) * 4);
         }
         palette_[i] = *reinterpret_cast<std::uint32_t*>(c);
     }

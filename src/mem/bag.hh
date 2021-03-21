@@ -39,7 +39,7 @@ public:
     }
 
 private:
-    std::map<int16_t, int16_t> items_;
+    std::map<std::int16_t, std::int16_t> items_;
     bool dirty_ = false;
 };
 

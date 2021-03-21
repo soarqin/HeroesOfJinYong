@@ -86,7 +86,7 @@ bool Texture::loadFromRLE(Renderer *renderer, const std::string &data, const Col
     if (left < 8) {
         return false;
     }
-    const auto *buf = reinterpret_cast<const uint8_t*>(data.data());
+    const auto *buf = reinterpret_cast<const std::uint8_t*>(data.data());
     struct Header {
         std::int16_t w, h, x, y;
     };

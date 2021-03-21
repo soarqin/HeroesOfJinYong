@@ -99,7 +99,7 @@ Big5Conv::Big5Conv() noexcept {
 
 std::wstring Utf8Conv::toUnicode(std::string_view str) {
     size_t sz = str.size();
-    const auto *n = reinterpret_cast<const uint8_t*>(str.data());
+    const auto *n = reinterpret_cast<const std::uint8_t*>(str.data());
     size_t i = 0;
     std::wstring res;
     while (i < sz) {
@@ -195,7 +195,7 @@ Trad2SimpConv::Trad2SimpConv() noexcept {
     charTable_ = {
 #include "tschars.inl"
     };
-    std::vector<std::pair<std::vector<uint32_t>, std::vector<uint32_t>>> wordTable = {
+    std::vector<std::pair<std::vector<std::uint32_t>, std::vector<std::uint32_t>>> wordTable = {
 #include "tswords.inl"
     };
     for (auto &p: wordTable) {

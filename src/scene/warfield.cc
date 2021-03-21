@@ -92,7 +92,7 @@ bool Warfield::load(std::int16_t warId) {
         data::GrpData::DataSet dset;
         if (data::GrpData::loadData("WDX", "WMP", dset)) {
             textureMgr_.loadFromRLE(dset);
-            for (int16_t i = 0; i < 1000; ++i) {
+            for (std::int16_t i = 0; i < 1000; ++i) {
                 warMapLoaded_.insert(i);
             }
         } else {

@@ -227,7 +227,7 @@ void StatusView::makeCache() {
         y += lineheight;
         if (data_.skillId[i] <= 0) { continue; }
         ttf->render(L'\2' + GETSKILLNAME(data_.skillId[i]), x4, y, true);
-        std::int16_t level = std::clamp<int16_t>(data_.skillLevel[i] / 100, 0, 9) + 1;
+        std::int16_t level = std::clamp<std::int16_t>(data_.skillLevel[i] / 100, 0, 9) + 1;
         ttf->render(fmt::format(L"{:>2}", level), x5, y, true);
         if (data_.skillId[i] == learningSkillId) {
             learningLevel = level;

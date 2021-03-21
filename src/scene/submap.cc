@@ -43,7 +43,7 @@ bool SubMap::load(std::int16_t subMapId) {
         data::GrpData::DataSet dset;
         if (data::GrpData::loadData("SDX", "SMP", dset)) {
             textureMgr_.loadFromRLE(dset);
-            for (int16_t i = 0; i < 1000; ++i) {
+            for (std::int16_t i = 0; i < 1000; ++i) {
                 subMapLoaded_.insert(i);
             }
         } else {

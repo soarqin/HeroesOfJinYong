@@ -29,7 +29,7 @@ namespace hojy::data {
 struct Factors {
     void load(const std::string &filename);
 
-    std::array<int16_t, 25> leaveTeamChars;
+    std::array<std::int16_t, 25> leaveTeamChars;
     std::int16_t leaveTeamStartEvents;
     std::int16_t initSubMapId, initSubMapX, initSubMapY, initMainCharTex;
     std::array<std::uint16_t, 29> expForLevelUp;

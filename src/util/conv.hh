@@ -38,7 +38,7 @@ protected:
     void postInit();
 
 protected:
-    std::vector<std::pair<std::uint32_t, uint32_t>> table_, tableRev_;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> table_, tableRev_;
 };
 
 class Big5Conv final: public Conv {
@@ -54,8 +54,8 @@ public:
 
 class Trad2SimpConv final {
     struct CNode {
-        std::vector<uint32_t> word;
-        std::map<uint32_t, CNode> nodes;
+        std::vector<std::uint32_t> word;
+        std::map<std::uint32_t, CNode> nodes;
     };
 public:
     Trad2SimpConv() noexcept;

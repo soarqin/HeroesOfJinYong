@@ -591,24 +591,24 @@ void actRest(CharacterData *c) {
 void actLevelup(CharacterData *c) {
     auto factor = util::gRandom(1, std::max(c->potential / 15, 3));
     ++c->level;
-    c->attack = std::clamp<int16_t>(c->attack + factor, 0, data::AttackMax);
-    c->defence = std::clamp<int16_t>(c->defence + factor, 0, data::DefenceMax);
-    c->speed = std::clamp<int16_t>(c->speed + factor, 0, data::SpeedMax);
-    c->maxHp = std::clamp<int16_t>(c->maxHp + c->hpAddOnLevelUp * 3 + util::gRandom(7), 0, data::HpMax);
-    c->maxMp = std::clamp<int16_t>(c->maxMp + 3 * (9 - factor), 0, data::MpMax);
+    c->attack = std::clamp<std::int16_t>(c->attack + factor, 0, data::AttackMax);
+    c->defence = std::clamp<std::int16_t>(c->defence + factor, 0, data::DefenceMax);
+    c->speed = std::clamp<std::int16_t>(c->speed + factor, 0, data::SpeedMax);
+    c->maxHp = std::clamp<std::int16_t>(c->maxHp + c->hpAddOnLevelUp * 3 + util::gRandom(7), 0, data::HpMax);
+    c->maxMp = std::clamp<std::int16_t>(c->maxMp + 3 * (9 - factor), 0, data::MpMax);
     c->hp = c->maxHp;
     c->mp = c->maxMp;
     c->stamina = data::StaminaMax;
     c->poisoned = 0;
     c->hurt = 0;
-    if (c->medic) { c->medic = std::clamp<int16_t>(c->medic + util::gRandom(3), 0, data::MedicMax); }
-    if (c->poison) { c->poison = std::clamp<int16_t>(c->poison + util::gRandom(3), 0, data::PoisonMax); }
-    if (c->depoison) { c->depoison = std::clamp<int16_t>(c->depoison + util::gRandom(3), 0, data::DepoisonMax); }
-    if (c->fist) { c->fist = std::clamp<int16_t>(c->fist + util::gRandom(3), 0, data::FistMax); }
-    if (c->sword) { c->sword = std::clamp<int16_t>(c->sword + util::gRandom(3), 0, data::SwordMax); }
-    if (c->blade) { c->blade = std::clamp<int16_t>(c->blade + util::gRandom(3), 0, data::BladeMax); }
-    if (c->special) { c->special = std::clamp<int16_t>(c->special + util::gRandom(3), 0, data::SpecialMax); }
-    if (c->throwing) { c->throwing = std::clamp<int16_t>(c->throwing + util::gRandom(3), 0, data::ThrowingMax); }
+    if (c->medic) { c->medic = std::clamp<std::int16_t>(c->medic + util::gRandom(3), 0, data::MedicMax); }
+    if (c->poison) { c->poison = std::clamp<std::int16_t>(c->poison + util::gRandom(3), 0, data::PoisonMax); }
+    if (c->depoison) { c->depoison = std::clamp<std::int16_t>(c->depoison + util::gRandom(3), 0, data::DepoisonMax); }
+    if (c->fist) { c->fist = std::clamp<std::int16_t>(c->fist + util::gRandom(3), 0, data::FistMax); }
+    if (c->sword) { c->sword = std::clamp<std::int16_t>(c->sword + util::gRandom(3), 0, data::SwordMax); }
+    if (c->blade) { c->blade = std::clamp<std::int16_t>(c->blade + util::gRandom(3), 0, data::BladeMax); }
+    if (c->special) { c->special = std::clamp<std::int16_t>(c->special + util::gRandom(3), 0, data::SpecialMax); }
+    if (c->throwing) { c->throwing = std::clamp<std::int16_t>(c->throwing + util::gRandom(3), 0, data::ThrowingMax); }
 }
 
 }

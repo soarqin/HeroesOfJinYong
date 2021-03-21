@@ -202,7 +202,7 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     FontInfo *fi = nullptr;
 #ifndef USE_FREETYPE
     stbtt_fontinfo *info;
-    uint32_t index = 0;
+    std::uint32_t index = 0;
 #endif
     for (auto &f: fonts_) {
 #ifdef USE_FREETYPE
