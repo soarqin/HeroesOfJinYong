@@ -19,10 +19,12 @@
 
 #include "globalmap.hh"
 
+#include "colorpalette.hh"
 #include "window.hh"
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
 #include "util/file.hh"
+#include "util/random.hh"
 #include "core/config.hh"
 
 namespace hojy::scene {
@@ -35,10 +37,18 @@ enum {
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
+    cloudTexMgr_.setRenderer(renderer_);
+    cloudTexMgr_.setPalette(gNormalPalette);
     data::GrpData::DataSet dset;
     if (data::GrpData::loadData("MMAP", dset)) {
         textureMgr_.loadFromRLE(dset);
     }
+    renderer_->enableLinear();
+    dset.clear();
+    if (data::GrpData::loadData("CLOUD", dset)) {
+        cloudTexMgr_.loadFromRLE(dset);
+    }
+    renderer_->enableLinear(false);
     {
         auto *tex = textureMgr_[0];
         cellWidth_ = tex->width();
@@ -215,6 +225,25 @@ void GlobalMap::render() {
     renderer_->renderTexture(drawingBuildingTex_[0], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
     renderer_->renderTexture(drawingBuildingTex_[1], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    for (int i = 0; i < 2; ++i) {
+        auto &c = cloud_[i];
+        if (!c) {
+            if (util::gRandom(2000)) { continue; }
+            c = cloudTexMgr_[util::gRandom(4)];
+            cloudStartX_[i] = cameraX_; cloudStartY_[i] = cameraY_;
+            cloudX_[i] = -float(width_) * .6f;
+            cloudY_[i] = float(util::gRandom(int(auxHeight_) + height_ / 10)) + float(height_) / 20;
+        }
+        int cellDiffX = cellWidth_ / 2;
+        int cellDiffY = cellHeight_ / 2;
+        int cloudcx = cloudStartX_[i] - cameraX_, cloudcy = cloudStartY_[i] - cameraY_;
+        float cloudx = float((cloudcx - cloudcy) * cellDiffX) * scale_ + cloudX_[i]++ / 2, cloudy = float((cloudcx + cloudcy) * cellDiffY) * scale_ + cloudY_[i];
+        if (cloudx > float(width_) * 1.25f) {
+            c = nullptr;
+        } else {
+            renderer_->renderTexture(c, cloudx, cloudy, scale_);
+        }
+    }
 }
 
 bool GlobalMap::tryMove(int x, int y, bool checkEvent) {

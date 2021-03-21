@@ -61,6 +61,10 @@ private:
     std::vector<CellInfo> cellInfo_;
     std::vector<BuildingTex> buildingTex_;
     Texture *drawingBuildingTex_[2] = {nullptr, nullptr};
+    TextureMgr cloudTexMgr_;
+    int cloudStartX_[2] = {}, cloudStartY_[2] = {};
+    float cloudX_[2] = {}, cloudY_[2] = {};
+    const Texture *cloud_[2] = {};
     std::map<std::pair<std::int16_t, std::int16_t>, std::int16_t> subMapEntries_;
 };
 
