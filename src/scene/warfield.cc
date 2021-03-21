@@ -631,7 +631,15 @@ void Warfield::autoAction() {
     if (ch->info.stamina < 10) {
         pendingAutoAction_ = [this, ch]() {
             std::map<mem::PropType, std::int16_t> changes;
-            auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Stamina, changes);
+            auto delta = data::StaminaMax - ch->info.stamina;
+            std::int16_t itemId;
+            if (ch->side == 1) {
+                itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Stamina, delta);
+                if (!mem::useNpcItem(&ch->info, itemId, changes)) { itemId = -1; }
+            } else {
+                itemId = mem::tryUseBagItem(&ch->info, mem::PropType::Stamina, delta);
+                if (!mem::useItem(&ch->info, itemId, changes)) { itemId = -1; }
+            }
             if (itemId < 0) {
                 doRest();
             } else {
@@ -643,36 +651,68 @@ void Warfield::autoAction() {
                 });
             }
         };
-    } else if (ch->info.hp < 20 || ch->info.hp <= ch->info.maxHp / 20) {
-        pendingAutoAction_ = [this, ch]() {
-            std::map<mem::PropType, std::int16_t> changes;
-            auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Hp, changes);
-            if (itemId < 0) {
-                doRest();
-            } else {
-                stage_ = PoppingUp;
-                auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                msgBox->setCloseHandler([this] {
-                    charQueue_.pop_back();
-                    stage_ = Idle;
-                });
-            }
-        };
+    } else if (ch->info.hp < 20 || ch->info.hp <= ch->info.maxHp / 5) {
+        auto delta = ch->info.maxHp - ch->info.hp;
+        std::int16_t itemId;
+        if (ch->side == 1) {
+            itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Hp, delta);
+        } else {
+            itemId = mem::tryUseBagItem(&ch->info, mem::PropType::Hp, delta);
+        }
+        if (itemId >= 0 || ch->info.hp <= 20) {
+            pendingAutoAction_ = [this, ch, itemId]() {
+                std::map<mem::PropType, std::int16_t> changes;
+                bool usedItem = false;
+                if (itemId >= 0) {
+                    if (ch->side == 1) {
+                        usedItem = mem::useNpcItem(&ch->info, itemId, changes);
+                    } else {
+                        usedItem = mem::useItem(&ch->info, itemId, changes);
+                    }
+                }
+                if (!usedItem) {
+                    doRest();
+                } else {
+                    stage_ = PoppingUp;
+                    auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                    msgBox->setCloseHandler([this] {
+                        charQueue_.pop_back();
+                        stage_ = Idle;
+                    });
+                }
+            };
+        }
     } else if (ch->info.poisoned > 33 && ch->side == 1) {
-        pendingAutoAction_ = [this, ch]() {
-            std::map<mem::PropType, std::int16_t> changes;
-            auto itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Poisoned, changes);
-            if (itemId < 0) {
-                doRest();
-            } else {
-                stage_ = PoppingUp;
-                auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                msgBox->setCloseHandler([this] {
-                    charQueue_.pop_back();
-                    stage_ = Idle;
-                });
-            }
-        };
+        auto delta = ch->info.poisoned;
+        std::int16_t itemId;
+        if (ch->side == 1) {
+            itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Poisoned, delta);
+        } else {
+            itemId = mem::tryUseBagItem(&ch->info, mem::PropType::Poisoned, delta);
+        }
+        if (itemId >= 0) {
+            pendingAutoAction_ = [this, ch, itemId]() {
+                std::map<mem::PropType, std::int16_t> changes;
+                bool usedItem = false;
+                if (itemId >= 0) {
+                    if (ch->side == 1) {
+                        usedItem = mem::useNpcItem(&ch->info, itemId, changes);
+                    } else {
+                        usedItem = mem::useItem(&ch->info, itemId, changes);
+                    }
+                }
+                if (!usedItem) {
+                    doRest();
+                } else {
+                    stage_ = PoppingUp;
+                    auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
+                    msgBox->setCloseHandler([this] {
+                        charQueue_.pop_back();
+                        stage_ = Idle;
+                    });
+                }
+            };
+        }
     }
     struct SkillPredict {
         const mem::SkillData *skill;
@@ -703,7 +743,15 @@ void Warfield::autoAction() {
         if (!skillCount) {
             pendingAutoAction_ = [this, ch]() {
                 std::map<mem::PropType, std::int16_t> changes;
-                auto itemId = ch->side != 1 ? -1 : mem::tryUseNpcItem(&ch->info, mem::PropType::Mp, changes);
+                auto delta = ch->info.maxMp - ch->info.mp;
+                std::int16_t itemId;
+                if (ch->side == 1) {
+                    itemId = mem::tryUseNpcItem(&ch->info, mem::PropType::Mp, delta);
+                    if (!mem::useNpcItem(&ch->info, itemId, changes)) { itemId = -1; }
+                } else {
+                    itemId = mem::tryUseBagItem(&ch->info, mem::PropType::Mp, delta);
+                    if (!mem::useItem(&ch->info, itemId, changes)) { itemId = -1; }
+                }
                 if (itemId < 0) {
                     doRest();
                 } else {

@@ -162,30 +162,58 @@ bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, st
     return true;
 }
 
-std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::map<PropType, std::int16_t> &changes) {
+std::int16_t tryUseBagItem(CharacterData *charInfo, PropType type, std::int16_t value) {
     if (!charInfo) { return -1; }
-    for (int i = 0; i < data::CarryItemCount; ++i) {
-        auto itemId = charInfo->item[i];
-        if (itemId < 0 || charInfo->itemCount[i] <= 0) { continue; }
+    std::multimap<std::int16_t, std::int16_t> optionalItems;
+    for (auto p: gBag.items()) {
+        auto itemId = p.first;
+        if (itemId < 0 || p.second <= 0) { continue; }
         const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
         if (!itemInfo) { continue; }
         if (itemInfo->itemType != 3) { continue; }
         switch (type) {
         case PropType::Hp:
             if (itemInfo->addHp <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addHp - value), itemId);
             break;
         case PropType::Mp:
             if (itemInfo->addMp <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addMp - value), itemId);
             break;
         case PropType::Stamina:
             if (itemInfo->addStamina <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addStamina - value), itemId);
             break;
         case PropType::Poisoned:
             if (itemInfo->addPoisoned >= 0) { continue; }
+            optionalItems.emplace(std::abs(-itemInfo->addPoisoned - value), itemId);
             break;
         default:
-            continue;
+            break;
         }
+    }
+    if (optionalItems.empty()) {
+        return -1;
+    }
+    if (optionalItems.size() > 1) {
+        auto ite = optionalItems.begin();
+        auto p1 = *ite;
+        auto p2 = *(++ite);
+        if (p1.first * 100 / p2.first >= 80) {
+            return util::gRandom(2) ? p1.second : p2.second;
+        }
+    }
+    return optionalItems.begin()->second;
+}
+
+bool useNpcItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes) {
+    if (!charInfo) { return false; }
+    auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+    if (!itemInfo) { return false; }
+    if (!canUseItem(charInfo, itemInfo)) { return false; }
+    for (int i = 0; i < data::CarryItemCount; ++i) {
+        if (charInfo->item[i] != itemId) { continue; }
+        if (!applyItemChanges(charInfo, itemInfo, changes)) { return false; }
         if (--charInfo->itemCount[i] <= 0) {
             if (i + 1 < data::CarryItemCount) {
                 memmove(charInfo->item + i, charInfo->item + i + 1,
@@ -196,9 +224,53 @@ std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::map<Prop
             charInfo->item[data::CarryItemCount - 1] = -1;
             charInfo->itemCount[data::CarryItemCount - 1] = 0;
         }
-        return applyItemChanges(charInfo, itemInfo, changes) ? itemId : -1;
+        return true;
     }
-    return -1;
+    return false;
+}
+
+std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::int16_t value) {
+    if (!charInfo) { return -1; }
+    std::multimap<std::int16_t, std::int16_t> optionalItems;
+    for (int i = 0; i < data::CarryItemCount; ++i) {
+        auto itemId = charInfo->item[i];
+        if (itemId < 0 || charInfo->itemCount[i] <= 0) { continue; }
+        const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+        if (!itemInfo) { continue; }
+        if (itemInfo->itemType != 3) { continue; }
+        switch (type) {
+        case PropType::Hp:
+            if (itemInfo->addHp <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addHp - value), itemId);
+            break;
+        case PropType::Mp:
+            if (itemInfo->addMp <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addHp - value), itemId);
+            break;
+        case PropType::Stamina:
+            if (itemInfo->addStamina <= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addHp - value), itemId);
+            break;
+        case PropType::Poisoned:
+            if (itemInfo->addPoisoned >= 0) { continue; }
+            optionalItems.emplace(std::abs(itemInfo->addHp - value), itemId);
+            break;
+        default:
+            break;
+        }
+    }
+    if (optionalItems.empty()) {
+        return -1;
+    }
+    if (optionalItems.size() > 1) {
+        auto ite = optionalItems.begin();
+        auto p1 = *ite;
+        auto p2 = *(++ite);
+        if (p1.first * 100 / p2.first >= 80) {
+            return util::gRandom(2) ? p1.second : p2.second;
+        }
+    }
+    return optionalItems.begin()->second;
 }
 
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes) {
