@@ -27,14 +27,8 @@ namespace hojy::scene {
 
 class GlobalMap final: public MapWithEvent {
     struct BuildingTex {
-        std::int32_t order;
-        std::int32_t x, y;
+        int x, y;
         const Texture *tex;
-    };
-    struct BuildingTexComp {
-        bool operator()(const BuildingTex &a, const BuildingTex &b) const {
-            return a.order < b.order;
-        }
     };
     struct CellInfo {
         const Texture *earth, *surface;
@@ -46,9 +40,11 @@ public:
     GlobalMap(Renderer *renderer, int x, int y, int width, int height, float scale);
     ~GlobalMap() override;
 
+    void load();
     void render() override;
 
 protected:
+    void showShip(bool show);
     bool tryMove(int x, int y, bool checkEvent) override;
     void updateMainCharTexture() override;
     void resetTime() override;
@@ -59,7 +55,7 @@ private:
     const Texture *deepWaterTex_ = nullptr;
     std::vector<std::uint16_t> earth_, surface_, building_, buildx_, buildy_;
     std::vector<CellInfo> cellInfo_;
-    std::vector<BuildingTex> buildingTex_;
+    std::map<int, BuildingTex> buildingTex_;
     Texture *drawingBuildingTex_[2] = {nullptr, nullptr};
     TextureMgr cloudTexMgr_;
     int cloudStartX_[2] = {}, cloudStartY_[2] = {};

@@ -37,6 +37,8 @@ public:
     [[nodiscard]] std::string saveFilePath(const std::string &filename) const;
     [[nodiscard]] const std::vector<std::string> &fonts() const { return fonts_; }
 
+    [[nodiscard]] bool shipLogicEnabled() const { return shipLogicEnabled_; }
+
     [[nodiscard]] int windowWidth() const { return windowWidth_; }
     [[nodiscard]] int windowHeight() const { return windowHeight_; }
 
@@ -51,6 +53,7 @@ public:
 private:
     std::vector<std::string> dataPath_, fonts_;
     std::string musicPath_, soundPath_, savePath_;
+    bool shipLogicEnabled_ = true;
     int windowWidth_ = 640, windowHeight_ = 480;
     bool simplifiedChinese_ = false;
     bool showPotential_ = false;

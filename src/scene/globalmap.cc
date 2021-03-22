@@ -119,14 +119,13 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                         th = th * 2 / 3;
                     }
                     auto centerY = ty - tex2->originY() + th;
-                    buildingTex_.emplace_back(BuildingTex{centerY * texWidth_ + centerX, tx, ty, tex2});
+                    buildingTex_.emplace(centerY * texWidth_ + centerX, BuildingTex{tx, ty, tex2});
                 }
             }
         }
         x -= cellDiffX; y += cellDiffY;
     }
 
-    std::sort(buildingTex_.begin(), buildingTex_.end(), BuildingTexComp());
     drawingBuildingTex_[0] = Texture::createAsTarget(renderer_, width_, height_);
     drawingBuildingTex_[0]->enableBlendMode(true);
     drawingBuildingTex_[1] = Texture::createAsTarget(renderer_, width_, height_);
@@ -138,6 +137,13 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
 GlobalMap::~GlobalMap() {
     delete drawingBuildingTex_[0];
     delete drawingBuildingTex_[1];
+}
+
+void GlobalMap::load() {
+    onShip_ = cellInfo_[currY_ * mapWidth_ + currX_].type == 1;
+    if (core::config.shipLogicEnabled()) {
+        showShip(!onShip_);
+    }
 }
 
 void GlobalMap::render() {
@@ -195,27 +201,27 @@ void GlobalMap::render() {
         int offsetY = (dx + dy) * cellDiffY;
         int myy = int(auxHeight_) / 2 + oy + offsetY;
         int l = ox - cellWidth_ * 2, t = oy - cellHeight_ * 2, r = ox + int(auxWidth_) + cellWidth_ * 2, b = oy + int(auxHeight_) + cellHeight_ * 6;
-        auto ite = std::lower_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {t * texWidth_ + l, 0, 0, nullptr}, BuildingTexComp());
-        auto ite_mid = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {myy * texWidth_, 0, 0, nullptr}, BuildingTexComp());
-        auto ite_end = std::upper_bound(buildingTex_.begin(), buildingTex_.end(), BuildingTex {b * texWidth_ + r, 0, 0, nullptr}, BuildingTexComp());
+        auto ite = buildingTex_.lower_bound(t * texWidth_ + l);
+        auto ite_mid = buildingTex_.upper_bound(myy * texWidth_);
+        auto ite_end = buildingTex_.upper_bound(b * texWidth_ + r);
         renderer_->setTargetTexture(drawingBuildingTex_[0]);
         renderer_->clear(0, 0, 0, 0);
         while (ite != ite_mid) {
-            if (ite->x < l || ite->x >= r) {
+            if (ite->second.x < l || ite->second.x >= r) {
                 ++ite;
                 continue;
             }
-            renderer_->renderTexture(ite->tex, ite->x - ox, ite->y - oy);
+            renderer_->renderTexture(ite->second.tex, ite->second.x - ox, ite->second.y - oy);
             ++ite;
         }
         renderer_->setTargetTexture(drawingBuildingTex_[1]);
         renderer_->clear(0, 0, 0, 0);
         while (ite != ite_end) {
-            if (ite->x < l || ite->x >= r) {
+            if (ite->second.x < l || ite->second.x >= r) {
                 ++ite;
                 continue;
             }
-            renderer_->renderTexture(ite->tex, ite->x - ox, ite->y - oy);
+            renderer_->renderTexture(ite->second.tex, ite->second.x - ox, ite->second.y - oy);
             ++ite;
         }
         renderer_->setTargetTexture(nullptr);
@@ -243,6 +249,25 @@ void GlobalMap::render() {
         } else {
             renderer_->renderTexture(c, cloudx, cloudy, scale_);
         }
+    }
+}
+
+void GlobalMap::showShip(bool show) {
+    int cellDiffX = cellWidth_ / 2;
+    int cellDiffY = cellHeight_ / 2;
+    int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
+    int y = offsetY_;
+    int shipX0 = mem::gSaveData.baseInfo->shipX;
+    int shipY0 = mem::gSaveData.baseInfo->shipY;
+    int x0 = x + (shipX0 - shipY0) * cellDiffX;
+    int y0 = y + (shipX0 + shipY0) * cellDiffY;
+    if (show) {
+        int shipX1 = mem::gSaveData.baseInfo->shipX1;
+        int shipY1 = mem::gSaveData.baseInfo->shipY1;
+        const auto *shipTex = textureMgr_[3715 + int(calcDirection(shipX1, shipY1, shipX0, shipY0)) * 4];
+        buildingTex_.emplace(y0 * texWidth_ + x0, BuildingTex{x0, y0, shipTex});
+    } else {
+        buildingTex_.erase(y0 * texWidth_ + x0);
     }
 }
 
@@ -291,17 +316,30 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     if (!cellInfo_[offset].canWalk || buildx_[offset] != 0 && building_[buildy_[offset] * mapWidth_ + buildx_[offset]] != 0) {
         return true;
     }
+    bool lastOnShip = onShip_;
+    if (cellInfo_[offset].type == 1) {
+        if (core::config.shipLogicEnabled() && !lastOnShip) {
+            if (mem::gSaveData.baseInfo->shipX != x ||
+                mem::gSaveData.baseInfo->shipY != y) {
+                return true;
+            }
+        }
+        onShip_ = true;
+        currMainCharFrame_ = (currMainCharFrame_ + 1) % 4;
+        mem::gSaveData.baseInfo->shipX = x;
+        mem::gSaveData.baseInfo->shipY = y;
+        mem::gSaveData.baseInfo->shipX1 = currX_;
+        mem::gSaveData.baseInfo->shipY1 = currY_;
+    } else {
+        onShip_ = false;
+        currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
+    }
+    if (core::config.shipLogicEnabled() && lastOnShip != onShip_) { showShip(lastOnShip); }
     currX_ = x;
     currY_ = y;
     cameraX_ = x;
     cameraY_ = y;
     drawDirty_ = true;
-    onShip_ = cellInfo_[offset].type == 1;
-    if (onShip_) {
-        currMainCharFrame_ = (currMainCharFrame_ + 1) % 4;
-    } else {
-        currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
-    }
     return true;
 }
 

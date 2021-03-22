@@ -69,6 +69,7 @@ bool Config::load(const std::string &filename) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }
         }
+        shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(true);
     }
     auto window = tbl["window"];
     if (window) {

@@ -274,6 +274,7 @@ void Window::endscreen() {
 void Window::newGame() {
     mem::gStrings.saveDataLoaded();
     map_ = subMap_;
+    dynamic_cast<GlobalMap*>(globalMap_)->load();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     dynamic_cast<SubMap*>(subMap_)->load(data::gFactors.initSubMapId);
     subMap_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY, false);
@@ -288,6 +289,7 @@ void Window::newGame() {
 bool Window::loadGame(int slot) {
     if (!mem::gSaveData.load(slot)) { return false; }
     mem::gStrings.saveDataLoaded();
+    dynamic_cast<GlobalMap*>(globalMap_)->load();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
     if (binfo->subMap > 0) {

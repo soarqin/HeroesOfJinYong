@@ -4,6 +4,7 @@ music_path = "data"
 sound_path = "data"
 save_path = "data"
 fonts = ["data/font/english.ttf", "data/font/chinese.ttf"]
+ship_logic_enabled = true
 
 [window]
 width = 640
