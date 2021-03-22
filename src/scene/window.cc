@@ -314,6 +314,7 @@ bool Window::loadGame(int slot) {
 
 bool Window::saveGame(int slot) {
     auto &binfo = mem::gSaveData.baseInfo;
+    binfo->onShip = dynamic_cast<GlobalMap*>(globalMap_)->onShip();
     binfo->mainX = globalMap_->currX();
     binfo->mainY = globalMap_->currY();
     binfo->subMap = map_->subMapId() + 1;

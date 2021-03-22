@@ -42,6 +42,7 @@ public:
 
     void load();
     void render() override;
+    [[nodiscard]] bool onShip() const { return onShip_; }
 
 protected:
     void showShip(bool show);

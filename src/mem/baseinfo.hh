@@ -32,7 +32,7 @@ struct BaseData {
     struct ItemInfo {
         std::int16_t id, count;
     };
-    std::int16_t inShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
+    std::int16_t onShip, subMap, mainX, mainY, subX, subY, direction, shipX, shipY, shipX1, shipY1, encode;
     std::int16_t members[data::TeamMemberCount];
     ItemInfo items[data::BagItemCount];
 };
