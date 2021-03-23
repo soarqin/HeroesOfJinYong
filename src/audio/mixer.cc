@@ -41,12 +41,15 @@ void Mixer::init(int channels) {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
     SDL_AudioSpec desired = {
-        .freq = 48000,
-        .format = AUDIO_S16,
-        .channels = 2,
-        .samples = 2048,
-        .callback = callback,
-        .userdata = this,
+        48000,
+        AUDIO_S16,
+        2,
+        0,
+        2048,
+        0,
+        0,
+        callback,
+        this,
     };
     SDL_AudioSpec obtained;
     audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);

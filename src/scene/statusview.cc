@@ -25,6 +25,7 @@
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include <fmt/format.h>
+#include <algorithm>
 
 namespace hojy::scene {
 

@@ -174,7 +174,7 @@ bool Window::processEvents() {
         case SDL_CONTROLLERBUTTONDOWN: {
             auto ite = buttonMap.find(SDL_GameControllerButton(e.cbutton.button));
             if (ite != buttonMap.end()) {
-                pressedKeys_[-int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(150), ite->second);
+                pressedKeys_[-int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(180), ite->second);
                 auto *node = popup_ ? popup_ : map_;
                 if (node) { node->doHandleKeyInput(ite->second); }
             }
@@ -196,7 +196,7 @@ bool Window::processEvents() {
             if (e.key.repeat) { break; }
             auto ite = inputMap.find(e.key.keysym.scancode);
             if (ite != inputMap.end()) {
-                pressedKeys_[int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(150), ite->second);
+                pressedKeys_[int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(180), ite->second);
                 auto *node = popup_ ? popup_ : map_;
                 if (node) { node->doHandleKeyInput(ite->second); }
             }
@@ -298,7 +298,7 @@ bool Window::loadGame(int slot) {
         subMap_->setPosition(binfo->subX, binfo->subY, false);
         subMap_->setDirection(Map::Direction(binfo->direction));
         map_->fadeIn([this]() {
-            dynamic_cast<SubMap*>(subMap_)->setPosition(binfo->subX, binfo->subY);
+            dynamic_cast<SubMap*>(subMap_)->setPosition(mem::gSaveData.baseInfo->subX, mem::gSaveData.baseInfo->subY);
             map_->resetFrame();
         });
     } else {
