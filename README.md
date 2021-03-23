@@ -11,6 +11,8 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
 * MIT licensed:
    * [toml++](https://github.com/marzer/tomlplusplus) ([src/external/toml.hpp](src/external/toml.hpp))
    * [fmt](https://github.com/fmtlib/fmt) ([deps/fmt](deps/fmt))
+* FTL licensed:
+   * [FreeType](https://www.freetype.org) (found in OSes)
 * GPLv3 licensed:
    * [libADLMIDI](https://github.com/Wohlstand/libADLMIDI) ([deps/libADLMIDI](deps/libADLMIDI))
 * LGPLv2.1 licensed:
