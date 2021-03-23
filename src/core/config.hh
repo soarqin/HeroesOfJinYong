@@ -29,13 +29,17 @@ public:
     bool load(const std::string &filename);
     void fixOnTextLoaded();
 
-    [[nodiscard]] std::string dataFilePathFirst(const std::string &filename) const;
-    [[nodiscard]] std::vector<std::string> dataFilePath(const std::string &filename) const;
+    [[nodiscard]] std::string dataFilePath(const std::string &filename) const;
 
     [[nodiscard]] std::string musicFilePath(const std::string &filename) const;
     [[nodiscard]] std::string soundFilePath(const std::string &filename) const;
     [[nodiscard]] std::string saveFilePath(const std::string &filename) const;
+
+    [[nodiscard]] const std::vector<std::string> &dataPath() const { return dataPath_; }
     [[nodiscard]] const std::vector<std::string> &fonts() const { return fonts_; }
+    [[nodiscard]] const std::string &musicPath() const { return musicPath_; }
+    [[nodiscard]] const std::string &soundPath() const { return soundPath_; }
+    [[nodiscard]] const std::string &savePath() const { return savePath_; }
 
     [[nodiscard]] bool shipLogicEnabled() const { return shipLogicEnabled_; }
 

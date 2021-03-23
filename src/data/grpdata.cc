@@ -66,8 +66,8 @@ bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset, bo
         ifs = util::File::create(core::config.saveFilePath(name + ".IDX"));
         ifs2 = util::File::create(core::config.saveFilePath(name + ".GRP"));
     } else {
-        ifs = util::File::create(core::config.dataFilePathFirst(name + ".IDX"));
-        ifs2 = util::File::create(core::config.dataFilePathFirst(name + ".GRP"));
+        ifs = util::File::create(core::config.dataFilePath(name + ".IDX"));
+        ifs2 = util::File::create(core::config.dataFilePath(name + ".GRP"));
     }
     if (!ifs || !ifs2) {
         return false;

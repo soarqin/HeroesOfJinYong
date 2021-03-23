@@ -19,12 +19,11 @@
 
 #include "config.hh"
 
+#include "resourcemgr.hh"
 #include "mem/strings.hh"
 #include "util/file.hh"
-#include "util/conv.hh"
 #include "external/toml.hpp"
-
-#include <iostream>
+#include <fmt/format.h>
 
 namespace hojy::core {
 
@@ -35,7 +34,7 @@ bool Config::load(const std::string &filename) {
     try {
         tbl = toml::parse(util::File::getFileContent(filename));
     } catch (const toml::parse_error &err) {
-        std::cerr << "Parsing failed: " << err << std::endl;
+        fmt::print("Parsing failed: {}\n", err.description());
         return false;
     }
     auto main = tbl["main"];
@@ -85,6 +84,16 @@ bool Config::load(const std::string &filename) {
         fadeSpeed_ = ui["fade_speed"].value_or<float>(1.f);
         noNameInput_ = ui["no_name_input"].value_or<bool>(false);
     }
+    gResourceMgr.init();
+    const auto &missingFiles = gResourceMgr.missingFiles();
+    if (!missingFiles.empty()) {
+        fmt::print(stderr, "Missing resource files:\n");
+        for (auto &fn: missingFiles) {
+            fmt::print(stderr, "  {}\n", fn);
+        }
+        fflush(stderr);
+        return false;
+    }
     return true;
 }
 
@@ -94,31 +103,31 @@ void Config::fixOnTextLoaded() {
     }
 }
 
-std::string Config::dataFilePathFirst(const std::string &filename) const {
+std::string Config::dataFilePath(const std::string &filename) const {
+    auto fn = gResourceMgr.getFilePath(filename);
+    if (!fn.empty()) { return fn; }
     if (dataPath_.empty()) {
         return filename;
     }
     return dataPath_[0] + filename;
 }
 
-std::vector<std::string> Config::dataFilePath(const std::string &filename) const {
-    std::vector<std::string> res;
-    for (auto &d: dataPath_) {
-        res.emplace_back(d + filename);
-    }
-    return res;
-}
-
 std::string Config::musicFilePath(const std::string &filename) const {
-    return musicPath_.empty() ? dataFilePathFirst(filename) : musicPath_ + filename;
+    auto fn = gResourceMgr.getFilePath(filename);
+    if (!fn.empty()) { return fn; }
+    return musicPath_.empty() ? dataFilePath(filename) : musicPath_ + filename;
 }
 
 std::string Config::soundFilePath(const std::string &filename) const {
-    return soundPath_.empty() ? dataFilePathFirst(filename) : soundPath_ + filename;
+    auto fn = gResourceMgr.getFilePath(filename);
+    if (!fn.empty()) { return fn; }
+    return soundPath_.empty() ? dataFilePath(filename) : soundPath_ + filename;
 }
 
 std::string Config::saveFilePath(const std::string &filename) const {
-    return savePath_.empty() ? dataFilePathFirst(filename) : savePath_ + filename;
+    auto fn = gResourceMgr.getFilePath(filename);
+    if (!fn.empty()) { return fn; }
+    return savePath_.empty() ? dataFilePath(filename) : savePath_ + filename;
 }
 
 }
