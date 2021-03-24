@@ -383,7 +383,9 @@ void MapWithEvent::frameUpdate() {
     if (!moving_.empty()) {
         std::tie(cameraX_, cameraY_) = moving_.back();
         if (movingChar_) {
-            tryMove(cameraX_, cameraY_, false);
+            if (tryMove(cameraX_, cameraY_, false)) {
+                updateMainCharTexture();
+            }
             if (currX_ != cameraX_ || currY_ != cameraY_) {
                 direction_ = calcDirection(currX_, currY_, cameraX_, cameraY_);
                 currX_ = cameraX_;
@@ -393,6 +395,8 @@ void MapWithEvent::frameUpdate() {
         moving_.pop_back();
         drawDirty_ = true;
         if (moving_.empty()) {
+            currMainCharFrame_ = 0;
+            updateMainCharTexture();
             continueEvents(false);
         }
     }
