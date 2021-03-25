@@ -51,7 +51,10 @@ File File::open(const std::vector<std::string> &filename, bool readOnly) {
 }
 
 File::~File() {
-    fclose(static_cast<FILE*>(handle_));
+    if (handle_) {
+        fclose(static_cast<FILE*>(handle_));
+        handle_ = nullptr;
+    }
 }
 
 size_t File::read(void *buf, size_t size) {

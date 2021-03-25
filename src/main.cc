@@ -17,6 +17,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#ifdef _MSC_VER
+#define _UNICODE
+#define UNICODE
+#include <windows.h>
+#endif
+
 #include "core/config.hh"
 #include "data/loader.hh"
 #include "mem/strings.hh"
@@ -24,7 +30,8 @@
 
 using namespace hojy;
 
-int main() {
+
+int main(int argc, char *argv[]) {
     core::config.load("config.toml");
     mem::gStrings.load("strings.toml");
     core::config.fixOnTextLoaded();
@@ -37,3 +44,9 @@ int main() {
     }
     return 0;
 }
+
+#ifdef _MSC_VER
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    main(__argc, __argv);
+}
+#endif

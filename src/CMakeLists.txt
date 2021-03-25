@@ -6,7 +6,7 @@ file(GLOB MEM_FILES   mem/*.cc   mem/*.hh)
 file(GLOB SCENE_FILES scene/*.cc scene/*.hh)
 file(GLOB AUDIO_FILES audio/*.cc audio/*.hh)
 file(GLOB UTIL_FILES  util/*.cc  util/*.hh)
-add_executable(${PROJECT_NAME} main.cc
+add_executable(${PROJECT_NAME} WIN32 main.cc
     ${CORE_FILES} ${DATA_FILES} ${MEM_FILES} ${SCENE_FILES} ${AUDIO_FILES} ${UTIL_FILES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin RUNTIME_OUTPUT_NAME hojy)

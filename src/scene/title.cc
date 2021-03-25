@@ -175,7 +175,7 @@ void Title::makeCache() {
         float y0 = float(height_) - 20.f * scale * 3.5f;
         static const std::pair<float, float> offsetY[9] = {
             {y0, 20.f * scale * 3.f}, {y0, 20.f * scale}, {y0 + 20.f * scale, 20.f * scale}, {y0 + 20.f * scale * 2.f, 20.f * scale},
-            {y0, 20.f * scale * 3.f}, {y0, 20.f * scale}, {y0 + 20.f * scale, 20.f * scale}, {y0 + 20.f * scale * 2.f, 20.f * scale}, {y0, 40}
+            {y0, 20.f * scale * 3.f}, {y0, 20.f * scale}, {y0 + 20.f * scale, 20.f * scale}, {y0 + 20.f * scale * 2.f, 20.f * scale}, {y0, 40.f}
         };
         if (mode_ == 0) {
             renderer_->renderTexture(titleTextureMgr_[0], x0, offsetY[0].first, scale);

@@ -49,6 +49,7 @@ if(DEPS_BUILD_SHARED)
 endif()
 
 if(WIN32)
+    set(LIBC ON CACHE BOOL "Use the system C library" FORCE)
     set(DIRECTX OFF CACHE BOOL "Use DirectX for Windows video/audio" FORCE)
     set(RENDER_D3D OFF CACHE BOOL "Enable the Direct3D render driver" FORCE)
     set(WASAPI ON CACHE BOOL "Use the windows WASAPI audio driver" FORCE)

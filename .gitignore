@@ -34,3 +34,7 @@
 # CLion files
 /cmake*
 /.idea
+
+# Build directories
+/build*/
+
