@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.13)
+
 project(HeroesOfJinYong)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -10,28 +11,28 @@ if(USE_STATIC_CRT)
     if(CMAKE_COMPILER_IS_GNUCXX)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
     elseif(MSVC)
-        set(CompilerFlags
-            CMAKE_CXX_FLAGS
-            CMAKE_CXX_FLAGS_DEBUG
-            CMAKE_CXX_FLAGS_RELEASE
-            CMAKE_CXX_FLAGS_MINSIZEREL
-            CMAKE_CXX_FLAGS_RELWITHDEBINFO
-            CMAKE_C_FLAGS
-            CMAKE_C_FLAGS_DEBUG
-            CMAKE_C_FLAGS_RELEASE
-            CMAKE_C_FLAGS_MINSIZEREL
-            CMAKE_C_FLAGS_RELWITHDEBINFO
-            )
-        foreach(CompilerFlag ${CompilerFlags})
-            if(${CompilerFlag} MATCHES "/MD")
-                string(REGEX REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-            endif()
-        endforeach()
+        add_compile_options(
+            $<$<CONFIG:>:/MT>
+            $<$<CONFIG:Debug>:/MTd>
+            $<$<CONFIG:Release>:/MT>
+            $<$<CONFIG:MinSizeRel>:/MT>
+            $<$<CONFIG:RelWithDebInfo>:/MT>
+        )
     endif()
 endif()
 if(MSVC)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8" CACHE STRING "msvc compiler flags" FORCE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8" CACHE STRING "msvc compiler flags" FORCE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+    add_compile_options(
+        $<$<CONFIG:Release>:/GL>
+        $<$<CONFIG:MinSizeRel>:/GL>
+        $<$<CONFIG:RelWithDebInfo>:/GL>
+    )
+    add_link_options(
+        $<$<CONFIG:Release>:/LTCG>
+        $<$<CONFIG:MinSizeRel>:/LTCG>
+        $<$<CONFIG:RelWithDebInfo>:/LTCG>
+    )
 endif()
 
 add_subdirectory(deps)
