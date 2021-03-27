@@ -25,10 +25,14 @@
 #include "mem/action.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
+#include "util/conv.hh"
 #include "util/random.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
+
+std::int16_t MapWithEvent::extendedRAMBlock_[0x10000] = {};
+std::int16_t *MapWithEvent::extendedRAM_ = extendedRAMBlock_ + 0x8000;
 
 template <class R, class... Args>
 constexpr auto argCounter(std::function<R(Args...)>) {
@@ -102,24 +106,23 @@ void MapWithEvent::cleanupEvents() {
     currEventIndex_ = 0; currEventSize_ = 0;
     currEventAdvTrue_ = 0; currEventAdvFalse_ = 0;
     currEventItem_ = -1;
-    currEventList_ = nullptr;
+    currEventList_.clear();
 }
 
 void MapWithEvent::continueEvents(bool result) {
-    if (pendingSubEvents_.empty() && !currEventList_) { return; }
+    if (pendingSubEvents_.empty() && currEventList_.empty()) { return; }
     currEventPaused_ = false;
     currEventIndex_ += result ? currEventAdvTrue_ : currEventAdvFalse_;
     currEventAdvTrue_ = currEventAdvFalse_ = 0;
 
 #define OpRun(O, F) \
     case O: \
-        if (!runFunc(F, this, evlist, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_, \
+        if (!runFunc(F, this, currEventList_, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_, \
                      std::make_index_sequence<argCounter(F)-1>())) { \
             currEventPaused_ = true; \
         } \
         break
 
-    const auto &evlist = *currEventList_;
     while (!currEventPaused_) {
         while (!pendingSubEvents_.empty()) {
             currEventPaused_ = false;
@@ -133,7 +136,7 @@ void MapWithEvent::continueEvents(bool result) {
         if (currEventIndex_ >= currEventSize_) {
             break;
         }
-        auto op = evlist[currEventIndex_++];
+        auto op = currEventList_[currEventIndex_++];
 #ifndef NDEBUG
         fprintf(stdout, "%2d: ", op);
 #endif
@@ -147,12 +150,12 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(5, askForWar);
         case 6:
 #ifndef NDEBUG
-            fprintf(stdout, "{ %d %d %d %d }\n", evlist[currEventIndex_], evlist[currEventIndex_ + 1], evlist[currEventIndex_ + 2], evlist[currEventIndex_ + 3]);
+            fprintf(stdout, "{ %d %d %d %d }\n", currEventList_[currEventIndex_], currEventList_[currEventIndex_ + 1], currEventList_[currEventIndex_ + 2], currEventList_[currEventIndex_ + 3]);
             fflush(stdout);
 #endif
-            currEventAdvTrue_ = evlist[currEventIndex_ + 1];
-            currEventAdvFalse_ = evlist[currEventIndex_ + 2];
-            gWindow->enterWar(evlist[currEventIndex_], evlist[currEventIndex_ + 3] > 0);
+            currEventAdvTrue_ = currEventList_[currEventIndex_ + 1];
+            currEventAdvFalse_ = currEventList_[currEventIndex_ + 2];
+            gWindow->enterWar(currEventList_[currEventIndex_], currEventList_[currEventIndex_ + 3] > 0);
             currEventIndex_ += 4;
             currEventPaused_ = true;
             break;
@@ -199,7 +202,21 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(47, addAttack);
         OpRun(48, addMaxHP);
         OpRun(49, setMPType);
-        OpRun(50, checkHas5Item);
+        case 50:
+            if (currEventList_[currEventIndex_] >= 128) {
+                if (!runFunc(checkHas5Item, this, currEventList_, currEventIndex_,
+                             currEventAdvTrue_, currEventAdvFalse_,
+                             std::make_index_sequence<argCounter(checkHas5Item)-1>())) {
+                    currEventPaused_ = true;
+                }
+                break;
+            }
+            if (!runFunc(runExtendedEvent, this, currEventList_, currEventIndex_,
+                         currEventAdvTrue_, currEventAdvFalse_,
+                         std::make_index_sequence<argCounter(runExtendedEvent)-1>())) {
+                currEventPaused_ = true;
+            }
+            break;
         OpRun(51, tutorialTalk);
         OpRun(52, showIntegrity);
         OpRun(53, showReputation);
@@ -224,14 +241,14 @@ void MapWithEvent::continueEvents(bool result) {
     if (currEventIndex_ >= currEventSize_) {
         currEventId_ = -1;
         currEventIndex_ = currEventSize_ = 0;
-        currEventList_ = nullptr;
+        currEventList_.clear();
     }
 #undef OpRun
 }
 
 void MapWithEvent::runEvent(std::int16_t evt) {
-    currEventList_ = &data::gEvent.event(evt);
-    currEventSize_ = currEventList_->size();
+    currEventList_ = data::gEvent.event(evt);
+    currEventSize_ = currEventList_.size();
     currEventIndex_ = 0;
 
     continueEvents(false);
@@ -783,9 +800,13 @@ bool MapWithEvent::setSkill(MapWithEvent *map, std::int16_t charId, std::int16_t
 }
 
 int MapWithEvent::checkSex(MapWithEvent *map, std::int16_t sex) {
-    auto *charInfo = mem::gSaveData.charInfo[0];
-    if (!charInfo) { return 0; }
-    return charInfo->sex == sex ? 1 : 0;
+    if (sex < 256) {
+        auto *charInfo = mem::gSaveData.charInfo[0];
+        if (!charInfo) { return 0; }
+        return charInfo->sex == sex ? 1 : 0;
+    }
+    /* event 36 for extended functions */
+    return extendedRAM_[0x7000] == 0 ? 1 : 0;
 }
 
 bool MapWithEvent::addIntegrity(MapWithEvent *map, std::int16_t value) {
@@ -1184,6 +1205,353 @@ bool MapWithEvent::playMusic(MapWithEvent *, std::int16_t musicId) {
 
 bool MapWithEvent::playSound(MapWithEvent *, std::int16_t soundId) {
     gWindow->playAtkSound(soundId);
+    return true;
+}
+
+bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int16_t v1, std::int16_t v2,
+                                    std::int16_t v3, std::int16_t v4, std::int16_t v5, std::int16_t v6) {
+    static const auto movCmd = [](std::int16_t v0, std::int16_t v1, std::int16_t bits) {
+        return (v0 & bits) ? MapWithEvent::extendedRAM_[v1] : v1;
+    };
+    switch (v0) {
+    case 0:
+        extendedRAM_[v1] = v2;
+        break;
+    case 1: {
+        auto &n = extendedRAM_[v3 + movCmd(v1, v4, 1)];
+        n = movCmd(v1, v4, 2);
+        if (v2) {
+            n &= 0xFF;
+        }
+        break;
+    }
+    case 2: {
+        auto &n = extendedRAM_[v5];
+        v5 = extendedRAM_[v3 + movCmd(v1, v4, 1)];
+        if (v2) {
+            n &= 0xFF;
+        }
+        break;
+    }
+    case 3: {
+        auto val = movCmd(v1, v5, 1);
+        switch (v2) {
+        case 0:
+            extendedRAM_[v3] = extendedRAM_[v4] + val;
+            break;
+        case 1:
+            extendedRAM_[v3] = extendedRAM_[v4] - val;
+            break;
+        case 2:
+            extendedRAM_[v3] = extendedRAM_[v4] * val;
+            break;
+        case 3:
+            if (val != 0) { extendedRAM_[v3] = extendedRAM_[v4] / val; }
+            break;
+        case 4:
+            if (val != 0) { extendedRAM_[v3] = extendedRAM_[v4] % val; }
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 4: {
+        extendedRAM_[0x7000] = 0;
+        auto val = movCmd(v1, v4, 1);
+        switch (v2)
+        {
+        case 0:
+            extendedRAM_[0x7000] = extendedRAM_[v3] < val ? 0 : 1;
+            break;
+        case 1:
+            extendedRAM_[0x7000] = extendedRAM_[v3] <= val ? 0 : 1;
+            break;
+        case 2:
+            extendedRAM_[0x7000] = extendedRAM_[v3] == val ? 0 : 1;
+            break;
+        case 3:
+            extendedRAM_[0x7000] = extendedRAM_[v3] != val ? 0 : 1;
+            break;
+        case 4:
+            extendedRAM_[0x7000] = extendedRAM_[v3] >= val ? 0 : 1;
+            break;
+        case 5:
+            extendedRAM_[0x7000] = extendedRAM_[v3] > val ? 0 : 1;
+            break;
+        case 6:
+            extendedRAM_[0x7000] = 0;
+            break;
+        case 7:
+            extendedRAM_[0x7000] = 1;
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 5:
+        memset(extendedRAM_, 0, sizeof(extendedRAM_));
+        break;
+    case 8: {
+        auto val = movCmd(v1, v2, 1);
+        auto *ptr = &extendedRAM_[v3];
+        const auto &str = data::gEvent.origTalk(val);
+        memcpy(&extendedRAM_[v3], str.data(), str.length() + 1);
+        break;
+    }
+    case 9: {
+        auto val = movCmd(v1, v4, 1);
+        sprintf(reinterpret_cast<char*>(&extendedRAM_[v2]),
+                reinterpret_cast<char*>(&extendedRAM_[v3]), val);
+        break;
+    }
+    case 10:
+        extendedRAM_[v2] = strlen(reinterpret_cast<char*>(&extendedRAM_[v1]));
+        break;
+    case 11:
+        strcat(reinterpret_cast<char*>(&extendedRAM_[v1]), reinterpret_cast<char*>(&extendedRAM_[v2]));
+        break;
+    case 12: {
+        auto val = movCmd(v1, v3, 1);
+        memset(&extendedRAM_[v2], 0x20, v3);
+        reinterpret_cast<char*>(&extendedRAM_[v2])[v3] = 0;
+        break;
+    }
+    case 16: {
+        auto n0 = movCmd(v1, v3, 1);
+        auto n1 = movCmd(v1, v4, 2);
+        auto n2 = movCmd(v1, v5, 4);
+        switch (v2) {
+        case 0:
+            *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.charInfo[n0]) + n1) = n2;
+            break;
+        case 1:
+            *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.itemInfo[n0]) + n1) = n2;
+            break;
+        case 2:
+            *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.subMapInfo[n0]) + n1) = n2;
+            break;
+        case 3:
+            *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.skillInfo[n0]) + n1) = n2;
+            break;
+        case 4:
+            *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.shopInfo[n0]) + n1) = n2;
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 17: {
+        auto n0 = movCmd(v1, v3, 1);
+        auto n1 = movCmd(v1, v4, 2);
+        switch (v2) {
+        case 0:
+            extendedRAM_[v5] = *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.charInfo[n0]) + n1);
+            break;
+        case 1:
+            extendedRAM_[v5] = *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.itemInfo[n0]) + n1);
+            break;
+        case 2:
+            extendedRAM_[v5] = *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.subMapInfo[n0]) + n1);
+            break;
+        case 3:
+            extendedRAM_[v5] = *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.skillInfo[n0]) + n1);
+            break;
+        case 4:
+            extendedRAM_[v5] = *reinterpret_cast<std::int16_t*>(reinterpret_cast<char*>(mem::gSaveData.shopInfo[n0]) + n1);
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 18: {
+        auto n0 = movCmd(v1, v2, 1);
+        if (n0 >= 0 && n0 < data::TeamMemberCount) {
+            mem::gSaveData.baseInfo->members[n0] = movCmd(v1, v3, 2);
+        }
+        break;
+    }
+    case 19: {
+        auto n0 = movCmd(v1, v2, 1);
+        if (n0 >= 0 && n0 < data::TeamMemberCount) {
+            extendedRAM_[v3] = mem::gSaveData.baseInfo->members[n0];
+        }
+        break;
+    }
+    case 20:
+        extendedRAM_[v3] = mem::gBag[movCmd(v1, v2, 1)];
+        break;
+    case 21: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        auto n3 = movCmd(v1, v5, 8);
+        reinterpret_cast<int16_t*>(&mem::gSaveData.subMapEventInfo[n0]->events[n1])[n2] = n3;
+        break;
+    }
+    case 22: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        extendedRAM_[v5] = reinterpret_cast<int16_t*>(&mem::gSaveData.subMapEventInfo[n0]->events[n1])[v2];
+        break;
+    }
+    case 23: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        auto n3 = movCmd(v1, v5, 8);
+        auto n4 = movCmd(v1, v6, 16);
+        mem::gSaveData.subMapLayerInfo[n0]->data[n1][n2 + n3 * data::SubMapWidth] = n4;
+        break;
+    }
+    case 24: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        auto n3 = movCmd(v1, v5, 8);
+        extendedRAM_[v6] = mem::gSaveData.subMapLayerInfo[n0]->data[n1][n2 + n3 * data::SubMapWidth];
+        break;
+    }
+    case 25:
+    case 26:
+        // direct address reading/writing is not supported
+        break;
+    case 27: {
+        auto n0 = movCmd(v1, v3, 1);
+        switch (v2) {
+        case 0:
+            memcpy(&extendedRAM_[v4], mem::gSaveData.charInfo[n0]->name, 10);
+            reinterpret_cast<char*>(&extendedRAM_[v4])[10] = 0;
+            break;
+        case 1:
+            memcpy(&extendedRAM_[v4], mem::gSaveData.itemInfo[n0]->name, 20);
+            reinterpret_cast<char*>(&extendedRAM_[v4])[20] = 0;
+            break;
+        case 2:
+            memcpy(&extendedRAM_[v4], mem::gSaveData.subMapInfo[n0]->name, 10);
+            reinterpret_cast<char*>(&extendedRAM_[v4])[10] = 0;
+            break;
+        case 3:
+            memcpy(&extendedRAM_[v4], mem::gSaveData.skillInfo[n0]->name, 10);
+            reinterpret_cast<char*>(&extendedRAM_[v4])[10] = 0;
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 32: {
+        auto n0 = movCmd(v1, v3, 1);
+        map->currEventList_[map->currEventIndex_ + 7 + n0] = extendedRAM_[v2];
+        break;
+    }
+    case 33: {
+        auto n0 = movCmd(v1, v3, 1);
+        auto n1 = movCmd(v1, v4, 2);
+        auto n2 = movCmd(v1, v5, 4);
+        auto str = util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v2]));
+        /* TODO: draw str at (n0, n1) with color (n2 & 0xFF) and (n2 >> 8) */
+        break;
+    }
+    case 34: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        auto n3 = movCmd(v1, v5, 8);
+        /* TODO: draw box at (n0, n1)-(n2, n3) */
+        break;
+    }
+    case 35: {
+        /* TODO: wait for input and store in extendedRAM_[v1]
+         *       case SDLK_LEFT: extendedRAM_[e1] = 154; break;
+         *       case SDLK_RIGHT: extendedRAM_[e1] = 156; break;
+         *       case SDLK_UP: extendedRAM_[e1] = 158; break;
+         *       case SDLK_DOWN: extendedRAM_[e1] = 152; break;
+         */
+        break;
+    }
+    case 36: {
+        auto n0 = movCmd(v1, v3, 1);
+        auto n1 = movCmd(v1, v4, 2);
+        auto n2 = movCmd(v1, v5, 4);
+        auto str = util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v2]));
+        /* TODO: draw str at (n0, n1) with color (n2 & 0xFF) and (n2 >> 8),
+         *       wait for input and set extendedRAM_[0x7000] to 0 if `y` pressed
+         */
+        break;
+    }
+    case 37: {
+        auto n0 = movCmd(v1, v2, 1);
+        /* TODO: delay for n0 ms */
+        break;
+    }
+    case 38: {
+        auto n0 = movCmd(v1, v2, 1);
+        extendedRAM_[v3] = util::gRandom(n0);
+        break;
+    }
+    case 39:
+    case 40: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v5, 2);
+        auto n2 = movCmd(v1, v6, 4);
+        std::vector<std::wstring> strs;
+        for (int i = 0; i < n0; i++) {
+            strs.emplace_back(util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v3 + i])));
+        }
+        /* TODO: show menu and store selected index + 1 to extendedRAM_[v4](0 for esc pressed) */
+        break;
+    }
+    case 41: {
+        auto n0 = movCmd(v1, v3, 1);
+        auto n1 = movCmd(v1, v4, 2);
+        auto n2 = movCmd(v1, v5, 4);
+        switch (v2) {
+        case 0:
+            /* TODO: draw smp texture[n2] at (n0, n1) */
+            break;
+        case 1:
+            /* TODO: draw head texture[n2] at (n0, n1) */
+            break;
+        default:
+            break;
+        }
+        break;
+    }
+    case 42: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 1);
+        gWindow->globalMap()->setPosition(n0, n1, false);
+        break;
+    }
+    case 43:
+        extendedRAM_[0x7100] = movCmd(v1, v3, 2);
+        extendedRAM_[0x7101] = movCmd(v1, v4, 4);
+        extendedRAM_[0x7102] = movCmd(v1, v5, 8);
+        extendedRAM_[0x7103] = movCmd(v1, v6, 16);
+        map->runEvent(movCmd(v1, v2, 1));
+        break;
+    case 48: {
+        std::int16_t nend = v1 + v2;
+        for (std::int16_t i = v1; i < nend; ++i) {
+            fmt::print("RAM[0x{:04X}] = {}\n", i, extendedRAM_[i]);
+        }
+        break;
+    }
+    case 52: {
+        auto n0 = movCmd(v1, v2, 1);
+        auto n1 = movCmd(v1, v3, 2);
+        auto n2 = movCmd(v1, v4, 4);
+        extendedRAM_[0x7000] = std::clamp<std::int16_t>(mem::gSaveData.charInfo[n0]->skillLevel[n1] / 100, 0, 9) + 1 >= n2 ? 0 : 1;
+        break;
+    }
+    default:
+        break;
+    }
     return true;
 }
 

@@ -140,6 +140,8 @@ private:
     static bool randomShop(MapWithEvent *map);
     static bool playMusic(MapWithEvent *map, std::int16_t musicId);
     static bool playSound(MapWithEvent *map, std::int16_t soundId);
+    static bool runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int16_t v1, std::int16_t v2,
+                                 std::int16_t v3, std::int16_t v4, std::int16_t v5, std::int16_t v6);
 
 protected:
     bool currEventPaused_ = false;
@@ -147,7 +149,7 @@ protected:
     size_t currEventIndex_ = 0, currEventSize_ = 0;
     size_t currEventAdvTrue_ = 0, currEventAdvFalse_ = 0;
     std::int16_t currEventItem_ = -1;
-    const std::vector<std::int16_t> *currEventList_ = nullptr;
+    std::vector<std::int16_t> currEventList_;
 
     const Texture *mainCharTex_ = nullptr;
     std::int32_t currX_ = 0, currY_ = 0;
@@ -163,6 +165,8 @@ protected:
     std::list<std::function<bool()>> pendingSubEvents_;
     std::vector<std::pair<std::int16_t, std::int16_t>> moving_;
     bool movingChar_ = false;
+
+    static std::int16_t extendedRAMBlock_[0x10000], *extendedRAM_;
 };
 
 }

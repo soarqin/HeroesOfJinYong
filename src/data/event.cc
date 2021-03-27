@@ -40,12 +40,11 @@ void Event::loadEvent(const std::string &name) {
 }
 
 void Event::loadTalk(const std::string &name) {
-    std::vector<std::string> talks;
-    if (!GrpData::loadData(name, talks)) { return; }
-    auto sz = talks.size();
+    if (!GrpData::loadData(name, origTalks_)) { return; }
+    auto sz = origTalks_.size();
     talks_.resize(sz);
     for (size_t i = 0; i < sz; ++i) {
-        auto &t = talks[i];
+        auto &t = origTalks_[i];
         for (auto &c: t) {
             if (c) { c = ~c; }
         }
@@ -63,6 +62,14 @@ const std::vector<std::int16_t> &Event::event(size_t index) const {
         return events_[index];
     }
     static std::vector<std::int16_t> empty;
+    return empty;
+}
+
+const std::string &Event::origTalk(size_t index) const {
+    if (index < origTalks_.size()) {
+        return origTalks_[index];
+    }
+    static std::string empty;
     return empty;
 }
 
