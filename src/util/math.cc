@@ -25,19 +25,18 @@
 namespace hojy::util {
 
 std::pair<int, int> calcSmallestDivision(double x) {
-    std::int64_t m, n, p, q;
+    double m, n, p, q;
     double j = std::floor(x);
     m = 1;
     n = 0;
-    p = std::uint64_t(j);
+    p = j;
     q = 1;
     while (x - j > 0.001) {
         x = 1 / (x - j);
         j = std::floor(x);
-        auto s = std::int64_t(j);
-        std::int64_t u = p, v = q;
-        p = p * s + m;
-        q = q * s + n;
+        auto u = p, v = q;
+        p = p * j + m;
+        q = q * j + n;
         m = u; n = v;
     }
     return std::make_pair(int(p), int(q));
