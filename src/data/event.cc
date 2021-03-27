@@ -22,6 +22,7 @@
 #include "grpdata.hh"
 #include "core/config.hh"
 #include "util/conv.hh"
+#include <cstring>
 
 namespace hojy::data {
 

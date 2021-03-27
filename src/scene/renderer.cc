@@ -108,11 +108,11 @@ void Renderer::renderTexture(const Texture *tex, float x, float y, float scale, 
     auto w = tex->width(), h = tex->height();
     SDL_Rect src {0, 0, w, h};
     if (ignoreOrigin) {
-        SDL_FRect dst {x, y, float(w) * scale, float(h) * scale};
-        SDL_RenderCopyF(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
+        SDL_Rect dst {x, y, float(w) * scale, float(h) * scale};
+        SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
     } else {
-        SDL_FRect dst{x - float(tex->originX()) * scale, y - float(tex->originY()) * scale, float(w) * scale, float(h) * scale};
-        SDL_RenderCopyF(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
+        SDL_Rect dst{x - float(tex->originX()) * scale, y - float(tex->originY()) * scale, float(w) * scale, float(h) * scale};
+        SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
     }
 }
 

@@ -24,6 +24,7 @@
 #include "data/factors.hh"
 #include "util/random.hh"
 #include <algorithm>
+#include <cstring>
 
 namespace hojy::mem {
 

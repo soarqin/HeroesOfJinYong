@@ -22,6 +22,7 @@
 #include <list>
 #include <string>
 #include <mutex>
+#include <cstring>
 
 namespace hojy::util {
 
