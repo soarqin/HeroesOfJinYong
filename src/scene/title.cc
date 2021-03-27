@@ -31,6 +31,7 @@
 #include "util/random.hh"
 #include "util/file.hh"
 #include "util/conv.hh"
+#include "util/math.hh"
 #include <cstring>
 
 namespace hojy::scene {
@@ -169,13 +170,13 @@ void Title::makeCache() {
     switch (mode_) {
     case 0:
     case 1: {
-        float scale = y == 0 ? float(height_) / 240.f : float(width_) / 320.f;
+        auto scale = y == 0 ? util::calcSmallestDivision(height_, 240) : util::calcSmallestDivision(width_, 320);
         const auto *img0 = titleTextureMgr_[0];
-        float x0 = (float(width_) - scale * float(img0->width() + img0->originX())) / 2.f;
-        float y0 = float(height_) - 20.f * scale * 3.5f;
-        static const std::pair<float, float> offsetY[9] = {
-            {y0, 20.f * scale * 3.f}, {y0, 20.f * scale}, {y0 + 20.f * scale, 20.f * scale}, {y0 + 20.f * scale * 2.f, 20.f * scale},
-            {y0, 20.f * scale * 3.f}, {y0, 20.f * scale}, {y0 + 20.f * scale, 20.f * scale}, {y0 + 20.f * scale * 2.f, 20.f * scale}, {y0, 40.f}
+        int x0 = (width_ - (img0->width() + img0->originX()) * scale.first / scale.second) / 2;
+        int y0 = height_ - 70 * scale.first / scale.second;
+        static const std::pair<int, int> offsetY[9] = {
+            {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second},
+            {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second}, {y0, 40}
         };
         if (mode_ == 0) {
             renderer_->renderTexture(titleTextureMgr_[0], x0, offsetY[0].first, scale);

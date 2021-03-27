@@ -24,12 +24,11 @@
 #include "core/config.hh"
 
 #include <chrono>
-#include <cmath>
 
 namespace hojy::scene {
 
-Map::Map(Renderer *renderer, int x, int y, int width, int height, float scale): Node(renderer, x, y, width, height),
-    scale_(scale), auxWidth_(std::lround(float(width_) / scale)), auxHeight_(std::lround(float(height_) / scale)),
+Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale): Node(renderer, x, y, width, height),
+    scale_(scale), auxWidth_(width_ * scale.second / scale.first), auxHeight_(height_ * scale.second / scale.first),
     drawDirty_(true), drawingTerrainTex_(Texture::createAsTarget(renderer_, width, height)),
     eachFrameTime_(std::chrono::microseconds(int(1000000.f / 15.f / core::config.animationSpeed()))) {
     textureMgr_.clear();

@@ -39,7 +39,7 @@ public:
     };
 
 public:
-    Map(Renderer *renderer, int x, int y, int width, int height, float scale);
+    Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale);
     Map(const Map&) = delete;
     ~Map() override;
 
@@ -63,7 +63,7 @@ protected:
     int cameraX_ = 0, cameraY_ = 0;
 
     std::uint64_t frames_ = 0;
-    float scale_ = 1.f;
+    std::pair<int, int> scale_ = {1, 1};
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     bool drawDirty_ = false;
     std::chrono::steady_clock::time_point nextFrameTime_;

@@ -183,7 +183,7 @@ void TalkBox::makeCache() {
     if (headTex_) {
         renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 208);
         renderer_->drawRoundedRect(headX, headY, headW, headH, RoundedRectRad, 224, 224, 224, 255);
-        renderer_->renderTexture(headTex_, float(headX + SubWindowBorder), float(headY + SubWindowBorder), 2., true);
+        renderer_->renderTexture(headTex_, headX + SubWindowBorder, headY + SubWindowBorder, std::make_pair(2, 1), true);
     }
 
     int x = SubWindowBorder + textX;

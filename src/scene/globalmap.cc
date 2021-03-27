@@ -34,7 +34,7 @@ enum {
     GlobalMapHeight = 480,
 };
 
-GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, float scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
+GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale): MapWithEvent(renderer, ix, iy, width, height, scale) {
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     cloudTexMgr_.setRenderer(renderer_);
@@ -237,14 +237,15 @@ void GlobalMap::render() {
             if (util::gRandom(2000)) { continue; }
             c = cloudTexMgr_[util::gRandom(4)];
             cloudStartX_[i] = cameraX_; cloudStartY_[i] = cameraY_;
-            cloudX_[i] = -float(width_) * .6f;
-            cloudY_[i] = float(util::gRandom(int(auxHeight_) + height_ / 10)) + float(height_) / 20;
+            cloudX_[i] = -width_ * 3 / 5;
+            cloudY_[i] = int(util::gRandom(int(auxHeight_) + height_ / 10) + height_ / 20);
         }
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int cloudcx = cloudStartX_[i] - cameraX_, cloudcy = cloudStartY_[i] - cameraY_;
-        float cloudx = float((cloudcx - cloudcy) * cellDiffX) * scale_ + cloudX_[i]++ / 2, cloudy = float((cloudcx + cloudcy) * cellDiffY) * scale_ + cloudY_[i];
-        if (cloudx > float(width_) * 1.25f) {
+        int cloudx = (cloudcx - cloudcy) * cellDiffX * scale_.first / scale_.second + cloudX_[i]++ / 2;
+        int cloudy = (cloudcx + cloudcy) * cellDiffY * scale_.first / scale_.second + cloudY_[i];
+        if (cloudx > width_ * 5 / 2) {
             c = nullptr;
         } else {
             renderer_->renderTexture(c, cloudx, cloudy, scale_);

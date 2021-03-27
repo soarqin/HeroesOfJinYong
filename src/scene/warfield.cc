@@ -36,7 +36,7 @@
 
 namespace hojy::scene {
 
-Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, float scale):
+Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale):
     Map(renderer, x, y, width, height, scale) {
     fightTextures_.resize(FightTextureListCount);
     for (size_t i = 0; i < FightTextureListCount; ++i) {
@@ -374,7 +374,7 @@ void Warfield::render() {
         if (acting && effectTexIdx_ >= 3) {
             int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
             auto *ttf = renderer_->ttf();
-            auto fsize = std::lround(8.f * scale_);
+            auto fsize = 8 * scale_.first / scale_.second;
             for (auto &n: popupNumbers_) {
                 int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
                 int texX = ax + (deltax - deltay) * cellDiffX + n.offsetX;
@@ -1533,7 +1533,7 @@ void Warfield::startActAction() {
             if (result != 0) { ch->exp += std::abs(result); }
             auto txt = fmt::format(L"{:+}", result);
             popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_,
-                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
+                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
                                                    r, g, b});
         }
         stage_ = Acting;
@@ -1654,12 +1654,12 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
         if (dmg < 0) {
             auto txt = fmt::format(L"{:+}", dmg);
             popupNumbers_.emplace_back(PopupNumber{txt, x, y,
-                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
+                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
                                                    112, 12, 112});
         } else {
             auto txt = fmt::format(L"{:+}", -dmg);
             popupNumbers_.emplace_back(PopupNumber{txt, x, y,
-                                                   -ttf->stringWidth(txt, std::lround(8.f * scale_)) / 2,
+                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
                                                    232, 32, 44});
         }
     }

@@ -69,7 +69,7 @@ class Warfield: public Map {
         std::uint8_t r, g, b;
     };
 public:
-    Warfield(Renderer *renderer, int x, int y, int width, int height, float scale);
+    Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale);
     ~Warfield() override;
 
     void cleanup();

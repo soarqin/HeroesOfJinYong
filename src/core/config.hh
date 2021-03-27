@@ -48,7 +48,7 @@ public:
 
     [[nodiscard]] bool simplifiedChinese() const { return simplifiedChinese_; }
     [[nodiscard]] bool showPotential() const { return showPotential_; }
-    [[nodiscard]] float scale() const { return scale_; }
+    [[nodiscard]] std::pair<int, int> scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
     [[nodiscard]] bool noNameInput() const { return noNameInput_; }
@@ -61,7 +61,7 @@ private:
     int windowWidth_ = 640, windowHeight_ = 480;
     bool simplifiedChinese_ = false;
     bool showPotential_ = false;
-    float scale_ = 2.f;
+    std::pair<int, int> scale_ = {2, 1};
     float animationSpeed_ = 1.f;
     float fadeSpeed_ = 1.f;
     bool noNameInput_ = false;

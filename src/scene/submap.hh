@@ -32,7 +32,7 @@ class SubMap final: public MapWithEvent {
         bool blocked = false;
     };
 public:
-    SubMap(Renderer *renderer, int x, int y, int width, int height, float scale);
+    SubMap(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale);
     ~SubMap() override;
 
     bool load(std::int16_t subMapId);

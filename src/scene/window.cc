@@ -385,8 +385,9 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
         clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm](std::int16_t) {
             dynamic_cast<Warfield*>(warfield_)->putChars(clm->getSelectedCharIds());
             map_ = warfield_;
+            auto *map = map_;
             closePopup();
-            map_->fadeIn();
+            map->fadeIn();
         }, []()->bool { return false; });
         for (size_t i = 0; i < clm->charCount(); ++i) {
             if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
@@ -460,6 +461,7 @@ void Window::endPopup(bool close, bool result) {
 }
 
 void Window::showMainMenu(bool inSubMap) {
+    (void)inSubMap;
     if (popup_) {
         return;
     }

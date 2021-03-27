@@ -24,6 +24,7 @@
 #include "mem/action.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
+#include "util/math.hh"
 #include <fmt/format.h>
 #include <algorithm>
 
@@ -69,9 +70,9 @@ void StatusView::makeCache() {
         int y = SubWindowBorder;
         const auto *headTex = gWindow->headTexture(data_.headId);
         if (headTex) {
-            auto height = float(headTex->height());
-            float scale = float(lineheight * 4 - TextLineSpacing) / height;
-            renderer_->renderTexture(headTex, (float(w) - float(headTex->width()) * scale) / 2.f, float(y + lineheight * 4 - TextLineSpacing) - height * scale, scale, true);
+            auto height = headTex->height();
+            std::pair<int, int> scale = util::calcSmallestDivision(lineheight * 4 - TextLineSpacing, height);
+            renderer_->renderTexture(headTex, (w - headTex->width() * scale.first / scale.second) / 2, y + lineheight * 4 - TextLineSpacing - height * scale.first / scale.second, scale, true);
         }
         ttf->setColor(236, 236, 236);
         ttf->setAltColor(2, 236, 200, 40);
@@ -126,9 +127,11 @@ void StatusView::makeCache() {
     int y = SubWindowBorder;
     const auto *headTex = gWindow->headTexture(data_.headId);
     if (headTex) {
-        auto height = float(headTex->height());
-        float scale = float(lineheight * 4 - TextLineSpacing) / height;
-        renderer_->renderTexture(headTex, (float(x2) - float(headTex->width()) * scale) / 2.f, float(y + lineheight * 4 - TextLineSpacing) - height * scale, scale, true);
+        auto height = headTex->height();
+        std::pair<int, int> scale = util::calcSmallestDivision(lineheight * 4 - TextLineSpacing, height);
+        renderer_->renderTexture(headTex, (x2 - headTex->width() * scale.first / scale.second) / 2,
+                                 (y + lineheight * 4 - TextLineSpacing) - height * scale.first / scale.second,
+                                 scale, true);
     }
     ttf->setColor(236, 236, 236);
     ttf->setAltColor(2, 236, 200, 40);

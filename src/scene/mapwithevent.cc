@@ -388,7 +388,8 @@ void MapWithEvent::renderChar(int deltaY) {
     int cellDiffY = cellHeight_ / 2;
     int offsetX = (dx - dy) * cellWidth_ / 2;
     int offsetY = (dx + dy) * cellDiffY;
-    renderer_->renderTexture(mainCharTex_, float(x_ + (width_ >> 1)) + float(offsetX) * scale_, float(y_ + (height_ >> 1)) + float(offsetY + cellDiffY - deltaY) * scale_, scale_);
+    renderer_->renderTexture(mainCharTex_, x_ + (width_ >> 1) + offsetX * scale_.first / scale_.second,
+                             y_ + (height_ >> 1) + (offsetY + cellDiffY - deltaY) * scale_.first /scale_.second, scale_);
 }
 
 void MapWithEvent::resetTime() {
@@ -1291,7 +1292,7 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         break;
     }
     case 5:
-        memset(extendedRAM_, 0, sizeof(extendedRAM_));
+        memset(extendedRAMBlock_, 0, sizeof(extendedRAMBlock_));
         break;
     case 8: {
         auto val = movCmd(v1, v2, 1);

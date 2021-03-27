@@ -22,6 +22,7 @@
 #include "resourcemgr.hh"
 #include "mem/strings.hh"
 #include "util/file.hh"
+#include "util/math.hh"
 #include "external/toml.hpp"
 #include <fmt/format.h>
 
@@ -79,7 +80,8 @@ bool Config::load(const std::string &filename) {
     if (ui) {
         simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(false);
         showPotential_ = ui["show_potential"].value_or<bool>(false);
-        scale_ = ui["scale"].value_or<float>(2.f);
+        auto scale = ui["scale"].value_or<double>(2.f);
+        scale_ = util::calcSmallestDivision(scale);
         animationSpeed_ = ui["animation_speed"].value_or<float>(1.f);
         fadeSpeed_ = ui["fade_speed"].value_or<float>(1.f);
         noNameInput_ = ui["no_name_input"].value_or<bool>(false);

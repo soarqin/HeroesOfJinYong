@@ -244,7 +244,6 @@ void ItemView::handleKeyInput(Node::Key key) {
 }
 
 MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<mem::PropType, std::int16_t> &changes) {
-    const auto *itemInfo = mem::gSaveData.itemInfo[id];
     std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
     for (auto &c: changes) {
         messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));

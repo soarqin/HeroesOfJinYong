@@ -104,14 +104,15 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin
     }
 }
 
-void Renderer::renderTexture(const Texture *tex, float x, float y, float scale, bool ignoreOrigin) {
+void Renderer::renderTexture(const Texture *tex, int x, int y, std::pair<int, int> scale, bool ignoreOrigin) {
     auto w = tex->width(), h = tex->height();
     SDL_Rect src {0, 0, w, h};
     if (ignoreOrigin) {
-        SDL_Rect dst {x, y, float(w) * scale, float(h) * scale};
+        SDL_Rect dst {x, y, w * scale.first / scale.second, h * scale.first / scale.second};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
     } else {
-        SDL_Rect dst{x - float(tex->originX()) * scale, y - float(tex->originY()) * scale, float(w) * scale, float(h) * scale};
+        SDL_Rect dst{x - tex->originX() * scale.first / scale.second, y - tex->originY() * scale.first / scale.second,
+                     w * scale.first / scale.second, h * scale.first / scale.second};
         SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
     }
 }

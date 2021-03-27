@@ -2043,7 +2043,7 @@ int filledEllipseRGBA(SDL_Renderer * renderer, Sint16 x, Sint16 y, Sint16 rx, Si
 /* ----- Pie */
 
 /*!
-\brief Internal float (low-speed) pie-calc implementation by drawing polygons.
+\brief Internal float (low-speed) pie-calcSmallestDivision implementation by drawing polygons.
 
 Note: Determines vertex array and uses polygon or filledPolygon drawing routines to render.
 
