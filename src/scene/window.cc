@@ -231,6 +231,7 @@ bool Window::render() {
     if (popup_) {
         popup_->doRender();
     }
+    std::this_thread::sleep_for(std::chrono::microseconds(1));
     return true;
 }
 
