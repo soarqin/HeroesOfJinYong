@@ -50,16 +50,21 @@ public:
     void renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin = false);
 
+    bool canRender();
     void present();
     [[nodiscard]] inline TTF *ttf() { return ttf_; }
     [[nodiscard]] inline float fps() const { return fps_; }
+    [[nodiscard]] std::chrono::steady_clock::time_point nextRenderTime() const { return nextRenderTime_; }
 
 private:
-    std::chrono::steady_clock::time_point nextCountTime_;
-    int frameCount_ = 0;
     float fps_ = 0.f;
     void *renderer_ = nullptr;
     TTF *ttf_ = nullptr;
+
+    int frameCount_ = 0;
+    std::chrono::steady_clock::time_point nextCountTime_;
+    std::chrono::steady_clock::time_point nextRenderTime_;
+    std::chrono::steady_clock::duration renderInterval_;
 };
 
 }

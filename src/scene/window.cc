@@ -46,6 +46,7 @@
 
 #include <SDL.h>
 #include <fmt/format.h>
+#include <thread>
 #include <stdexcept>
 
 namespace hojy::scene {
@@ -218,14 +219,19 @@ bool Window::processEvents() {
     return true;
 }
 
-void Window::render() {
+bool Window::render() {
     currTime_ = std::chrono::steady_clock::now();
+    if (!renderer_->canRender()) {
+        std::this_thread::sleep_for(renderer_->nextRenderTime() - currTime_);
+        return false;
+    }
     if (map_) {
         map_->doRender();
     }
     if (popup_) {
         popup_->doRender();
     }
+    return true;
 }
 
 void Window::flush() {

@@ -56,7 +56,7 @@ public:
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
 
     bool processEvents();
-    void render();
+    bool render();
     void flush();
 
     void playMusic(int idx);

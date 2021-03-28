@@ -55,6 +55,7 @@ public:
     [[nodiscard]] const std::wstring &defaultName() const { return defaultName_; }
 
     [[nodiscard]] bool showFPS() const { return showFPS_; }
+    [[nodiscard]] int limitFPS() const { return limitFPS_; }
 
 private:
     std::vector<std::string> dataPath_, fonts_;
@@ -69,6 +70,7 @@ private:
     bool noNameInput_ = false;
     std::wstring defaultName_;
     bool showFPS_ = false;
+    int limitFPS_ = 0;
 };
 
 extern Config config;

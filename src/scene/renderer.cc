@@ -29,7 +29,12 @@ namespace hojy::scene {
 Renderer::Renderer(void *win, int w, int h):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
     ttf_(new TTF(renderer_)) {
-    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+    if (core::config.limitFPS() > 0) {
+        renderInterval_ = std::chrono::seconds(1);
+        renderInterval_ /= core::config.limitFPS();
+    } else {
+        renderInterval_ = std::chrono::steady_clock::duration::zero();
+    }
     SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
     int fontSize;
     if (w * 3 > h * 4) {
@@ -141,15 +146,26 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw
     }
 }
 
-void Renderer::present() {
-    SDL_RenderPresent(static_cast<SDL_Renderer*>(renderer_));
+bool Renderer::canRender() {
     auto now = gWindow->currTime();
+    if (renderInterval_.count()) {
+        if (nextRenderTime_ > now) {
+            return false;
+        }
+        nextRenderTime_ += renderInterval_;
+        if (nextRenderTime_ < now) { nextRenderTime_ = now + renderInterval_; }
+    }
     if (nextCountTime_ <= now) {
-        fps_ = frameCount_ / (1.f + float(std::chrono::duration_cast<std::chrono::milliseconds>(now - nextCountTime_).count()) / 1000.f);
+        fps_ = float(frameCount_) / (1.f + float(std::chrono::duration_cast<std::chrono::milliseconds>(now - nextCountTime_).count()) / 1000.f);
         nextCountTime_ = now + std::chrono::seconds(1);
         frameCount_ = 0;
     }
     ++frameCount_;
+    return true;
+}
+
+void Renderer::present() {
+    SDL_RenderPresent(static_cast<SDL_Renderer*>(renderer_));
 }
 
 }

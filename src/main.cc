@@ -39,8 +39,9 @@ int main(int argc, char *argv[]) {
     scene::Window win(core::config.windowWidth(), core::config.windowHeight());
     // win.newGame();
     while (win.processEvents()) {
-        win.render();
-        win.flush();
+        if (win.render()) {
+            win.flush();
+        }
     }
     return 0;
 }
