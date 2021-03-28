@@ -115,8 +115,12 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                     auto th = tex2->height();
                     if (th < 36) {
                         th = th * 4 / 5;
-                    } else {
+                    } else if (th < 54) {
                         th = th * 2 / 3;
+                    } else if (th < 72) {
+                        th = th / 2;
+                    } else {
+                        th = th / 3;
                     }
                     auto centerY = ty - tex2->originY() + th;
                     buildingTex_.emplace(centerY * texWidth_ + centerX, BuildingTex{tx, ty, tex2});

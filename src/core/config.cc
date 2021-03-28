@@ -75,6 +75,7 @@ bool Config::load(const std::string &filename) {
     if (window) {
         windowWidth_ = window["width"].value_or<int>(640);
         windowHeight_ = window["height"].value_or<int>(480);
+        showFPS_ = window["show_fps"].value_or<bool>(false);
     }
     auto ui = tbl["ui"];
     if (ui) {

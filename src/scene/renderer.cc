@@ -19,6 +19,7 @@
 
 #include "renderer.hh"
 
+#include "window.hh"
 #include "texture.hh"
 #include "core/config.hh"
 #include <SDL2_gfxPrimitives.h>
@@ -28,6 +29,7 @@ namespace hojy::scene {
 Renderer::Renderer(void *win, int w, int h):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC)),
     ttf_(new TTF(renderer_)) {
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
     int fontSize;
     if (w * 3 > h * 4) {
@@ -141,6 +143,13 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw
 
 void Renderer::present() {
     SDL_RenderPresent(static_cast<SDL_Renderer*>(renderer_));
+    auto now = gWindow->currTime();
+    if (nextCountTime_ <= now) {
+        fps_ = frameCount_ / (1.f + float(std::chrono::duration_cast<std::chrono::milliseconds>(now - nextCountTime_).count()) / 1000.f);
+        nextCountTime_ = now + std::chrono::seconds(1);
+        frameCount_ = 0;
+    }
+    ++frameCount_;
 }
 
 }

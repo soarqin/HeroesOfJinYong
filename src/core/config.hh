@@ -54,6 +54,8 @@ public:
     [[nodiscard]] bool noNameInput() const { return noNameInput_; }
     [[nodiscard]] const std::wstring &defaultName() const { return defaultName_; }
 
+    [[nodiscard]] bool showFPS() const { return showFPS_; }
+
 private:
     std::vector<std::string> dataPath_, fonts_;
     std::string musicPath_, soundPath_, savePath_;
@@ -66,6 +68,7 @@ private:
     float fadeSpeed_ = 1.f;
     bool noNameInput_ = false;
     std::wstring defaultName_;
+    bool showFPS_ = false;
 };
 
 extern Config config;

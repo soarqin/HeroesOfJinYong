@@ -63,6 +63,8 @@ static void leaveTeamMenu(Node *mainMenu);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
 
+static const char *GameWindowTitle = "Heroes of Jin Yong";
+
 Window::Window(int w, int h): width_(w), height_(h) {
     if (gWindow) {
         throw std::runtime_error("Duplicate window creation");
@@ -74,7 +76,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
         SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
     }
     SDL_GameControllerEventState(SDL_ENABLE);
-    auto *win = SDL_CreateWindow("Heroes of Jin Yong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
+    auto *win = SDL_CreateWindow(GameWindowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
     win_ = win;
     gWindow = this;
@@ -228,6 +230,14 @@ void Window::render() {
 
 void Window::flush() {
     renderer_->present();
+    if (core::config.showFPS()) {
+        static float lastFPS = 0.f;
+        float fps = renderer_->fps();
+        if (lastFPS != fps) {
+            SDL_SetWindowTitle(static_cast<SDL_Window *>(win_),
+                               fmt::format("{}     FPS: {}", GameWindowTitle, fps).c_str());
+        }
+    }
 }
 
 void Window::playMusic(int idx) {
