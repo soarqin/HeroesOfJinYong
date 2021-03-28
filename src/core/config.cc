@@ -88,6 +88,12 @@ bool Config::load(const std::string &filename) {
         fadeSpeed_ = ui["fade_speed"].value_or<float>(1.f);
         noNameInput_ = ui["no_name_input"].value_or<bool>(false);
     }
+    auto audio = tbl["audio"];
+    if (audio) {
+        sampleRate_ = audio["sample_rate"].value_or<int>(44100);
+        auto formatStr = audio["sample_format"].value_or<std::string>("I16");
+        sampleFormat_ = formatStr == "I32" ? 1 : (formatStr == "F32" ? 2 : 0);
+    }
     gResourceMgr.init();
     const auto &missingFiles = gResourceMgr.missingFiles();
     if (!missingFiles.empty()) {

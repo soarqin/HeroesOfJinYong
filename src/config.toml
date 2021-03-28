@@ -19,3 +19,8 @@ show_potential = true
 scale = 2.0
 animation_speed = 1.0
 fade_speed = 1.0
+
+[audio]
+sample_rate = 48000
+# I16 = sint16, I32 = sint32, F32 = float
+sample_format = "I16"

@@ -22,7 +22,7 @@
 #include "channel.hh"
 #include "channelmidi.hh"
 #include "channelwav.hh"
-
+#include "core/config.hh"
 #include <SDL.h>
 
 namespace hojy::audio {
@@ -42,9 +42,21 @@ void Mixer::init(int channels) {
     if (!SDL_WasInit(SDL_INIT_AUDIO)) {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
+    SDL_AudioFormat format;
+    switch (core::config.sampleFormat()) {
+    case 1:
+        format = AUDIO_S32;
+        break;
+    case 2:
+        format = AUDIO_F32;
+        break;
+    default:
+        format = AUDIO_S16;
+        break;
+    }
     SDL_AudioSpec desired = {
-        48000,
-        AUDIO_S16,
+        core::config.sampleRate(),
+        format,
         2,
         0,
         2048,
@@ -54,11 +66,13 @@ void Mixer::init(int channels) {
         this,
     };
     SDL_AudioSpec obtained;
-    audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    if (!(audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_SAMPLES_CHANGE))) {
+        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    }
     sampleRate_ = obtained.freq;
     format_ = obtained.format;
     channels_.resize(channels);
-    cache_.resize(obtained.size);
+    cache_.resize(desired.size);
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {

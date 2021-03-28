@@ -57,6 +57,9 @@ public:
     [[nodiscard]] bool showFPS() const { return showFPS_; }
     [[nodiscard]] int limitFPS() const { return limitFPS_; }
 
+    [[nodiscard]] int sampleRate() const { return sampleRate_; }
+    [[nodiscard]] int sampleFormat() const { return sampleFormat_; }
+
 private:
     std::vector<std::string> dataPath_, fonts_;
     std::string musicPath_, soundPath_, savePath_;
@@ -71,6 +74,8 @@ private:
     std::wstring defaultName_;
     bool showFPS_ = false;
     int limitFPS_ = 0;
+    int sampleRate_ = 0;
+    int sampleFormat_ = 0;
 };
 
 extern Config config;
