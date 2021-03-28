@@ -9,6 +9,7 @@ ship_logic_enabled = true
 [window]
 width = 640
 height = 480
+show_fps = false
 
 [ui]
 simplified_chinese = false
