@@ -29,13 +29,15 @@ public:
     ChannelWav(Mixer *mixer, const void *data, size_t size);
     ~ChannelWav() override;
 
+    virtual void load(const std::string &filename) override;
+
     void reset() override { pos_ = 0; }
 
 protected:
     size_t readPCMData(const void **data, size_t size) override;
 
 private:
-    void load();
+    void loadFromData();
 
 private:
     std::vector<std::uint8_t> cache_;

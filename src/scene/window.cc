@@ -34,8 +34,6 @@
 #include "statusview.hh"
 
 #include "audio/mixer.hh"
-#include "audio/channelmidi.hh"
-#include "audio/channelwav.hh"
 #include "data/factors.hh"
 #include "data/grpdata.hh"
 #include "data/event.hh"
@@ -253,7 +251,7 @@ void Window::playMusic(int idx) {
     if (playingMusic_ == idx) {
         return;
     }
-    audio::gMixer.repeatPlay(0, new audio::ChannelMIDI(&audio::gMixer, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx))));
+    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true);
     playingMusic_ = idx;
 }
 
@@ -263,12 +261,12 @@ void Window::playAtkSound(int idx) {
         playEffectSound(idx - 24);
         return;
     }
-    audio::gMixer.play(1, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx))));
+    audio::gMixer.play(1, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx)), false);
 }
 
 void Window::playEffectSound(int idx) {
     (void)this;
-    audio::gMixer.play(2, new audio::ChannelWav(&audio::gMixer, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx))));
+    audio::gMixer.play(2, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx)), false);
 }
 
 void Window::title() {

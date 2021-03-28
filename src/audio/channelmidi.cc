@@ -24,11 +24,11 @@
 namespace hojy::audio {
 
 ChannelMIDI::ChannelMIDI(Mixer *mixer, const std::string &filename) : Channel(mixer, filename) {
-    if (ok_) { load(); }
+    if (ok_) { loadFromData(); }
 }
 
 ChannelMIDI::ChannelMIDI(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
-    if (ok_) { load(); }
+    if (ok_) { loadFromData(); }
 }
 
 ChannelMIDI::~ChannelMIDI() {
@@ -36,6 +36,13 @@ ChannelMIDI::~ChannelMIDI() {
         adl_close(static_cast<ADL_MIDIPlayer*>(midiplayer_));
         midiplayer_ = nullptr;
     }
+}
+
+void ChannelMIDI::load(const std::string &filename) {
+    Channel::load(filename);
+    if (!ok_) { return; }
+    adl_reset(static_cast<ADL_MIDIPlayer*>(midiplayer_));
+    loadFromData();
 }
 
 void ChannelMIDI::reset() {
@@ -60,13 +67,15 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
     return res * sizeof(short);
 }
 
-void ChannelMIDI::load() {
-    midiplayer_ = adl_init(ADL_CHIP_SAMPLE_RATE);
+void ChannelMIDI::loadFromData() {
     if (!midiplayer_) {
-        ok_ = false;
-        return;
+        midiplayer_ = adl_init(ADL_CHIP_SAMPLE_RATE);
+        if (!midiplayer_) {
+            ok_ = false;
+            return;
+        }
+        adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_DOSBOX);
     }
-    adl_switchEmulator(static_cast<ADL_MIDIPlayer*>(midiplayer_), ADLMIDI_EMU_DOSBOX);
     if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
         ok_ = false;
         return;

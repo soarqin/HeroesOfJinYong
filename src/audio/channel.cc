@@ -20,15 +20,36 @@
 #include "channel.hh"
 
 #include <util/file.hh>
+#include <map>
 
 namespace hojy::audio {
 
-Channel::Channel(Mixer *mixer, const std::string &filename): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()), ok_(util::File::getFileContent(filename, data_)) {
+static std::map<std::string, std::vector<std::uint8_t>> dataCache_;
+static const std::vector<std::uint8_t> &loadDataFromCacheOrFile(const std::string &filename) {
+    auto &data = dataCache_[filename];
+    if (!data.empty()) {
+        return data;
+    }
+    if (util::File::getFileContent(filename, data)) {
+        return data;
+    }
+    static std::vector<std::uint8_t> dummy;
+    return dummy;
+}
+
+Channel::Channel(Mixer *mixer, const std::string &filename): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()), data_(loadDataFromCacheOrFile(filename)), ok_(!data_.empty()) {
 }
 
 Channel::Channel(Mixer *mixer, const void *data, size_t size): sampleRateOut_(mixer->sampleRate()), typeOut_(mixer->dataType()), ok_(size > 0) {
     data_.resize(size);
     memcpy(data_.data(), data, size);
+}
+
+void Channel::load(const std::string &filename) {
+    resampler_.reset();
+    data_.clear();
+    data_ = loadDataFromCacheOrFile(filename);
+    ok_ = !data_.empty();
 }
 
 size_t Channel::readData(void *data, size_t size) {

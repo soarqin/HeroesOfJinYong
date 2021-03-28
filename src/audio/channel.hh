@@ -38,6 +38,8 @@ public:
     Channel(const Channel&) = delete;
     Channel(Channel&&) noexcept = default;
 
+    virtual void load(const std::string &filename);
+
     size_t readData(void *data, size_t size);
     void start();
 

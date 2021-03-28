@@ -20,6 +20,8 @@
 #include "mixer.hh"
 
 #include "channel.hh"
+#include "channelmidi.hh"
+#include "channelwav.hh"
 
 #include <SDL.h>
 
@@ -76,6 +78,64 @@ void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, doubl
     } else {
         channels_[channelId] = {nullptr, VolumeMax};
     }
+}
+
+bool iequals(const std::string &a, const std::string &b) {
+    return std::equal(a.begin(), a.end(),
+                      b.begin(), b.end(),
+                      [](unsigned char a, unsigned char b) {
+                          return std::toupper(a) == std::toupper(b);
+                      });
+}
+
+void Mixer::play(size_t channelId, const std::string &filename, bool repeat, int volume, double fadeIn, double fadeOut) {
+    /* TODO: implement fade in/out */
+    (void)fadeIn; (void)fadeOut;
+    if (channelId >= channels_.size()) {
+        return;
+    }
+    std::scoped_lock lk(playMutex_);
+    auto pos = filename.find_last_of('.');
+    if (pos == std::string::npos) {
+        return;
+    }
+    auto ext = filename.substr(pos + 1);
+    int type = -1;
+    if (iequals(ext, "MID") || iequals(ext, "XMI")) {
+        type = 0;
+        if (!dynamic_cast<ChannelMIDI*>(channels_[channelId].ch.get())) {
+            channels_[channelId].ch.reset();
+        }
+    } else if (iequals(ext, "WAV")) {
+        type = 1;
+        if (!dynamic_cast<ChannelWav*>(channels_[channelId].ch.get())) {
+            channels_[channelId].ch.reset();
+        }
+    }
+    if (!channels_[channelId].ch) {
+        Channel *ch;
+        switch (type) {
+        case 0:
+            ch = new(std::nothrow) ChannelMIDI(this, filename);
+            break;
+        case 1:
+            ch = new(std::nothrow) ChannelWav(this, filename);
+            break;
+        default:
+            return;
+        }
+        if (!ch) { return; }
+        if (!ch->ok()) {
+            delete ch;
+            return;
+        }
+        channels_[channelId] = {std::unique_ptr<Channel>(ch), volume};
+    } else {
+        channels_[channelId].ch->load(filename);
+        channels_[channelId].volume = volume;
+    }
+    channels_[channelId].ch->setRepeat(repeat);
+    channels_[channelId].ch->start();
 }
 
 void Mixer::repeatPlay(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {

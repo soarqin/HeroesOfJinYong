@@ -51,6 +51,7 @@ public:
     void init(int channels);
 
     void play(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
+    void play(size_t channelId, const std::string &filename, bool repeat, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
     void repeatPlay(size_t channelId, Channel *ch, int volume = VolumeMax, double fadeIn = 0., double fadeOut = 0.);
     void pause(bool on) const;
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }

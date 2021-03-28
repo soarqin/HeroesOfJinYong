@@ -29,6 +29,7 @@ public:
     ChannelMIDI(Mixer *mixer, const void *data, size_t size);
     ~ChannelMIDI() override;
 
+    void load(const std::string &filename) override;
     void reset() override;
     void setRepeat(bool r) override;
 
@@ -36,7 +37,7 @@ protected:
     size_t readPCMData(const void **data, size_t size) override;
 
 private:
-    void load();
+    void loadFromData();
 
 private:
     void *midiplayer_ = nullptr;
