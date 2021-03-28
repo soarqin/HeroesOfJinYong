@@ -21,6 +21,7 @@
 
 #include "window.hh"
 #include "mask.hh"
+#include "menu.hh"
 #include "data/event.hh"
 #include "mem/action.hh"
 #include "mem/savedata.hh"
@@ -33,6 +34,21 @@ namespace hojy::scene {
 
 std::int16_t MapWithEvent::extendedRAMBlock_[0x10000] = {};
 std::int16_t *MapWithEvent::extendedRAM_ = extendedRAMBlock_ + 0x8000;
+
+enum {
+    OrigWidth = 320,
+    OrigHeight = 200,
+};
+
+inline void transformOffset(std::int16_t &x, std::int16_t &y, int ww, int wh) {
+    int w = ww, h = ww * OrigHeight / OrigWidth;
+    if (h > wh) {
+        h = wh;
+        w = wh * OrigWidth / OrigHeight;
+    }
+    x = (ww - w) / 2 + w * x / OrigWidth;
+    y = (wh - h) / 2 + h * y / OrigHeight;
+}
 
 template <class R, class... Args>
 constexpr auto argCounter(std::function<R(Args...)>) {
@@ -1504,7 +1520,16 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         for (int i = 0; i < n0; i++) {
             strs.emplace_back(util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v3 + i])));
         }
-        /* TODO: show menu and store selected index + 1 to extendedRAM_[v4](0 for esc pressed) */
+        transformOffset(n1, n2, gWindow->width(), gWindow->height());
+        auto *menu = new MenuTextList(map, n1, n2, gWindow->width() - n1, gWindow->height() - n2);
+        menu->setHandler([v4, menu]() {
+            extendedRAM_[v4] = menu->currIndex() + 1;
+            delete menu;
+        }, [v4]() {
+            extendedRAM_[v4] = 0;
+            return true;
+        });
+        menu->popup(strs);
         break;
     }
     case 41: {

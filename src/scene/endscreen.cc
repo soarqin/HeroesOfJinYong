@@ -25,6 +25,11 @@
 
 namespace hojy::scene {
 
+enum {
+    OrigWidth = 320,
+    OrigHeight = 200,
+};
+
 void EndScreen::init() {
     data::GrpData::DataSet dset;
     if (data::GrpData::loadData("ENDWORD.IDX", "ENDWORD.GRP", dset)) {
@@ -36,7 +41,7 @@ void EndScreen::init() {
     if (data::GrpData::loadData("KEND.IDX", "KEND.GRP", dset)) {
         imgTexMgr_.setRenderer(renderer_);
         imgTexMgr_.setPalette(gEndPalette);
-        imgTexMgr_.loadFromRAW(dset, 320, 200);
+        imgTexMgr_.loadFromRAW(dset, OrigWidth, OrigHeight);
     }
     stage_ = 0, frame_ = 0;
     frameTotal_ = 60;
@@ -119,11 +124,10 @@ void EndScreen::makeCache() {
         renderer_->enableLinear(false);
     }
     cacheBegin();
-    const int width = 320, height = 200;
-    int w = width_, h = width_ * height / width;
+    int w = width_, h = width_ * OrigHeight / OrigWidth;
     if (h > height_) {
         h = height_;
-        w = height_ * width / height;
+        w = height_ * OrigWidth / OrigHeight;
     }
     int x = (width_ - w) / 2;
     int y = (height_ - h) / 2;
@@ -132,7 +136,7 @@ void EndScreen::makeCache() {
     case 0: {
         const auto *tex = wordTexMgr_[0];
         tw_ = tex->width(), th_ = tex->height();
-        w_ = tw_ * w / 320, h_ = th_ * h / 200;
+        w_ = tw_ * w / OrigWidth, h_ = th_ * h / OrigHeight;
         x_ = x + (w - w_) / 2;
         y_ = y + (h - h_) / 2;
         renderer_->renderTexture(tex, 0, 0);
@@ -147,8 +151,8 @@ void EndScreen::makeCache() {
             cy += 15 + tex->height();
         }
         th_ = cy;
-        w_ = tw_ * w / 320;
-        h_ = th_ * h / 200;
+        w_ = tw_ * w / OrigWidth;
+        h_ = th_ * h / OrigHeight;
         x_ = x + (w - w_) / 2;
         break;
     }
@@ -159,8 +163,8 @@ void EndScreen::makeCache() {
         y_ = y;
         w_ = w;
         h_ = h;
-        tw_ = 320;
-        th_ = 200;
+        tw_ = OrigWidth;
+        th_ = OrigHeight;
         break;
     }
     case 3: {
@@ -175,10 +179,10 @@ void EndScreen::makeCache() {
         }
         cy -= 85;
         th_ = cy;
-        w_ = tw_ * w / 320;
-        h_ = th_ * h / 200;
+        w_ = tw_ * w / OrigWidth;
+        h_ = th_ * h / OrigHeight;
         x_ = x + (w - w_) / 2;
-        frameTotal_ = (h_ + (height_ - lh * h / 200) / 2) / 2;
+        frameTotal_ = (h_ + (height_ - lh * h / OrigHeight) / 2) / 2;
         break;
     }
     }
