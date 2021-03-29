@@ -21,6 +21,7 @@
 
 #include "window.hh"
 #include "mem/strings.hh"
+#include "core/config.hh"
 
 namespace hojy::scene {
 
@@ -123,7 +124,8 @@ void Menu::handleKeyInput(Key key) {
 
 void Menu::makeCache() {
     auto *ttf = renderer_->ttf();
-    int x = SubWindowBorder, y = SubWindowBorder, h, w = 0, wfill = 0, x2 = 0, w2 = 0;
+    auto windowBorder = core::config.windowBorder();
+    int x = windowBorder, y = windowBorder, h, w = 0, wfill = 0, x2 = 0, w2 = 0;
     auto lines = int(items_.size());
     auto fontSize = ttf->fontSize();
     auto rowHeight = fontSize + TextLineSpacing;
@@ -133,10 +135,10 @@ void Menu::makeCache() {
         for (auto &s: items_) {
             auto sw = ttf->stringWidth(s);
             itemsOff.emplace_back(std::make_pair(w, sw));
-            w += sw + SubWindowBorder;
+            w += sw + windowBorder;
         }
-        w += SubWindowBorder;
-        h = rowHeight * (title_.empty() ? 1 : 2) + SubWindowBorder * 2 - TextLineSpacing;
+        w += windowBorder;
+        h = rowHeight * (title_.empty() ? 1 : 2) + windowBorder * 2 - TextLineSpacing;
     } else {
         for (auto &s: items_) {
             auto sw = ttf->stringWidth(s);
@@ -144,12 +146,12 @@ void Menu::makeCache() {
         }
         if (!values_.empty()) {
             drawValue = true;
-            x2 = x + w + SubWindowBorder;
+            x2 = x + w + windowBorder;
             for (auto &s: values_) {
                 auto sw = ttf->stringWidth(s);
                 w2 = std::max(w2, sw);
             }
-            w += w2 + SubWindowBorder;
+            w += w2 + windowBorder;
         }
         auto totalLines = lines;
         if (!title_.empty()) {
@@ -163,16 +165,16 @@ void Menu::makeCache() {
             x2 += checkBoxW;
             w += checkBoxW;
         }
-        w += SubWindowBorder * 2;
-        h = rowHeight * totalLines + SubWindowBorder * 2 - TextLineSpacing;
+        w += windowBorder * 2;
+        h = rowHeight * totalLines + windowBorder * 2 - TextLineSpacing;
     }
     width_ = w;
     height_ = h;
 
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
-    renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
+    renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
     if (!title_.empty()) {
         ttf->setColor(236, 200, 40);
         ttf->render(title_, x, y, true);
@@ -197,7 +199,7 @@ void Menu::makeCache() {
                 ttf->setColor(252, 148, 16);
             }
             if (checkbox_ && i < selected_.size() && selected_[i]) {
-                ttf->render(L"*", SubWindowBorder, y, true);
+                ttf->render(L"*", windowBorder, y, true);
             }
             ttf->render(items_[i], x, y, true);
             if (drawValue) {

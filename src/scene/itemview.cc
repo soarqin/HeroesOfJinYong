@@ -23,6 +23,7 @@
 #include "charlistmenu.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
+#include "core/config.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -32,6 +33,7 @@ enum {
 };
 
 void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc) {
+    auto windowBorder = core::config.windowBorder();
     inBattle_ = inBattle;
     resultFunc_ = resultFunc;
     for (auto &p: mem::gBag.items()) {
@@ -49,10 +51,10 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
     scale_ = std::max(1, std::min(scale0, scale1));
     cellWidth_ = tex->width() * scale_;
     cellHeight_ = tex->height() * scale_;
-    cols_ = (width_ + ItemCellSpacing - SubWindowBorder * 2) / (cellWidth_ + ItemCellSpacing);
-    rows_ = (height_ + ItemCellSpacing - SubWindowBorder * 2) / (cellHeight_ + ItemCellSpacing);
-    width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + SubWindowBorder * 2;
-    height_ = (cellHeight_ + ItemCellSpacing) * rows_ - ItemCellSpacing + SubWindowBorder * 2;
+    cols_ = (width_ + ItemCellSpacing - windowBorder * 2) / (cellWidth_ + ItemCellSpacing);
+    rows_ = (height_ + ItemCellSpacing - windowBorder * 2) / (cellHeight_ + ItemCellSpacing);
+    width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + windowBorder * 2;
+    height_ = (cellHeight_ + ItemCellSpacing) * rows_ - ItemCellSpacing + windowBorder * 2;
 }
 
 void ItemView::handleKeyInput(Node::Key key) {
@@ -255,10 +257,11 @@ MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::m
 
 void ItemView::makeCache() {
     cacheBegin();
+    auto windowBorder = core::config.windowBorder();
     renderer_->clear(0, 0, 0, 0);
-    renderer_->fillRoundedRect(0, 0, width_, height_, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, width_, height_, RoundedRectRad, 224, 224, 224, 255);
-    int x, y = SubWindowBorder;
+    renderer_->fillRoundedRect(0, 0, width_, height_, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, width_, height_, windowBorder, 224, 224, 224, 255);
+    int x, y = windowBorder;
     int idx = currTop_ * cols_;
     auto totalSz = int(items_.size());
     if (idx >= totalSz) {
@@ -269,11 +272,12 @@ void ItemView::makeCache() {
     int smallFontSize = (ttf->fontSize() * 2 / 3 + 1) & ~1;
     const auto &mgr = gWindow->mapTextureMgr();
     ttf->setColor(236, 236, 236);
+    auto tw = cellWidth_ / scale_, th = cellHeight_ / scale_;
     for (int j = rows_; j && idx < totalSz; --j) {
-        x = SubWindowBorder;
+        x = windowBorder;
         for (int i = cols_; i && idx < totalSz; --i, ++idx) {
             auto *tex = mgr[items_[idx].first + data::ItemTexIdStart];
-            renderer_->renderTexture(tex, x, y, cellWidth_, cellHeight_, 0, 0, cellWidth_ / 2, cellHeight_ / 2, true);
+            renderer_->renderTexture(tex, x, y, cellWidth_, cellHeight_, 0, 0, tw, th, true);
             auto countStr = std::to_wstring(items_[idx].second);
             int countw = ttf->stringWidth(countStr, smallFontSize);
             ttf->render(countStr, x + cellWidth_ - countw - 4 * scale_, y + cellHeight_ - smallFontSize - 4 * scale_, true, smallFontSize);
@@ -302,20 +306,20 @@ void ItemView::makeCache() {
         }
         auto lineheight = ttf->fontSize() + TextLineSpacing;
         int dx, dy;
-        dx = SubWindowBorder;
+        dx = windowBorder;
         if (currSel_ / cols_ * 2 < rows_) {
             /* draw on bottom side */
-            dy = height_ - SubWindowBorder * 3 - lineheight * 2 + TextLineSpacing;
+            dy = height_ - windowBorder * 3 - lineheight * 2 + TextLineSpacing;
         } else {
             /* draw on top side */
-            dy = SubWindowBorder;
+            dy = windowBorder;
         }
-        int dw = width_ - SubWindowBorder * 2, dh = SubWindowBorder * 2 + lineheight * 2 - TextLineSpacing;
-        renderer_->fillRoundedRect(dx, dy, dw, dh, RoundedRectRad, 64, 64, 64, 208);
-        renderer_->drawRoundedRect(dx, dy, dw, dh, RoundedRectRad, 224, 224, 224, 255);
-        dx += SubWindowBorder;
-        dy += SubWindowBorder;
-        dw -= SubWindowBorder * 2;
+        int dw = width_ - windowBorder * 2, dh = windowBorder * 2 + lineheight * 2 - TextLineSpacing;
+        renderer_->fillRoundedRect(dx, dy, dw, dh, windowBorder, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(dx, dy, dw, dh, windowBorder, 224, 224, 224, 255);
+        dx += windowBorder;
+        dy += windowBorder;
+        dw -= windowBorder * 2;
         ttf->setColor(236, 200, 40);
         if (itemInfo->user < 0 || mem::gSaveData.charInfo[itemInfo->user] == nullptr) {
             ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
@@ -326,9 +330,9 @@ void ItemView::makeCache() {
         ttf->setColor(252, 148, 16);
         ttf->render(desc, dx + (dw - ttf->stringWidth(desc)) / 2, dy, true);
     }
-    int sx = SubWindowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
-    int sy = SubWindowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
-    renderer_->drawRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 252, 252, 252, 255);
+    int sx = windowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
+    int sy = windowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
+    renderer_->drawRoundedRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 2, 252, 252, 252, 255);
     cacheEnd();
 }
 

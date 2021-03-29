@@ -30,6 +30,7 @@
 #include "data/warfielddata.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
+#include "core/config.hh"
 #include "util/random.hh"
 #include <fmt/format.h>
 #include <map>
@@ -1100,8 +1101,8 @@ void Warfield::playerMenu() {
                     items.emplace_back(GETSKILLNAME(skillId));
                 }
                 if (!items.empty()) {
-                    auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + 10, 40,
-                                                     width_ - menu->x() + menu->width() - 10, height_ - 80);
+                    auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + core::config.windowBorder(), 40,
+                                                     width_ - menu->x() + menu->width() - core::config.windowBorder(), height_ - 80);
                     submenu->popup(items);
                     submenu->setHandler([this, menu, submenu, indices]() {
                         if (tryUseSkill(indices[submenu->currIndex()])) {

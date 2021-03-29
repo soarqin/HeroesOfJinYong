@@ -31,11 +31,6 @@
 
 namespace hojy::scene {
 
-enum {
-    SubWindowBorder = 10,
-    RoundedRectRad = 10,
-};
-
 class Window final {
 public:
     Window(int w, int h);

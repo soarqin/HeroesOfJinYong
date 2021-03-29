@@ -22,6 +22,7 @@
 #include "texture.hh"
 #include "menu.hh"
 #include "window.hh"
+#include "core/config.hh"
 
 namespace hojy::scene {
 
@@ -66,9 +67,10 @@ void MessageBox::handleKeyInput(Node::Key key) {
 void MessageBox::makeCache() {
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
+    auto windowBorder = core::config.windowBorder();
 
     std::vector<std::wstring> lines;
-    size_t widthMax = width_ - SubWindowBorder * 2;
+    size_t widthMax = width_ - windowBorder * 2;
     int textW = 0, textH;
     for (auto &l: text_) {
         size_t w = 0;
@@ -92,8 +94,8 @@ void MessageBox::makeCache() {
             lines.emplace_back(l.substr(idx));
         }
     }
-    textW += SubWindowBorder * 2;
-    textH = rowHeight * int(lines.size()) + SubWindowBorder * 2 - TextLineSpacing;
+    textW += windowBorder * 2;
+    textH = rowHeight * int(lines.size()) + windowBorder * 2 - TextLineSpacing;
     if (align_ == Center) {
         x_ += (width_ - textW) / 2;
         y_ += (height_ - textH) / 2;
@@ -103,10 +105,10 @@ void MessageBox::makeCache() {
 
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
-    int x = SubWindowBorder;
-    int y = SubWindowBorder;
-    renderer_->fillRoundedRect(0, 0, textW, textH, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, textW, textH, RoundedRectRad, 224, 224, 224, 255);
+    int x = windowBorder;
+    int y = windowBorder;
+    renderer_->fillRoundedRect(0, 0, textW, textH, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, textW, textH, windowBorder, 224, 224, 224, 255);
     ttf->setColor(236, 200, 40);
     for (auto &l: lines) {
         ttf->render(l, x, y, true);

@@ -198,6 +198,7 @@ void Title::makeCache() {
         break;
     }
     case 3: {
+        auto windowBorder = core::config.windowBorder();
         auto ttf = renderer_->ttf();
         int lineheight = ttf->fontSize() + TextLineSpacing;
         y = height_ - lineheight * 6;
@@ -230,8 +231,8 @@ void Title::makeCache() {
         }
         cacheEnd();
         if (mode_ == 3 && menu_ == nullptr) {
-            int mx = ox + ttf->stringWidth(askText) + SubWindowBorder + 10;
-            int my = oy - SubWindowBorder;
+            int mx = ox + ttf->stringWidth(askText) + windowBorder * 2;
+            int my = oy - windowBorder;
             auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
             menu->enableHorizonal(true);
             menu->popupWithYesNo();

@@ -21,6 +21,7 @@
 
 #include "colorpalette.hh"
 #include "window.hh"
+#include "core/config.hh"
 
 namespace hojy::scene {
 
@@ -71,10 +72,11 @@ void ExtendedNode::handleKeyInput(Node::Key key) {
 void ExtendedNode::makeCache() {
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
+    auto windowBorder = core::config.windowBorder();
     for (auto &p: boxlist_) {
         int x0, y0, w, h;
         std::tie(x0, y0, w, h) = p;
-        renderer_->drawRoundedRect(x0, y0, w, h, RoundedRectRad, 224, 224, 224, 255);
+        renderer_->drawRoundedRect(x0, y0, w, h, windowBorder, 224, 224, 224, 255);
     }
     auto *ttf = renderer_->ttf();
     for (auto &p: textlist_) {

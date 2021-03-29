@@ -23,7 +23,7 @@
 #include "window.hh"
 #include "mem/strings.hh"
 #include "mem/savedata.hh"
-
+#include "core/config.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -184,7 +184,7 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
         msgBox_ = msgBox;
         msgBox->popup(title, MessageBox::Normal, MessageBox::TopLeft);
         msgBox->forceUpdate();
-        y_ += msgBox->height() + 10;
+        y_ += msgBox->height() + core::config.windowBorder();
     }
     std::vector<std::wstring> names, values;
     listNamesFromTypeList(charIdList_, valueTypes, names, values);
@@ -240,7 +240,7 @@ void CharListMenu::makeCenter(int w, int h, int x, int y) {
     NodeWithCache::makeCenter(w, h, x, y);
     if (msgBox_) {
         msgBox_->setPosition(x_, y_);
-        y_ += msgBox_->height() + 10;
+        y_ += msgBox_->height() + core::config.windowBorder();
     }
 }
 

@@ -21,6 +21,7 @@
 
 #include "texture.hh"
 #include "window.hh"
+#include "core/config.hh"
 
 namespace hojy::scene {
 
@@ -30,6 +31,7 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     std::wstring line;
     std::vector<std::wstring> lines;
     size_t tlen = text.length();
+    auto windowBorder = core::config.windowBorder();
     while (idx < tlen) {
         auto pos = text.find(L'*', idx);
         if (pos == std::wstring::npos) {
@@ -68,11 +70,11 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     headTex_ = (position != 2 && position != 3 && headId >= 0) ? gWindow->headTexture(headId) : nullptr;
     int headW = 0;
     if (headTex_) {
-        headW = headTex_->width() * 2 + SubWindowBorder * 2;
+        headW = headTex_->width() * 2 + windowBorder * 2;
     }
 
     auto *ttf = renderer_->ttf();
-    size_t widthMax = width_ - headW - 10 - SubWindowBorder * 2;
+    size_t widthMax = width_ - headW - windowBorder * 3;
     for (auto &l: lines) {
         size_t len = l.length();
         if (!len) {
@@ -106,7 +108,7 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
         }
     }
     index_ = 0;
-    dispLines_ = (height_ * 2 / 5 - SubWindowBorder * 2 + TextLineSpacing) / (ttf->fontSize() + TextLineSpacing);
+    dispLines_ = (height_ * 2 / 5 - windowBorder * 2 + TextLineSpacing) / (ttf->fontSize() + TextLineSpacing);
     if (dispLines_ > text_.size()) { dispLines_ = text_.size(); }
 
     position_ = position;
@@ -138,21 +140,22 @@ void TalkBox::makeCache() {
     int rowHeight;
     int headX, headY, headW = 0, headH = 0;
     int textX, textY, textW, textH;
+    auto windowBorder = core::config.windowBorder();
 
     if (headTex_) {
-        headW = headTex_->width() * 2 + SubWindowBorder * 2;
-        headH = headTex_->height() * 2 + SubWindowBorder * 2 - TextLineSpacing;
+        headW = headTex_->width() * 2 + windowBorder * 2;
+        headH = headTex_->height() * 2 + windowBorder * 2 - TextLineSpacing;
     }
     auto *ttf = renderer_->ttf();
     rowHeight = ttf->fontSize() + TextLineSpacing;
     if (headTex_) {
-        textW = width_ - headW - 10;
+        textW = width_ - headW - windowBorder;
     } else {
         textW = width_;
     }
     auto sz = int(text_.size());
     auto lines = index_ + dispLines_ > sz ? sz - index_ : dispLines_;
-    textH = rowHeight * lines + SubWindowBorder * 2 - TextLineSpacing;
+    textH = rowHeight * lines + windowBorder * 2 - TextLineSpacing;
     if (position_ % 2) {
         if (headTex_) {
             headY = height_ - headH;
@@ -172,7 +175,7 @@ void TalkBox::makeCache() {
     } else {
         if (headTex_) {
             headX = 0;
-            textX = headW + 10;
+            textX = headW + windowBorder;
         } else {
             textX = 0;
         }
@@ -181,15 +184,15 @@ void TalkBox::makeCache() {
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
     if (headTex_) {
-        renderer_->fillRoundedRect(headX, headY, headW, headH, RoundedRectRad, 64, 64, 64, 208);
-        renderer_->drawRoundedRect(headX, headY, headW, headH, RoundedRectRad, 224, 224, 224, 255);
-        renderer_->renderTexture(headTex_, headX + SubWindowBorder, headY + SubWindowBorder, std::make_pair(2, 1), true);
+        renderer_->fillRoundedRect(headX, headY, headW, headH, windowBorder, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(headX, headY, headW, headH, windowBorder, 224, 224, 224, 255);
+        renderer_->renderTexture(headTex_, headX + windowBorder, headY + windowBorder, std::make_pair(2, 1), true);
     }
 
-    int x = SubWindowBorder + textX;
-    int y = SubWindowBorder + textY;
-    renderer_->fillRoundedRect(textX, textY, textW, textH, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(textX, textY, textW, textH, RoundedRectRad, 224, 224, 224, 255);
+    int x = windowBorder + textX;
+    int y = windowBorder + textY;
+    renderer_->fillRoundedRect(textX, textY, textW, textH, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(textX, textY, textW, textH, windowBorder, 224, 224, 224, 255);
     ttf->setColor(220, 220, 220);
     for (size_t i = dispLines_, idx = index_; i && idx < sz; --i, ++idx, y += rowHeight) {
         ttf->render(text_[idx], x, y, true);

@@ -79,16 +79,12 @@ void Renderer::clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_
 
 void Renderer::fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
     auto *ren = static_cast<SDL_Renderer*>(renderer_);
-    SDL_SetRenderDrawColor(ren, r, g, b, a);
-    SDL_Rect rc {x, y, w, h};
-    SDL_RenderFillRect(ren, &rc);
+    boxRGBA(ren, x, y, x + w - 1, y + h - 1, r, g, b, a);
 }
 
 void Renderer::drawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
     auto *ren = static_cast<SDL_Renderer*>(renderer_);
-    SDL_SetRenderDrawColor(ren, r, g, b, a);
-    SDL_Rect rc {x, y, w, h};
-    SDL_RenderDrawRect(ren, &rc);
+    rectangleRGBA(ren, x, y, x + w - 1, y + h - 1, r, g, b, a);
 }
 
 void Renderer::fillRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {

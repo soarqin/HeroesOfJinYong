@@ -55,19 +55,20 @@ void StatusView::makeCache() {
     auto *ttf = renderer_->ttf();
     auto fontSize = ttf->fontSize();
     auto lineheight = fontSize + TextLineSpacing;
-    int x0 = SubWindowBorder;
+    auto windowBorder = core::config.windowBorder();
+    int x0 = windowBorder;
     int x1 = x0 + fontSize * 5 / 2;
     if (simpleMode_) {
-        int w = x1 + fontSize * 9 / 2 + SubWindowBorder;
-        int h = SubWindowBorder * 2 + lineheight * 8 - TextLineSpacing;
+        int w = x1 + fontSize * 9 / 2 + windowBorder;
+        int h = windowBorder * 2 + lineheight * 8 - TextLineSpacing;
         width_ = w;
         height_ = h;
 
         cacheBegin();
         renderer_->clear(0, 0, 0, 0);
-        renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
-        renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
-        int y = SubWindowBorder;
+        renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
+        int y = windowBorder;
         const auto *headTex = gWindow->headTexture(data_.headId);
         if (headTex) {
             auto height = headTex->height();
@@ -110,21 +111,21 @@ void StatusView::makeCache() {
         cacheEnd();
         return;
     }
-    int x2 = x1 + fontSize * 9 / 2 + SubWindowBorder;
+    int x2 = x1 + fontSize * 9 / 2 + windowBorder;
     int x3 = x2 + fontSize * 9 / 2;
-    int x4 = x3 + fontSize * 2 + SubWindowBorder;
+    int x4 = x3 + fontSize * 2 + windowBorder;
     int x5 = x4 + fontSize * 5;
-    int w = x5 + fontSize * 3 / 2 + SubWindowBorder;
+    int w = x5 + fontSize * 3 / 2 + windowBorder;
     bool showPotential = core::config.showPotential();
-    int h = SubWindowBorder * 2 + lineheight * 15 - TextLineSpacing;
+    int h = windowBorder * 2 + lineheight * 15 - TextLineSpacing;
     width_ = w;
     height_ = h;
 
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
-    renderer_->fillRoundedRect(0, 0, w, h, RoundedRectRad, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, w, h, RoundedRectRad, 224, 224, 224, 255);
-    int y = SubWindowBorder;
+    renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
+    int y = windowBorder;
     const auto *headTex = gWindow->headTexture(data_.headId);
     if (headTex) {
         auto height = headTex->height();
@@ -221,7 +222,7 @@ void StatusView::makeCache() {
             ttf->render(fmt::format(L"\2{:>5}", data_.reputation), x1, y, true);
         }
     }
-    y = SubWindowBorder;
+    y = windowBorder;
     ttf->render(L"\3" + GETTEXT(30), x4, y, true);
     std::int16_t learningSkillId = -1, learningLevel = 0;
     if (data_.learningItem >= 0) {
@@ -237,7 +238,7 @@ void StatusView::makeCache() {
             learningLevel = level;
         }
     }
-    y = SubWindowBorder + lineheight * 12;
+    y = windowBorder + lineheight * 12;
     ttf->render(L"\3" + GETTEXT(31), x2, y, true); ttf->render(L"\3" + GETTEXT(32), x4, y, true);
     y += lineheight;
     if (data_.equip[0] >= 0) {

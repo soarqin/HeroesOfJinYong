@@ -86,6 +86,7 @@ bool Config::load(const std::string &filename) {
         scale_ = util::calcSmallestDivision(scale);
         animationSpeed_ = ui["animation_speed"].value_or<float>(1.f);
         fadeSpeed_ = ui["fade_speed"].value_or<float>(1.f);
+        windowBorder_ = ui["window_border"].value_or<int>(8);
         noNameInput_ = ui["no_name_input"].value_or<bool>(false);
     }
     auto audio = tbl["audio"];

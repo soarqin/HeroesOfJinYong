@@ -594,7 +594,7 @@ void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::
 }
 
 static void medicMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(53)}, {CharListMenu::MEDIC},
@@ -606,8 +606,8 @@ static void medicMenu(Node *mainMenu) {
 }
 
 static void medicTargetMenu(Node *mainMenu, std::int16_t charId) {
-    auto x = mainMenu->x() + mainMenu->width() + 30;
-    auto y = mainMenu->y() + 20;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder() * 3;
+    auto y = mainMenu->y() +  + core::config.windowBorder() * 2;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(54)}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
@@ -619,7 +619,7 @@ static void medicTargetMenu(Node *mainMenu, std::int16_t charId) {
 }
 
 static void depoisonMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::DEPOISON},
@@ -631,8 +631,8 @@ static void depoisonMenu(Node *mainMenu) {
 }
 
 static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
-    auto x = mainMenu->x() + mainMenu->width() + 30;
-    auto y = mainMenu->y() + 20;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder() * 3;
+    auto y = mainMenu->y() + core::config.windowBorder() * 2;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(57)}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
@@ -644,7 +644,7 @@ static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
 }
 
 static void showItems(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - 40, gWindow->height() - y - 40);
     iv->show(false, [](std::int16_t itemId) {
@@ -653,7 +653,7 @@ static void showItems(Node *mainMenu) {
 }
 
 static void statusMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(59)}, {CharListMenu::LEVEL},
@@ -663,14 +663,14 @@ static void statusMenu(Node *mainMenu) {
 }
 
 static void showCharStatus(Node *parent, std::int16_t charId) {
-    auto x = parent->x() + parent->width() + SubWindowBorder;
+    auto x = parent->x() + parent->width() + core::config.windowBorder();
     auto y = parent->y();
     auto *sv = new StatusView(parent, x, y, gWindow->width() - x, gWindow->height() - y);
     sv->show(charId);
 }
 
 static void leaveTeamMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(60)}, {CharListMenu::LEVEL},
@@ -690,12 +690,12 @@ static void leaveTeamMenu(Node *mainMenu) {
 }
 
 static void systemMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + 10;
+    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     subMenu->popup({GETTEXT(62), GETTEXT(63), GETTEXT(64)});
     subMenu->forceUpdate();
-    x += subMenu->width() + 10;
+    x += subMenu->width() + core::config.windowBorder();
     subMenu->setHandler([mainMenu, subMenu, x, y]() {
         switch (subMenu->currIndex()) {
         case 0:

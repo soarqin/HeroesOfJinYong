@@ -51,6 +51,7 @@ public:
     [[nodiscard]] std::pair<int, int> scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
+    [[nodiscard]] int windowBorder() const { return windowBorder_; }
     [[nodiscard]] bool noNameInput() const { return noNameInput_; }
     [[nodiscard]] const std::wstring &defaultName() const { return defaultName_; }
 
@@ -70,6 +71,7 @@ private:
     std::pair<int, int> scale_ = {2, 1};
     float animationSpeed_ = 1.f;
     float fadeSpeed_ = 1.f;
+    int windowBorder_ = 8;
     bool noNameInput_ = false;
     std::wstring defaultName_;
     bool showFPS_ = false;
