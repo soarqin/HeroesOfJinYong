@@ -1598,8 +1598,9 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
     case 48: {
         std::int16_t nend = v1 + v2;
         for (std::int16_t i = v1; i < nend; ++i) {
-            fmt::print("RAM[0x{:04X}] = {}\n", i, extendedRAM_[i]);
+            fmt::print(stdout, "RAM[0x{:04X}] = {}\n", i, extendedRAM_[i]);
         }
+        fflush(stdout);
         break;
     }
     case 52: {
