@@ -153,14 +153,13 @@ void GlobalMap::render() {
         int camX = cameraX_, camY = cameraY_;
         int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
         int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
-        int cx = (nx / cellDiffX + ny / cellDiffY) / 2;
-        int cy = (ny / cellDiffY - nx / cellDiffX) / 2;
+        int ocx = (nx / cellDiffX + ny / cellDiffY) / 2;
+        int ocy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
         int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
-        int tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        int ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
-        int charXplusY = currX_ + currY_;
-        cx = camX - cx; cy = camY - cy;
+        int otx = int(auxWidth_) / 2 - (ocx - ocy) * cellDiffX;
+        int oty = int(auxHeight_) / 2 + cellDiffY - (ocx + ocy) * cellDiffY;
+        ocx = camX - ocx; ocy = camY - ocy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->clear(0, 0, 0, 0);
         renderer_->setTargetTexture(buildingTex_[0]);
@@ -168,12 +167,13 @@ void GlobalMap::render() {
         renderer_->setTargetTexture(buildingTex_[1]);
         renderer_->clear(0, 0, 0, 0);
         int delta = -mapWidth_ + 1;
+        int cx = ocx, cy = ocy, tx = otx, ty = oty;
+        renderer_->setTargetTexture(drawingTerrainTex_);
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                renderer_->setTargetTexture(drawingTerrainTex_);
                 if (x < 0 || x >= GlobalMapWidth || y < 0 || y >= GlobalMapHeight) {
                     renderer_->renderTexture(deepWaterTex_, dx, ty);
                     continue;
@@ -183,9 +183,34 @@ void GlobalMap::render() {
                 if (ci.surface) {
                     renderer_->renderTexture(ci.surface, dx, ty);
                 }
+            }
+            if (j % 2) {
+                ++cx;
+                tx += cellDiffX;
+                ty += cellDiffY;
+            } else {
+                ++cy;
+                tx -= cellDiffX;
+                ty += cellDiffY;
+            }
+        }
+        cx = ocx; cy = ocy; tx = otx; ty = oty;
+        int charX = currX_, charY = currY_;
+        renderer_->setTargetTexture(buildingTex_[0]);
+        for (int j = hcount; j; --j) {
+            int x = cx, y = cy;
+            int dx = tx;
+            int offset = y * mapWidth_ + x;
+            for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
+                if (x < 0 || x >= GlobalMapWidth || y < 0 || y >= GlobalMapHeight) {
+                    continue;
+                }
+                auto &ci = cellInfo_[offset];
                 if (ci.building) {
-                    renderer_->setTargetTexture(buildingTex_[x + y >= charXplusY ? 1 : 0]);
                     renderer_->renderTexture(ci.building, dx, ty + ci.buildingDeltaY);
+                }
+                if (x == charX && y == charY) {
+                    renderer_->setTargetTexture(buildingTex_[1]);
                 }
             }
             if (j % 2) {
