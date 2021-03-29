@@ -170,7 +170,7 @@ void Title::makeCache() {
     switch (mode_) {
     case 0:
     case 1: {
-        auto scale = y == 0 ? util::calcSmallestDivision(height_, 240) : util::calcSmallestDivision(width_, 320);
+        auto scale = y == 0 ? util::calcSmallestDivision(height_, 200) : util::calcSmallestDivision(width_, 320);
         const auto *img0 = titleTextureMgr_[0];
         int x0 = (width_ - (img0->width() + img0->originX()) * scale.first / scale.second) / 2;
         int y0 = height_ - 70 * scale.first / scale.second;
