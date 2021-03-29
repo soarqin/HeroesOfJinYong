@@ -30,6 +30,7 @@ class Node {
     friend class Window;
 public:
     enum Key {
+        KeyNone,
         KeyUp,
         KeyDown,
         KeyLeft,

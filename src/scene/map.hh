@@ -44,6 +44,7 @@ public:
     ~Map() override;
 
     [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
+    [[nodiscard]] inline const Texture *texture(std::int16_t id) const { return textureMgr_[id]; }
 
     void resetFrame();
 

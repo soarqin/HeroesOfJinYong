@@ -51,6 +51,7 @@ public:
     [[nodiscard]] std::chrono::steady_clock::time_point currTime() { return currTime_; }
 
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
+    [[nodiscard]] const Texture *smpTexture(std::int16_t id) const;
     [[nodiscard]] const TextureMgr &mapTextureMgr() const { return map_->textureMgr(); }
 
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }

@@ -20,6 +20,7 @@
 #pragma once
 
 #include "map.hh"
+#include "extendednode.hh"
 
 #include <functional>
 #include <list>
@@ -61,6 +62,8 @@ protected:
     void frameUpdate() override;
     virtual bool checkTime();
     virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
+
+    void ensureExtendedNode();
 
 private:
     static bool closePopup(MapWithEvent *map);
@@ -166,6 +169,7 @@ protected:
     std::vector<std::pair<std::int16_t, std::int16_t>> moving_;
     bool movingChar_ = false;
 
+    ExtendedNode *extendedNode_ = nullptr;
     static std::int16_t extendedRAMBlock_[0x10000], *extendedRAM_;
 };
 

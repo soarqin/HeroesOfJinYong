@@ -127,6 +127,11 @@ Window::~Window() {
     SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
 }
 
+const Texture *Window::smpTexture(std::int16_t id) const {
+    if (!subMap_) { return nullptr; }
+    return subMap_->texture(id);
+}
+
 bool Window::processEvents() {
     for (auto &p: pressedKeys_) {
         if (currTime_ >= p.second.first) {

@@ -28,6 +28,7 @@
 #include "mem/strings.hh"
 #include "util/conv.hh"
 #include "util/random.hh"
+#include "util/math.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -40,7 +41,7 @@ enum {
     OrigHeight = 200,
 };
 
-inline void transformOffset(std::int16_t &x, std::int16_t &y, int ww, int wh) {
+inline std::pair<int, int> transformOffset(std::int16_t &x, std::int16_t &y, int ww, int wh) {
     int w = ww, h = ww * OrigHeight / OrigWidth;
     if (h > wh) {
         h = wh;
@@ -48,6 +49,7 @@ inline void transformOffset(std::int16_t &x, std::int16_t &y, int ww, int wh) {
     }
     x = (ww - w) / 2 + w * x / OrigWidth;
     y = (wh - h) / 2 + h * y / OrigHeight;
+    return util::calcSmallestDivision(w, OrigWidth);
 }
 
 template <class R, class... Args>
@@ -414,6 +416,9 @@ void MapWithEvent::resetTime() {
 }
 
 void MapWithEvent::frameUpdate() {
+    if (extendedNode_) {
+        extendedNode_->checkTimeout();
+    }
     if (!moving_.empty()) {
         std::tie(cameraX_, cameraY_) = moving_.back();
         if (movingChar_) {
@@ -484,6 +489,12 @@ bool MapWithEvent::checkTime() {
         nextMainTexTime_ = now + std::chrono::milliseconds(500);
     }
     return true;
+}
+
+void MapWithEvent::ensureExtendedNode() {
+    if (!extendedNode_) {
+        extendedNode_ = new ExtendedNode(this, 0, 0, width_, height_);
+    }
 }
 
 bool MapWithEvent::closePopup(MapWithEvent *) {
@@ -1471,7 +1482,9 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         auto n1 = movCmd(v1, v4, 2);
         auto n2 = movCmd(v1, v5, 4);
         auto str = util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v2]));
-        /* TODO: draw str at (n0, n1) with color (n2 & 0xFF) and (n2 >> 8) */
+        transformOffset(n0, n1, gWindow->width(), gWindow->height());
+        map->ensureExtendedNode();
+        map->extendedNode_->addText(n0, n1, str, n2 & 0xFF, n2 >> 8);
         break;
     }
     case 34: {
@@ -1479,16 +1492,25 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         auto n1 = movCmd(v1, v3, 2);
         auto n2 = movCmd(v1, v4, 4);
         auto n3 = movCmd(v1, v5, 8);
-        /* TODO: draw box at (n0, n1)-(n2, n3) */
+        transformOffset(n0, n1, gWindow->width(), gWindow->height());
+        transformOffset(n2, n3, gWindow->width(), gWindow->height());
+        map->ensureExtendedNode();
+        map->extendedNode_->addBox(n0, n1, n2, n3);
         break;
     }
     case 35: {
-        /* TODO: wait for input and store in extendedRAM_[v1]
-         *       case SDLK_LEFT: extendedRAM_[e1] = 154; break;
-         *       case SDLK_RIGHT: extendedRAM_[e1] = 156; break;
-         *       case SDLK_UP: extendedRAM_[e1] = 158; break;
-         *       case SDLK_DOWN: extendedRAM_[e1] = 152; break;
-         */
+        map->ensureExtendedNode();
+        auto *node = map->extendedNode_;
+        node->setWaitForKeyPress();
+        node->setHandler([node, v1]() {
+            switch (node->keyPressed()) {
+            case Node::KeyLeft: extendedRAM_[v1] = 154; break;
+            case Node::KeyRight: extendedRAM_[v1] = 156; break;
+            case Node::KeyUp: extendedRAM_[v1] = 158; break;
+            case Node::KeyDown: extendedRAM_[v1] = 152; break;
+            default: break;
+            }
+        });
         break;
     }
     case 36: {
@@ -1496,14 +1518,20 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         auto n1 = movCmd(v1, v4, 2);
         auto n2 = movCmd(v1, v5, 4);
         auto str = util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v2]));
-        /* TODO: draw str at (n0, n1) with color (n2 & 0xFF) and (n2 >> 8),
-         *       wait for input and set extendedRAM_[0x7000] to 0 if `y` pressed
-         */
+        transformOffset(n0, n1, gWindow->width(), gWindow->height());
+        map->ensureExtendedNode();
+        auto *node = map->extendedNode_;
+        map->extendedNode_->addText(n0, n1, str, n2 & 0xFF, n2 >> 8);
+        node->setWaitForKeyPress();
+        node->setHandler([node]() {
+            extendedRAM_[0x7000] = node->keyPressed() == Node::KeyOK ? 0 : 1;
+        });
         break;
     }
     case 37: {
         auto n0 = movCmd(v1, v2, 1);
-        /* TODO: delay for n0 ms */
+        map->ensureExtendedNode();
+        map->extendedNode_->setTimeToClose(n0);
         break;
     }
     case 38: {
@@ -1517,6 +1545,7 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         auto n1 = movCmd(v1, v5, 2);
         auto n2 = movCmd(v1, v6, 4);
         std::vector<std::wstring> strs;
+        strs.reserve(n0);
         for (int i = 0; i < n0; i++) {
             strs.emplace_back(util::big5Conv.toUnicode(reinterpret_cast<char*>(&extendedRAM_[v3 + i])));
         }
@@ -1536,12 +1565,17 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
         auto n0 = movCmd(v1, v3, 1);
         auto n1 = movCmd(v1, v4, 2);
         auto n2 = movCmd(v1, v5, 4);
+        std::pair<int, int> scale;
         switch (v2) {
         case 0:
-            /* TODO: draw smp texture[n2] at (n0, n1) */
+            map->ensureExtendedNode();
+            scale = transformOffset(n1, n2, gWindow->width(), gWindow->height());
+            map->extendedNode_->addTexture(n0, n1, gWindow->smpTexture(n2), scale);
             break;
         case 1:
-            /* TODO: draw head texture[n2] at (n0, n1) */
+            map->ensureExtendedNode();
+            scale = transformOffset(n1, n2, gWindow->width(), gWindow->height());
+            map->extendedNode_->addTexture(n0, n1, gWindow->headTexture(n2), scale);
             break;
         default:
             break;
@@ -1582,3 +1616,4 @@ bool MapWithEvent::runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int
 }
 
 }
+
