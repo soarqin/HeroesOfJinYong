@@ -16,6 +16,7 @@ limit_fps = 0
 simplified_chinese = false
 no_name_input = false
 show_potential = true
+show_map_mini_panel = true
 scale = 2.0
 animation_speed = 1.0
 fade_speed = 1.0

@@ -284,6 +284,9 @@ void ItemView::makeCache() {
         }
         y += cellHeight_ + ItemCellSpacing;
     }
+    int sx = windowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
+    int sy = windowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
+    renderer_->drawRoundedRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 2, 252, 252, 252, 255);
 
     idx = currTop_ * cols_ + currSel_;
     auto itemId = items_[idx].first;
@@ -299,21 +302,104 @@ void ItemView::makeCache() {
         std::wstring desc;
         if (items_[idx].first == data::ItemIDCompass) {
             auto *map = gWindow->globalMap();
-            desc = fmt::format(GETTEXT(40), map->currX(), map->currY(), mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
+            if (core::config.shipLogicEnabled()) {
+                desc = fmt::format(GETTEXT(40), map->currX(), map->currY(),
+                                   mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
+            } else {
+                desc = fmt::format(GETTEXT(116), map->currX(), map->currY());
+            }
         } else {
             desc = GETITEMDESC(itemId);
         }
         auto lineheight = ttf->fontSize() + TextLineSpacing;
-        int dx, dy;
-        dx = windowBorder;
+        int dx = 0, dy;
+        int addLine = 0, reqLine = 0;
+        std::wstring addStr[2], reqStr[2];
+        switch (itemInfo->itemType) {
+        case 1:
+        case 2:
+            if (itemInfo->charOnly >= 0) {
+                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}", GETCHARNAME(itemInfo->charOnly));
+            }
+            if (itemInfo->reqMpType == 0 || itemInfo->reqMpType == 1) {
+                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}={}", GETTEXT(5), GETTEXT(119 + itemInfo->reqMpType));
+            }
+#define CheckReq(n, textid) \
+            if (itemInfo->n != 0) { \
+                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}{}{}", GETTEXT(textid), GETTEXT(121 + (itemInfo->n < 0 ? 1 : 0)), std::abs(itemInfo->n)); \
+            }
+            CheckReq(reqMp, 26)
+            CheckReq(reqAttack, 101)
+            CheckReq(reqSpeed, 9)
+            CheckReq(reqPoison, 104)
+            CheckReq(reqMedic, 103)
+            CheckReq(reqDepoison, 105)
+            CheckReq(reqFist, 106)
+            CheckReq(reqSword, 107)
+            CheckReq(reqBlade, 108)
+            CheckReq(reqSpecial, 123)
+            CheckReq(reqThrowing, 109)
+            CheckReq(reqPotential, 29)
+#undef CheckReq
+            if (!reqStr[1].empty()) {
+                reqLine = 3;
+            } else if (!reqStr[0].empty()) {
+                reqLine = 2;
+            }
+            /* fallthrough */
+        case 3: case 4:
+            if (itemInfo->skillId > 0) {
+                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}", GETTEXT(130), GETSKILLNAME(itemInfo->skillId));
+            }
+            if (itemInfo->addDoubleAttack) {
+                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}", GETTEXT(130), GETTEXT(22));
+            }
+            if (itemInfo->changeMpType > 0) {
+                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}{}", GETTEXT(5), GETTEXT(128), GETTEXT(itemInfo->changeMpType == 1 ? 120 : 129));
+            }
+#define CheckAdd(n, textid) \
+            if (itemInfo->n != 0) { \
+                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}{:+}", GETTEXT(textid), itemInfo->n); \
+            }
+            CheckAdd(addHp, 25)
+            CheckAdd(addMaxHp, 25)
+            CheckAdd(addPoisoned, 3)
+            CheckAdd(addStamina, 4)
+            CheckAdd(addMp, 26)
+            CheckAdd(addMaxMp, 26)
+            CheckAdd(addAttack, 101)
+            CheckAdd(addSpeed, 9)
+            CheckAdd(addDefence, 102)
+            CheckAdd(addMedic, 103)
+            CheckAdd(addPoison, 104)
+            CheckAdd(addDepoison, 105)
+            CheckAdd(addAntipoison, 14)
+            CheckAdd(addFist, 106)
+            CheckAdd(addSword, 107)
+            CheckAdd(addBlade, 108)
+            CheckAdd(addSpecial, 123)
+            CheckAdd(addThrowing, 109)
+            CheckAdd(addKnowledge, 20)
+            CheckAdd(addIntegrity, 21)
+            CheckAdd(addPoisonAmp, 23)
+#undef CheckAdd
+            if (!addStr[1].empty()) {
+                addLine = 3;
+            } else if (!addStr[0].empty()) {
+                addLine = 2;
+            }
+            break;
+        default:
+            break;
+        }
         if (currSel_ / cols_ * 2 < rows_) {
             /* draw on bottom side */
-            dy = height_ - windowBorder * 3 - lineheight * 2 + TextLineSpacing;
+            dy = height_ - lineheight * (addLine + reqLine + 2) - windowBorder * 2 + TextLineSpacing;
         } else {
             /* draw on top side */
-            dy = windowBorder;
+            dy = 0;
         }
-        int dw = width_ - windowBorder * 2, dh = windowBorder * 2 + lineheight * 2 - TextLineSpacing;
+        int dw = width_, dh = windowBorder * 2 + lineheight * (addLine + reqLine + 2) - TextLineSpacing;
         renderer_->fillRoundedRect(dx, dy, dw, dh, windowBorder, 64, 64, 64, 208);
         renderer_->drawRoundedRect(dx, dy, dw, dh, windowBorder, 224, 224, 224, 255);
         dx += windowBorder;
@@ -328,10 +414,29 @@ void ItemView::makeCache() {
         dy += lineheight;
         ttf->setColor(252, 148, 16);
         ttf->render(desc, dx + (dw - ttf->stringWidth(desc)) / 2, dy, true);
+        if (reqLine) {
+            dy += lineheight;
+            ttf->setColor(236, 236, 236);
+            const auto &txt = GETTEXT(116 + itemInfo->itemType);
+            ttf->render(txt, dx + (dw - ttf->stringWidth(txt)) / 2, dy, true);
+            ttf->setColor(236, 200, 40);
+            for (int i = 0; i < reqLine - 1; ++i) {
+                dy += lineheight;
+                ttf->render(reqStr[i], dx + (dw - ttf->stringWidth(reqStr[i])) / 2, dy, true);
+            }
+        }
+        if (addLine) {
+            dy += lineheight;
+            ttf->setColor(236, 236, 236);
+            const auto &txt = GETTEXT(123 + itemInfo->itemType);
+            ttf->render(txt, dx + (dw - ttf->stringWidth(txt)) / 2, dy, true);
+            ttf->setColor(236, 200, 40);
+            for (int i = 0; i < addLine - 1; ++i) {
+                dy += lineheight;
+                ttf->render(addStr[i], dx + (dw - ttf->stringWidth(addStr[i])) / 2, dy, true);
+            }
+        }
     }
-    int sx = windowBorder + (currSel_ % cols_) * (cellWidth_ + ItemCellSpacing);
-    int sy = windowBorder + (currSel_ / cols_) * (cellHeight_ + ItemCellSpacing);
-    renderer_->drawRoundedRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 2, 252, 252, 252, 255);
     cacheEnd();
 }
 

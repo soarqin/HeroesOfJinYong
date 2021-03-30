@@ -82,6 +82,7 @@ bool Config::load(const std::string &filename) {
     if (ui) {
         simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(false);
         showPotential_ = ui["show_potential"].value_or<bool>(false);
+        showMapMiniPanel_ = ui["show_map_mini_panel"].value_or<bool>(true);
         auto scale = ui["scale"].value_or<double>(2.f);
         scale_ = util::calcSmallestDivision(scale);
         animationSpeed_ = ui["animation_speed"].value_or<float>(1.f);

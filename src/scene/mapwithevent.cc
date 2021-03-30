@@ -290,6 +290,9 @@ void MapWithEvent::setDirection(Map::Direction dir) {
 }
 
 void MapWithEvent::setPosition(int x, int y, bool checkEvent) {
+    if (x != currX_ || y != currY_) {
+        miniPanelDirty_ = true;
+    }
     currX_ = x;
     currY_ = y;
     cameraX_ = x;
@@ -307,8 +310,12 @@ void MapWithEvent::setPosition(int x, int y, bool checkEvent) {
 void MapWithEvent::move(Map::Direction direction) {
     int x, y;
     direction_ = direction;
+    int oldX = currX_, oldY = currY_;
     if (!getFaceOffset(x, y) || !tryMove(x, y, true)) {
         return;
+    }
+    if (oldX != currX_ || oldY != currY_) {
+        miniPanelDirty_ = true;
     }
     resetTime();
     updateMainCharTexture();

@@ -120,9 +120,6 @@ bool Warfield::load(std::int16_t warId) {
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
-    texWidth_ = (mapWidth_ + mapHeight_) * cellDiffX;
-    texHeight_ = (mapWidth_ + mapHeight_) * cellDiffY;
-
     auto size = mapWidth_ * mapHeight_;
     cellInfo_.clear();
     cellInfo_.resize(size);

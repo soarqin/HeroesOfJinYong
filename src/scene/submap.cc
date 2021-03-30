@@ -70,9 +70,6 @@ bool SubMap::load(std::int16_t subMapId) {
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
-    texWidth_ = (mapWidth_ + mapHeight_) * cellDiffX;
-    texHeight_ = (mapWidth_ + mapHeight_) * cellDiffY;
-
     auto size = mapWidth_ * mapHeight_;
     cellInfo_.clear();
     cellInfo_.resize(size);
@@ -225,6 +222,7 @@ void SubMap::render() {
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar(charHeight_);
     renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    showMiniPanel();
 }
 
 void SubMap::handleKeyInput(Key key) {

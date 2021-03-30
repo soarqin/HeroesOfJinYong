@@ -155,7 +155,6 @@ protected:
     std::vector<std::int16_t> currEventList_;
 
     const Texture *mainCharTex_ = nullptr;
-    std::int32_t currX_ = 0, currY_ = 0;
     Direction direction_ = DirUp;
 
     bool showChar_ = true;

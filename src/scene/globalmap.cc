@@ -63,9 +63,6 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
-    texWidth_ = (mapWidth_ + mapHeight_) * cellDiffX;
-    texHeight_ = (mapWidth_ + mapHeight_) * cellDiffY;
-
     auto size = mapWidth_ * mapHeight_;
     util::File::getFileContent(core::config.dataFilePath("EARTH.002"), earth_);
     util::File::getFileContent(core::config.dataFilePath("SURFACE.002"), surface_);
@@ -250,6 +247,7 @@ void GlobalMap::render() {
             renderer_->renderTexture(c, cloudx, cloudy, scale_);
         }
     }
+    showMiniPanel();
 }
 
 void GlobalMap::showShip(bool show) {

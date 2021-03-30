@@ -48,6 +48,7 @@ public:
 
     [[nodiscard]] bool simplifiedChinese() const { return simplifiedChinese_; }
     [[nodiscard]] bool showPotential() const { return showPotential_; }
+    [[nodiscard]] bool showMapMiniPanel() const { return showMapMiniPanel_; }
     [[nodiscard]] std::pair<int, int> scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
@@ -68,6 +69,7 @@ private:
     int windowWidth_ = 640, windowHeight_ = 480;
     bool simplifiedChinese_ = false;
     bool showPotential_ = false;
+    bool showMapMiniPanel_ = true;
     std::pair<int, int> scale_ = {2, 1};
     float animationSpeed_ = 1.f;
     float fadeSpeed_ = 1.f;

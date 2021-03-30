@@ -21,8 +21,9 @@
 
 #include "window.hh"
 #include "colorpalette.hh"
+#include "mem/strings.hh"
 #include "core/config.hh"
-
+#include <fmt/format.h>
 #include <chrono>
 
 namespace hojy::scene {
@@ -30,11 +31,13 @@ namespace hojy::scene {
 Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale): Node(renderer, x, y, width, height),
     scale_(scale), auxWidth_(width_ * scale.second / scale.first), auxHeight_(height_ * scale.second / scale.first),
     drawDirty_(true), drawingTerrainTex_(Texture::createAsTarget(renderer_, width, height)),
+    miniPanelTex_(Texture::createAsTarget(renderer_, 256, 256)),
     eachFrameTime_(std::chrono::microseconds(int(1000000.f / 15.f / core::config.animationSpeed()))) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
     textureMgr_.setPalette(gNormalPalette);
     drawingTerrainTex_->enableBlendMode(true);
+    miniPanelTex_->enableBlendMode(true);
 }
 
 Map::~Map() {
@@ -66,6 +69,45 @@ Map::Direction Map::calcDirection(int fx, int fy, int tx, int ty) {
     }
     if (dy < 0) { return Map::DirUp; }
     return Map::DirDown;
+}
+
+void Map::showMiniPanel() {
+    if (!core::config.showMapMiniPanel()) {
+        return;
+    }
+    if (miniPanelDirty_) {
+        miniPanelDirty_ = false;
+        renderer_->setTargetTexture(miniPanelTex_);
+        renderer_->clear(0, 0, 0, 0);
+        auto *ttf = renderer_->ttf();
+        int smallFontSize = (ttf->fontSize() * 2 / 3 + 1) & ~1;
+        auto lineheight = smallFontSize + TextLineSpacing;
+        auto windowBorder = core::config.windowBorder() * 2 / 3;
+        int h = windowBorder * 2 + lineheight - TextLineSpacing;
+        int w0 = 0, w1;
+        const std::wstring *name = nullptr;
+        if (subMapId_ >= 0) {
+            name = &GETSUBMAPNAME(subMapId_);
+            h += lineheight;
+            w0 = ttf->stringWidth(*name, smallFontSize);
+        }
+        std::wstring coordStr = fmt::format(L"({},{})", currX_, currY_);
+        w1 = ttf->stringWidth(coordStr, smallFontSize);
+        int w = std::max(w0, w1) + windowBorder * 2;
+        renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
+        ttf->setColor(192, 192, 192);
+        int y = windowBorder;
+        if (name) {
+            ttf->render(*name, (w - w0) / 2, y, true, smallFontSize);
+            y += lineheight;
+        }
+        ttf->render(coordStr, (w - w1) / 2, y, true, smallFontSize);
+        renderer_->setTargetTexture(nullptr);
+        miniPanelX_ = width_ - w - windowBorder;
+        miniPanelY_ = windowBorder;
+    }
+    renderer_->renderTexture(miniPanelTex_, miniPanelX_, miniPanelY_, true);
 }
 
 }
