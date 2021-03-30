@@ -1,6 +1,8 @@
 /*
  * BIG5->Unicode table from:
  *   http://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/OTHER/BIG5.TXT
+ * and extended characters from Table 3-3 in:
+ *   http://mirror.sars.tw/FreeBSD_Chinese_HOWTO/big5.html
  */
 
 {
@@ -13714,4 +13716,11 @@
 	{0xF9D3, 0x9F7E},	/* <CJK> */
 	{0xF9D4, 0x9F49},	/* <CJK> */
 	{0xF9D5, 0x9F98},	/* <CJK> */
+	{0xF9D6, 0x88CF},	/* <CJK> */
+	{0xF9D7, 0x92B9},	/* <CJK> */
+	{0xF9D8, 0x7CA7},	/* <CJK> */
+	{0xF9D9, 0x58BB},	/* <CJK> */
+	{0xF9DA, 0x6052},	/* <CJK> */
+	{0xF9DB, 0x7881},	/* <CJK> */
+	{0xF9DC, 0x5AFA},	/* <CJK> */
 };
