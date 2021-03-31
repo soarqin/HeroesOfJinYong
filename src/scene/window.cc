@@ -76,7 +76,9 @@ Window::Window(int w, int h): width_(w), height_(h) {
     }
     SDL_GameControllerEventState(SDL_ENABLE);
     auto *win = SDL_CreateWindow(GameWindowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
+#ifdef _WIN32
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+#endif
     win_ = win;
     gWindow = this;
 
