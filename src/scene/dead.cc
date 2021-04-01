@@ -36,11 +36,7 @@ Dead::~Dead() {
 
 void Dead::init() {
     renderer_->enableLinear(true);
-    big_ = new Texture;
-    if (!big_->loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200, gNormalPalette)) {
-        delete big_;
-        big_ = nullptr;
-    }
+    big_ = Texture::loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200, gNormalPalette);
     renderer_->enableLinear(false);
 }
 

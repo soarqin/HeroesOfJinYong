@@ -19,9 +19,10 @@
 
 #pragma once
 
+#include <unordered_map>
 #include <vector>
 #include <string>
-
+#include <memory>
 #include <cstdint>
 
 namespace hojy::scene {
@@ -51,8 +52,8 @@ public:
     void enableBlendMode(bool r);
     void setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
 
-    bool loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
-    bool loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
+    static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
+    static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
 
 private:
     void *data_ = nullptr;
@@ -67,11 +68,13 @@ public:
     bool mergeFromRLE(const std::vector<std::string> &data);
     bool loadFromRAW(const std::vector<std::string> &data, int width, int height);
     const Texture *operator[](std::int32_t id) const;
+    const Texture *last() const;
+    std::int32_t max() const { return textureIdMax_; }
     void clear() { textures_.clear(); }
-    [[nodiscard]] size_t size() const { return textures_.size(); }
 
 private:
-    std::vector<Texture> textures_;
+    std::unordered_map<std::int32_t, std::unique_ptr<Texture>> textures_;
+    std::int32_t textureIdMax_ = 0;
     Renderer *renderer_ = nullptr;
     const ColorPalette *palette_ = nullptr;
 };

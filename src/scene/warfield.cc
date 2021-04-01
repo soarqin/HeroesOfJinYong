@@ -106,8 +106,7 @@ bool Warfield::load(std::int16_t warId) {
             warMapLoaded_.insert(warMapId);
         }
         if (!maskTex_) {
-            maskTex_ = new Texture;
-            maskTex_->loadFromRLE(renderer_, dset[0], gMaskPalette);
+            maskTex_ = Texture::loadFromRLE(renderer_, dset[0], gMaskPalette);
             maskTex_->enableBlendMode(true);
         }
     }
@@ -256,7 +255,8 @@ void Warfield::render() {
         if (acting && effectTexIdx_ >= 0) {
             const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
             const auto &effTexMgr = (*gEffect[effectId_]);
-            const auto *tex = effTexMgr[effectTexIdx_ < effTexMgr.size() ? effectTexIdx_ : effTexMgr.size() - 1];
+            const auto *tex = effTexMgr[effectTexIdx_];
+            if (!tex) { tex = effTexMgr.last(); }
             auto mw = mapWidth_;
             if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
                 auto sx = cursorX_, sy = cursorY_;
@@ -528,7 +528,7 @@ void Warfield::frameUpdate() {
             gWindow->playEffectSound(effectId_);
         }
         ++fightFrame_;
-        if (++effectTexIdx_ >= int(gEffect[effectId_]->size()) + 3) {
+        if (++effectTexIdx_ >= int(gEffect[effectId_]->max() + 1) + 3) {
             auto postFunc = [this]() {
                 if (--attackTimesLeft_ > 0) {
                     auto *ch = charQueue_.back();
