@@ -173,7 +173,7 @@ void EndScreen::makeCache() {
         tw_ = 0;
         for (int i = 3; i <= 22; ++i) {
             const auto *tex = wordTexMgr_[i];
-            tw_ = std::max(tw_, tex->width() + (i == 22 ? 10 : 20));
+            tw_ = std::max<std::int16_t>(tw_, tex->width() + (i == 22 ? 10 : 20));
             renderer_->renderTexture(tex, i == 22 ? 10 : 20, cy);
             cy += (i >= 20 ? 100 : 15) + tex->height();
         }

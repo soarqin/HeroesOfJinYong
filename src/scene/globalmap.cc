@@ -47,7 +47,6 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
         textureMgr_.loadFromRLE(dset);
     }
     renderer_->enableLinear();
-    dset.clear();
     if (data::GrpData::loadData("CLOUD", dset)) {
         cloudTexMgr_.loadFromRLE(dset);
     }

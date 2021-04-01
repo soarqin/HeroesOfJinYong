@@ -24,7 +24,7 @@
 #include "core/config.hh"
 #include "util/conv.hh"
 #include "util/file.hh"
-#include "external/toml.hpp"
+#include <external/toml.hpp>
 
 namespace hojy::mem {
 

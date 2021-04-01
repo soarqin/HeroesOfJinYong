@@ -23,6 +23,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 #include <cstdint>
 
 #ifdef USE_FREETYPE
@@ -38,7 +39,7 @@ enum {
     TextLineSpacing = 5,
 };
 
-struct rect_pack_data;
+class RectPacker;
 
 class TTF final {
 protected:
@@ -75,7 +76,6 @@ public:
     void render(std::wstring_view str, int x, int y, bool shadow, int fontSize = -1);
 
 private:
-    void newRectPack();
     const FontData *makeCache(std::uint32_t ch, int fontSize = - 1);
 
 protected:
@@ -90,7 +90,7 @@ private:
     std::uint8_t altR_[16] = {}, altG_[16] = {}, altB_[16] = {};
     std::vector<void*> textures_;
 
-    std::vector<rect_pack_data*> rectpackData_;
+    std::unique_ptr<RectPacker> rectpacker_;
 #ifdef USE_FREETYPE
     FT_Library ftLib_ = nullptr;
 #endif

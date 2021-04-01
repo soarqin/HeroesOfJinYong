@@ -19,11 +19,9 @@
 
 #include "ttf.hh"
 
+#include "rectpacker.hh"
 #include "util/file.hh"
 
-#define STB_RECT_PACK_IMPLEMENTATION
-#define STBRP_STATIC
-#include <external/stb_rect_pack.h>
 #ifdef USE_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -36,16 +34,7 @@
 
 namespace hojy::scene {
 
-enum :std::uint16_t {
-    TTF_RECTPACK_WIDTH = 1024
-};
-
-struct rect_pack_data {
-    stbrp_context context;
-    stbrp_node nodes[TTF_RECTPACK_WIDTH];
-};
-
-TTF::TTF(void *renderer): renderer_(renderer) {
+TTF::TTF(void *renderer): renderer_(renderer), rectpacker_(new RectPacker) {
 #ifdef USE_FREETYPE
     FT_Init_FreeType(&ftLib_);
 #endif
@@ -61,7 +50,6 @@ TTF::~TTF() {
 void TTF::init(int size, std::uint8_t width) {
     fontSize_ = size;
     monoWidth_ = width;
-    newRectPack();
 }
 
 void TTF::deinit() {
@@ -70,10 +58,6 @@ void TTF::deinit() {
     }
     textures_.clear();
     fontCache_.clear();
-    for (auto *&p: rectpackData_) {
-        delete p;
-    }
-    rectpackData_.clear();
     for (auto &p: fonts_) {
 #ifdef USE_FREETYPE
         FT_Done_Face(p.face);
@@ -191,12 +175,6 @@ void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize)
     }
 }
 
-void TTF::newRectPack() {
-    auto *rpd = new rect_pack_data;
-    stbrp_init_target(&rpd->context, TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH, rpd->nodes, TTF_RECTPACK_WIDTH);
-    rectpackData_.push_back(rpd);
-}
-
 const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     if (fontSize < 0) fontSize = fontSize_;
     FontInfo *fi = nullptr;
@@ -251,24 +229,16 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
 #endif
 
     /* Get last rect pack bitmap */
-    auto rpidx = rectpackData_.size() - 1;
-    auto *rpd = rectpackData_[rpidx];
-    stbrp_rect rc = {0, std::uint16_t((fd->w + 3u) & ~3u), fd->h};
-    if (!stbrp_pack_rects(&rpd->context, &rc, 1)) {
-        /* No space to hold the bitmap,
-         * create a new bitmap */
-        newRectPack();
-        rpidx = rectpackData_.size() - 1;
-        rpd = rectpackData_[rpidx];
-        stbrp_pack_rects(&rpd->context, &rc, 1);
+    auto rpidx = rectpacker_->pack(fd->w, fd->h, fd->rpx, fd->rpy);
+    if (rpidx < 0) {
+        memset(fd, 0, sizeof(FontData));
+        return nullptr;
     }
-    /* Do rect pack */
-    fd->rpx = rc.x;
-    fd->rpy = rc.y;
+    // stbrp_rect rc = {0, std::uint16_t((fd->w + 3u) & ~3u), fd->h};
     fd->rpidx = rpidx;
 
     std::uint8_t dst[64 * 64];
-    int dstPitch = rc.w;
+    int dstPitch = int((fd->w + 3u) & ~3u);
 
 #ifdef USE_FREETYPE
     auto *dstPtr = dst;
@@ -288,7 +258,7 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     if (tex == nullptr) {
         tex = SDL_CreateTexture(static_cast<SDL_Renderer*>(renderer_),
                                 SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-                                TTF_RECTPACK_WIDTH, TTF_RECTPACK_WIDTH);
+                                RectPackWidth, RectPackWidth);
         SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
         textures_[rpidx] = tex;
     }
@@ -297,7 +267,7 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     for (size_t i = 0; i < sz; ++i) {
         pixels[i] = 0xFFFFFFu | (std::uint32_t(dst[i]) << 24);
     }
-    SDL_Rect updaterc{rc.x, rc.y, rc.w, rc.h};
+    SDL_Rect updaterc{fd->rpx, fd->rpy, dstPitch, fd->h};
     SDL_UpdateTexture(tex, &updaterc, pixels, dstPitch * 4);
     return fd;
 }

@@ -19,27 +19,27 @@
 
 #pragma once
 
-#include "nodewithcache.hh"
-#include "texture.hh"
+#include <vector>
 #include <cstdint>
 
 namespace hojy::scene {
 
-class EndScreen: public NodeWithCache {
+enum {
+    RectPackWidth = 1024,
+};
+
+struct RectPackData;
+
+class RectPacker final {
 public:
-    using NodeWithCache::NodeWithCache;
-
-    void init();
-    void render() override;
-    void handleKeyInput(Key key) override;
+    ~RectPacker();
+    int pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y);
 
 private:
-    void makeCache() override;
+    void newRectPack();
 
 private:
-    TextureMgr wordTexMgr_, imgTexMgr_;
-    std::int16_t w_ = 0, h_ = 0, tw_ = 0, th_ = 0;
-    int stage_ = 0, frame_ = 0, frameTotal_ = 0;
+    std::vector<RectPackData*> rectpackData_;
 };
 
 }

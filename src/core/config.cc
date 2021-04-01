@@ -23,7 +23,7 @@
 #include "mem/strings.hh"
 #include "util/file.hh"
 #include "util/math.hh"
-#include "external/toml.hpp"
+#include <external/toml.hpp>
 #include <fmt/format.h>
 
 namespace hojy::core {

@@ -35,6 +35,7 @@ class Texture final {
 
 public:
     [[nodiscard]] static Texture *createAsTarget(Renderer *renderer, int w, int h);
+    [[nodiscard]] static Texture *create(Renderer *renderer, std::int16_t w, std::int16_t h);
 
 public:
     Texture() = default;
@@ -44,10 +45,10 @@ public:
     Texture& operator=(Texture &&other) noexcept;
 
     [[nodiscard]] void *data() const { return data_; }
-    [[nodiscard]] std::int32_t width() const { return width_; }
-    [[nodiscard]] std::int32_t height() const { return height_; }
-    [[nodiscard]] std::int32_t originX() const { return originX_; }
-    [[nodiscard]] std::int32_t originY() const { return originY_; }
+    [[nodiscard]] std::int16_t width() const { return width_; }
+    [[nodiscard]] std::int16_t height() const { return height_; }
+    [[nodiscard]] std::int16_t originX() const { return originX_; }
+    [[nodiscard]] std::int16_t originY() const { return originY_; }
 
     void enableBlendMode(bool r);
     void setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
@@ -57,7 +58,7 @@ public:
 
 private:
     void *data_ = nullptr;
-    std::int32_t width_ = 0, height_ = 0, originX_ = 0, originY_ = 0;
+    std::int16_t width_ = 0, height_ = 0, originX_ = 0, originY_ = 0;
 };
 
 class TextureMgr final {

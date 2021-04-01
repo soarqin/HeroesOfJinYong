@@ -44,7 +44,17 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
 #endif
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
-    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
+    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, w, h);
+    tex->data_ = texture;
+    tex->width_ = w;
+    tex->height_ = h;
+    return tex;
+}
+
+Texture *Texture::create(Renderer *renderer, std::int16_t w, std::int16_t h) {
+    auto *tex = new Texture;
+    auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
+    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, w, h);
     tex->data_ = texture;
     tex->width_ = w;
     tex->height_ = h;
@@ -86,26 +96,28 @@ Texture *Texture::loadFromRLE(Renderer *renderer, const std::string &data, const
     if (left < 8) {
         return nullptr;
     }
-    const auto *buf = reinterpret_cast<const std::uint8_t*>(data.data());
+    const auto *obuf = reinterpret_cast<const std::uint8_t*>(data.data());
     struct Header {
         std::int16_t w, h, x, y;
     };
-    const auto *hdr = reinterpret_cast<const Header*>(buf);
-    if (hdr->w == 0 && hdr->h == 0) {
+    const auto *hdr = reinterpret_cast<const Header*>(obuf);
+    if (hdr->w == 0 || hdr->h == 0) {
         return nullptr;
     }
-    buf += 8;
+    obuf += 8;
     left -= 8;
     std::vector<std::uint8_t> bitmap;
     bitmap.resize(hdr->w * hdr->h);
     std::int32_t y = 0, w = hdr->w, h = hdr->h;
     while (left && y < h) {
-        auto size = std::uint32_t(*buf++);
+        auto size = std::uint32_t(*obuf++);
         if (--left < size) {
             break;
         }
-        auto *ptr = bitmap.data() + w * (y++);
+        const auto *buf = obuf;
         left -= size;
+        obuf += size;
+        auto *ptr = bitmap.data() + w * (y++);
         while (size) {
             auto cnt = *buf++;
             --size;
