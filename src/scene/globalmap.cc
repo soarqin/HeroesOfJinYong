@@ -26,6 +26,7 @@
 #include "util/file.hh"
 #include "util/random.hh"
 #include "core/config.hh"
+#include <SDL.h>
 
 namespace hojy::scene {
 
@@ -36,32 +37,30 @@ enum {
 
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale):
     MapWithEvent(renderer, ix, iy, width, height, scale),
-    drawingTerrainTex2_(Texture::createAsTarget(renderer_, width, height)) {
+    drawingTerrainTex2_(Texture::create(renderer_, width, height)) {
     drawingTerrainTex2_->enableBlendMode(true);
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     cloudTexMgr_.setRenderer(renderer_);
     cloudTexMgr_.setPalette(gNormalPalette);
-    data::GrpData::DataSet dset;
-    if (data::GrpData::loadData("MMAP", dset)) {
-        textureMgr_.loadFromRLE(dset);
-    }
+    data::GrpData::loadData("MMAP", texData_);
     renderer_->enableLinear();
+    data::GrpData::DataSet dset;
     if (data::GrpData::loadData("CLOUD", dset)) {
         cloudTexMgr_.loadFromRLE(dset);
     }
     renderer_->enableLinear(false);
     {
-        auto *tex = textureMgr_[0];
-        cellWidth_ = tex->width();
-        cellHeight_ = tex->height();
-        offsetX_ = tex->originX();
-        offsetY_ = tex->originY();
-        deepWaterTex_ = tex;
+        const auto *arr = reinterpret_cast<const uint16_t*>(texData_[0].data());
+        cellWidth_ = arr[0];
+        cellHeight_ = arr[1];
+        offsetX_ = arr[2];
+        offsetY_ = arr[3];
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
     auto size = mapWidth_ * mapHeight_;
+    std::vector<std::uint16_t> earth_, surface_;
     util::File::getFileContent(core::config.dataFilePath("EARTH.002"), earth_);
     util::File::getFileContent(core::config.dataFilePath("SURFACE.002"), surface_);
     util::File::getFileContent(core::config.dataFilePath("BUILDING.002"), building_);
@@ -90,14 +89,8 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
                     ci.canWalk = true;
                 }
             }
-            ci.earth = textureMgr_[n];
-            auto &n0 = surface_[pos];
-            n0 >>= 1;
-            if (n0) {
-                ci.surface = textureMgr_[n0];
-            } else {
-                ci.surface = nullptr;
-            }
+            ci.earthId = n;
+            ci.surfaceId = surface_[pos] >> 1;
             auto &n1 = building_[pos];
             n1 >>= 1;
             if (n1 <= 0) { continue; }
@@ -105,18 +98,18 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
             if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
                 ci.type = 2;
             }
-            const auto *tex = textureMgr_[n1];
-            if (tex) {
-                auto deltaY = (tex->width() + 35) / 36 / 2;
+            if (n1 && n1 < texData_.size() && !texData_[n1].empty()) {
+                const auto *arr = reinterpret_cast<const uint16_t*>(texData_[n1].data());
+                auto deltaY = (arr[0] + 35) / 36 / 2;
                 if (n1 >= 1176 && n1 <= 1182 || n1 == 1352) {
-                    deltaY = tex->height() / 18 + 1;
+                    deltaY = arr[1] / 18 + 1;
                 }
                 if (deltaY) {
                     auto &ci2 = cellInfo_[(j - deltaY) * mapWidth_ + (i - deltaY)];
-                    ci2.building = tex;
+                    ci2.buildingId = n1;
                     ci2.buildingDeltaY = deltaY * cellHeight_;
                 } else {
-                    ci.building = tex;
+                    ci.buildingId = n1;
                     ci.buildingDeltaY = 0;
                 }
             }
@@ -151,27 +144,32 @@ void GlobalMap::render() {
         int ocy = (ny / cellDiffY - nx / cellDiffX) / 2;
         int wcount = nx * 2 / cellWidth_;
         int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
+        int aheight = int(auxHeight_);
         int otx = int(auxWidth_) / 2 - (ocx - ocy) * cellDiffX;
-        int oty = int(auxHeight_) / 2 + cellDiffY - (ocx + ocy) * cellDiffY;
+        int oty = aheight / 2 + cellDiffY - (ocx + ocy) * cellDiffY;
         ocx = camX - ocx; ocy = camY - ocy;
-        renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->clear(0, 0, 0, 255);
         int delta = -mapWidth_ + 1;
         int cx = ocx, cy = ocy, tx = otx, ty = oty;
-        renderer_->setTargetTexture(drawingTerrainTex_);
+        const auto *colors = gNormalPalette.colors();
+        auto *curTex = drawingTerrainTex_;
+        std::uint32_t *pixels;
+        int pitch;
+        SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
+        memset(pixels, 0, pitch * height_);
+        pitch /= sizeof(std::uint32_t);
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
                 if (x < 0 || x >= GlobalMapWidth || y < 0 || y >= GlobalMapHeight) {
-                    renderer_->renderTexture(deepWaterTex_, dx, ty);
+                    Texture::renderRLE(texData_[0], colors, pixels, pitch, aheight, dx, ty);
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
-                renderer_->renderTexture(ci.earth, dx, ty);
-                if (ci.surface) {
-                    renderer_->renderTexture(ci.surface, dx, ty);
+                Texture::renderRLE(texData_[ci.earthId], colors, pixels, pitch, aheight, dx, ty);
+                if (ci.surfaceId) {
+                    Texture::renderRLE(texData_[ci.surfaceId], colors, pixels, pitch, aheight, dx, ty);
                 }
             }
             if (j % 2) {
@@ -195,12 +193,15 @@ void GlobalMap::render() {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
-                if (ci.building) {
-                    renderer_->renderTexture(ci.building, dx, ty + ci.buildingDeltaY);
+                if (ci.buildingId) {
+                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty + ci.buildingDeltaY);
                 }
                 if (x == charX && y == charY) {
-                    renderer_->setTargetTexture(drawingTerrainTex2_);
-                    renderer_->clear(0, 0, 0, 0);
+                    SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
+                    curTex = drawingTerrainTex2_;
+                    SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
+                    memset(pixels, 0, pitch * height_);
+                    pitch /= sizeof(std::uint32_t);
                 }
             }
             if (j % 2) {
@@ -213,9 +214,9 @@ void GlobalMap::render() {
                 ty += cellDiffY;
             }
         }
-        renderer_->setTargetTexture(nullptr);
+        SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
     }
-    renderer_->clear(0, 0, 0, 0);
+    renderer_->clear(0, 0, 0, 255);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
     renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
@@ -249,11 +250,10 @@ void GlobalMap::showShip(bool show) {
     if (show) {
         int shipX1 = mem::gSaveData.baseInfo->shipX1;
         int shipY1 = mem::gSaveData.baseInfo->shipY1;
-        const auto *shipTex = textureMgr_[3715 + int(calcDirection(shipX1, shipY1, shipX0, shipY0)) * 4];
-        ci.building = shipTex;
+        ci.buildingId = 3715 + int(calcDirection(shipX1, shipY1, shipX0, shipY0)) * 4;
         ci.buildingDeltaY = 0;
     } else {
-        ci.building = nullptr;
+        ci.buildingId = 0;
     }
 }
 
@@ -336,14 +336,14 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
 
 void GlobalMap::updateMainCharTexture() {
     if (onShip_) {
-        mainCharTex_ = textureMgr_[3715 + int(direction_) * 4 + currMainCharFrame_];
+        mainCharTex_ = getOrLoadTexture(3715 + int(direction_) * 4 + currMainCharFrame_);
         return;
     }
     if (resting_) {
-        mainCharTex_ = textureMgr_[2529 + int(direction_) * 6 + currMainCharFrame_];
+        mainCharTex_ = getOrLoadTexture(2529 + int(direction_) * 6 + currMainCharFrame_);
         return;
     }
-    mainCharTex_ = textureMgr_[2501 + int(direction_) * 7 + currMainCharFrame_];
+    mainCharTex_ = getOrLoadTexture(2501 + int(direction_) * 7 + currMainCharFrame_);
 }
 
 void GlobalMap::resetTime() {

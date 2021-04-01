@@ -27,7 +27,7 @@ namespace hojy::scene {
 
 class GlobalMap final: public MapWithEvent {
     struct CellInfo {
-        const Texture *earth, *surface, *building;
+        std::int16_t earthId, surfaceId, buildingId;
         int buildingDeltaY;
         bool canWalk;
         /* 0-land 1-water 2-wood */
@@ -50,9 +50,8 @@ protected:
 
 private:
     bool onShip_ = false;
-    const Texture *deepWaterTex_ = nullptr;
     Texture *drawingTerrainTex2_ = nullptr;
-    std::vector<std::uint16_t> earth_, surface_, building_, buildx_, buildy_;
+    std::vector<std::uint16_t> building_, buildx_, buildy_;
     std::vector<CellInfo> cellInfo_;
     TextureMgr cloudTexMgr_;
     int cloudStartX_[3] = {}, cloudStartY_[3] = {};

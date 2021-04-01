@@ -54,6 +54,7 @@ public:
 
     static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
     static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
+    static void renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
 
 private:
     void *data_ = nullptr;
@@ -65,9 +66,10 @@ public:
     ~TextureMgr();
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const ColorPalette &col);
-    bool loadFromRLE(const std::vector<std::string> &data);
-    bool mergeFromRLE(const std::vector<std::string> &data);
-    bool loadFromRAW(const std::vector<std::string> &data, int width, int height);
+    Texture *loadFromRLE(const std::string &data, std::int16_t index);
+    void loadFromRLE(const std::vector<std::string> &data);
+    Texture *loadFromRAW(const std::string &data, int width, int height, std::int16_t index);
+    void loadFromRAW(const std::vector<std::string> &data, int width, int height);
     const Texture *operator[](std::int32_t id) const;
     const Texture *last() const;
     std::int32_t idMax() const { return textureIdMax_; }

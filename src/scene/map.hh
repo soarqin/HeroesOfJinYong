@@ -45,6 +45,7 @@ public:
 
     [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
     [[nodiscard]] inline const Texture *texture(std::int16_t id) const { return textureMgr_[id]; }
+    [[nodiscard]] const Texture *getOrLoadTexture(std::int16_t id);
 
     void resetFrame();
 
@@ -73,6 +74,7 @@ protected:
     std::chrono::steady_clock::duration eachFrameTime_;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
     std::int32_t offsetX_ = 0, offsetY_ = 0;
+    std::vector<std::string> texData_;
     Texture *drawingTerrainTex_ = nullptr;
     Texture *miniPanelTex_ = nullptr;
     std::int32_t miniPanelX_ = 0, miniPanelY_ = 0;

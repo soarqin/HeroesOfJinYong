@@ -100,9 +100,7 @@ bool Warfield::load(std::int16_t warId) {
             if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), dset)) {
                 return false;
             }
-            if (!textureMgr_.mergeFromRLE(dset)) {
-                return false;
-            }
+            textureMgr_.loadFromRLE(dset);
             warMapLoaded_.insert(warMapId);
         }
         if (!maskTex_) {
