@@ -36,9 +36,8 @@ enum {
 
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale):
     MapWithEvent(renderer, ix, iy, width, height, scale),
-    buildingTex_{ Texture::createAsTarget(renderer_, width, height), Texture::createAsTarget(renderer_, width, height) } {
-    buildingTex_[0]->enableBlendMode(true);
-    buildingTex_[1]->enableBlendMode(true);
+    drawingTerrainTex2_(Texture::createAsTarget(renderer_, width, height)) {
+    drawingTerrainTex2_->enableBlendMode(true);
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     cloudTexMgr_.setRenderer(renderer_);
@@ -130,8 +129,7 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
 }
 
 GlobalMap::~GlobalMap() {
-    delete buildingTex_[1];
-    delete buildingTex_[0];
+    delete drawingTerrainTex2_;
 }
 
 void GlobalMap::load() {
@@ -159,9 +157,7 @@ void GlobalMap::render() {
         ocx = camX - ocx; ocy = camY - ocy;
         renderer_->setTargetTexture(drawingTerrainTex_);
         renderer_->clear(0, 0, 0, 0);
-        renderer_->setTargetTexture(buildingTex_[0]);
-        renderer_->clear(0, 0, 0, 0);
-        renderer_->setTargetTexture(buildingTex_[1]);
+        renderer_->setTargetTexture(drawingTerrainTex2_);
         renderer_->clear(0, 0, 0, 0);
         int delta = -mapWidth_ + 1;
         int cx = ocx, cy = ocy, tx = otx, ty = oty;
@@ -193,7 +189,6 @@ void GlobalMap::render() {
         }
         cx = ocx; cy = ocy; tx = otx; ty = oty;
         int charX = currX_, charY = currY_;
-        renderer_->setTargetTexture(buildingTex_[0]);
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -207,7 +202,7 @@ void GlobalMap::render() {
                     renderer_->renderTexture(ci.building, dx, ty + ci.buildingDeltaY);
                 }
                 if (x == charX && y == charY) {
-                    renderer_->setTargetTexture(buildingTex_[1]);
+                    renderer_->setTargetTexture(drawingTerrainTex2_);
                 }
             }
             if (j % 2) {
@@ -224,9 +219,8 @@ void GlobalMap::render() {
     }
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
-    renderer_->renderTexture(buildingTex_[0], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderChar();
-    renderer_->renderTexture(buildingTex_[1], x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     for (int i = 0; i < 3; ++i) {
         auto &c = cloud_[i];
         if (!c) {

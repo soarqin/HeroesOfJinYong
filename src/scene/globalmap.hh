@@ -51,7 +51,7 @@ protected:
 private:
     bool onShip_ = false;
     const Texture *deepWaterTex_ = nullptr;
-    Texture *buildingTex_[2] = { nullptr, nullptr };
+    Texture *drawingTerrainTex2_ = nullptr;
     std::vector<std::uint16_t> earth_, surface_, building_, buildx_, buildy_;
     std::vector<CellInfo> cellInfo_;
     TextureMgr cloudTexMgr_;

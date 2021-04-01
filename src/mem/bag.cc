@@ -60,6 +60,18 @@ void Bag::add(std::int16_t id, std::int16_t count) {
     cnt += count;
     if (cnt <= 0) {
         items_.erase(id);
+    } else {
+        const auto *itemInfo = gSaveData.itemInfo[id];
+        if (itemInfo) {
+            switch (itemInfo->itemType) {
+            case 1:
+            case 2:
+                if (cnt > 1) {
+                    cnt = 1;
+                }
+            default: break;
+            }
+        }
     }
     dirty_ = true;
 }
