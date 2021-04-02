@@ -44,7 +44,7 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
 #endif
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
-    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, w, h);
+    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
     tex->data_ = texture;
     tex->width_ = w;
     tex->height_ = h;
@@ -54,7 +54,7 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
 Texture *Texture::create(Renderer *renderer, std::int16_t w, std::int16_t h) {
     auto *tex = new Texture;
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
-    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+    auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
     tex->data_ = texture;
     tex->width_ = w;
     tex->height_ = h;
@@ -186,6 +186,13 @@ Texture *Texture::loadFromRAW(Renderer *renderer, const std::string &data, int w
     return texture;
 }
 
+TextureMgr::~TextureMgr() {
+    for (auto &p: textures_) {
+        delete p.second;
+    }
+    textures_.clear();
+}
+
 void TextureMgr::setPalette(const ColorPalette &col) {
     palette_ = &col;
 }
@@ -197,7 +204,7 @@ bool TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
         if (!tex) {
             continue;
         }
-        textures_[i].reset(tex);
+        textures_[i] = tex;
         textureIdMax_ = std::max<std::int32_t>(i, textureIdMax_);
     }
     return true;
@@ -213,7 +220,7 @@ bool TextureMgr::mergeFromRLE(const std::vector<std::string> &data) {
         if (!tex) {
             continue;
         }
-        textures_[i].reset(tex);
+        textures_[i] = tex;
         textureIdMax_ = std::max<std::int32_t>(i, textureIdMax_);
     }
     return true;
@@ -226,7 +233,7 @@ bool TextureMgr::loadFromRAW(const std::vector<std::string> &data, int width, in
         if (!tex) {
             continue;
         }
-        textures_[i].reset(tex);
+        textures_[i] = tex;
         textureIdMax_ = std::max<std::int32_t>(i, textureIdMax_);
     }
     return true;
@@ -235,7 +242,7 @@ bool TextureMgr::loadFromRAW(const std::vector<std::string> &data, int width, in
 const Texture *TextureMgr::operator[](std::int32_t id) const {
     auto ite = textures_.find(id);
     if (ite == textures_.end()) { return nullptr; }
-    return ite->second.get();
+    return ite->second;
 }
 
 const Texture *TextureMgr::last() const {

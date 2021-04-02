@@ -94,7 +94,7 @@ void EndScreen::render() {
             y_ -= 2;
         } else {
             stage_ = 2; frame_ = 0;
-            frameTotal_ = imgTexMgr_.max() + 1;
+            frameTotal_ = imgTexMgr_.idMax() + 1;
             update();
             break;
         }

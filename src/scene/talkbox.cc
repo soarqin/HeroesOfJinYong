@@ -22,6 +22,7 @@
 #include "texture.hh"
 #include "window.hh"
 #include "core/config.hh"
+#include "util/math.hh"
 
 namespace hojy::scene {
 
@@ -70,7 +71,8 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
     headTex_ = (position != 2 && position != 3 && headId >= 0) ? gWindow->headTexture(headId) : nullptr;
     int headW = 0;
     if (headTex_) {
-        headW = headTex_->width() * 2 + windowBorder * 2;
+        headW = headTex_->width() * headScale_.first / headScale_.second + windowBorder * 2;
+        headScale_ = util::calcSmallestDivision(gWindow->width(), 320);
     }
 
     auto *ttf = renderer_->ttf();
@@ -143,8 +145,8 @@ void TalkBox::makeCache() {
     auto windowBorder = core::config.windowBorder();
 
     if (headTex_) {
-        headW = headTex_->width() * 2 + windowBorder * 2;
-        headH = headTex_->height() * 2 + windowBorder * 2 - TextLineSpacing;
+        headW = headTex_->width() * headScale_.first / headScale_.second + windowBorder * 2;
+        headH = headTex_->height() * headScale_.first / headScale_.second + windowBorder * 2;
     }
     auto *ttf = renderer_->ttf();
     rowHeight = ttf->fontSize() + TextLineSpacing;
@@ -186,7 +188,7 @@ void TalkBox::makeCache() {
     if (headTex_) {
         renderer_->fillRoundedRect(headX, headY, headW, headH, windowBorder, 64, 64, 64, 208);
         renderer_->drawRoundedRect(headX, headY, headW, headH, windowBorder, 224, 224, 224, 255);
-        renderer_->renderTexture(headTex_, headX + windowBorder, headY + windowBorder, std::make_pair(2, 1), true);
+        renderer_->renderTexture(headTex_, headX + windowBorder, headY + windowBorder, headScale_, true);
     }
 
     int x = windowBorder + textX;

@@ -528,7 +528,7 @@ void Warfield::frameUpdate() {
             gWindow->playEffectSound(effectId_);
         }
         ++fightFrame_;
-        if (++effectTexIdx_ >= int(gEffect[effectId_]->max() + 1) + 3) {
+        if (++effectTexIdx_ >= int(gEffect[effectId_]->idMax() + 1) + 3) {
             auto postFunc = [this]() {
                 if (--attackTimesLeft_ > 0) {
                     auto *ch = charQueue_.back();
@@ -608,9 +608,10 @@ void Warfield::nextAction() {
     cameraY_ = ch->y;
     drawDirty_ = true;
     auto *sv = dynamic_cast<StatusView*>(statusPanel_);
+    auto windowBorder = core::config.windowBorder();
     sv->show(&ch->info, false, true);
     sv->forceUpdate();
-    sv->setPosition(ch->side == 1 ? 40 : (width_ - 40 - sv->width()), height_ * 2 / 5 - sv->height() / 2);
+    sv->setPosition(ch->side == 1 ? windowBorder * 4 : (width_ - windowBorder * 4 - sv->width()), height_ * 2 / 5 - sv->height() / 2);
     if (ch->side == 1 || autoControl_) {
         autoAction();
     } else {
@@ -1036,8 +1037,9 @@ void Warfield::recalcKnowledge() {
 
 void Warfield::playerMenu() {
     stage_ = PlayerMenu;
+    auto windowBorder = core::config.windowBorder();
     auto *ch = charQueue_.back();
-    auto *menu = new MenuTextList(this, 40, 40, width_ - 80, height_ - 80);
+    auto *menu = new MenuTextList(this, windowBorder * 4, windowBorder * 4, width_ - windowBorder * 8, height_ - windowBorder * 8);
     std::vector<std::wstring> n;
     std::vector<int> menuIndices;
     n.reserve(10);
@@ -1098,8 +1100,9 @@ void Warfield::playerMenu() {
                     items.emplace_back(GETSKILLNAME(skillId));
                 }
                 if (!items.empty()) {
-                    auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + core::config.windowBorder(), 40,
-                                                     width_ - menu->x() + menu->width() - core::config.windowBorder(), height_ - 80);
+                    auto windowBorder = core::config.windowBorder();
+                    auto *submenu = new MenuTextList(menu, menu->x() + menu->width() + windowBorder, windowBorder * 4,
+                                                     width_ - menu->x() + menu->width() - windowBorder, height_ - windowBorder * 8);
                     submenu->popup(items);
                     submenu->setHandler([this, menu, submenu, indices]() {
                         if (tryUseSkill(indices[submenu->currIndex()])) {
@@ -1137,7 +1140,8 @@ void Warfield::playerMenu() {
             }
             return;
         case 5: {
-            auto *iv = new ItemView(this, 40, 40, gWindow->width() - 40, gWindow->height() - 40);
+            auto windowBorder = core::config.windowBorder();
+            auto *iv = new ItemView(this, windowBorder * 4, windowBorder * 4, gWindow->width() - windowBorder * 4, gWindow->height() - windowBorder * 4);
             iv->setCharInfo(&ch->info);
             iv->show(true, [this](std::int16_t itemId) {
                 if (itemId < 0) {

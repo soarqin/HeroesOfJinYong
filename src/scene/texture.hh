@@ -22,7 +22,6 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include <memory>
 #include <cstdint>
 
 namespace hojy::scene {
@@ -63,6 +62,7 @@ private:
 
 class TextureMgr final {
 public:
+    ~TextureMgr();
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const ColorPalette &col);
     bool loadFromRLE(const std::vector<std::string> &data);
@@ -70,11 +70,11 @@ public:
     bool loadFromRAW(const std::vector<std::string> &data, int width, int height);
     const Texture *operator[](std::int32_t id) const;
     const Texture *last() const;
-    std::int32_t max() const { return textureIdMax_; }
+    std::int32_t idMax() const { return textureIdMax_; }
     void clear() { textures_.clear(); }
 
 private:
-    std::unordered_map<std::int32_t, std::unique_ptr<Texture>> textures_;
+    std::unordered_map<std::int32_t, Texture*> textures_;
     std::int32_t textureIdMax_ = 0;
     Renderer *renderer_ = nullptr;
     const ColorPalette *palette_ = nullptr;

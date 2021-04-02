@@ -137,7 +137,7 @@ const Texture *Window::smpTexture(std::int16_t id) const {
 bool Window::processEvents() {
     for (auto &p: pressedKeys_) {
         if (currTime_ >= p.second.first) {
-            p.second.first += std::chrono::milliseconds(30);
+            p.second.first += std::chrono::milliseconds(20);
             if (p.second.first < currTime_) { p.second.first = currTime_; }
             auto *node = popup_ ? popup_ : map_;
             if (node) { node->doHandleKeyInput(p.second.second); }
@@ -488,7 +488,8 @@ void Window::showMainMenu(bool inSubMap) {
         return;
     }
     if (mainMenu_ == nullptr) {
-        auto *menu = new MenuTextList(renderer_, 40, 40, width_ - 80, height_ - 80);
+        auto windowBorder = core::config.windowBorder();
+        auto *menu = new MenuTextList(renderer_, 4 * windowBorder, 4 * windowBorder, width_ - 80, height_ - 80);
         mainMenu_ = menu;
         menu->setHandler([this]() {
             switch (dynamic_cast<Menu*>(mainMenu_)->currIndex()) {
@@ -536,7 +537,8 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
         return;
     }
     if (!talkBox_) {
-        talkBox_ = new TalkBox(renderer_, 50, 50, width_ - 100, height_ - 100);
+        auto border = width_ / 12;
+        talkBox_ = new TalkBox(renderer_, border, border, width_ - border * 2, height_ - border * 2);
     }
     dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
     popup_ = talkBox_;
@@ -648,7 +650,8 @@ static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
 static void showItems(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
-    auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - 40, gWindow->height() - y - 40);
+    auto windowBorder = core::config.windowBorder();
+    auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - windowBorder * 4, gWindow->height() - y - windowBorder * 4);
     iv->show(false, [](std::int16_t itemId) {
         gWindow->useQuestItem(itemId);
     });

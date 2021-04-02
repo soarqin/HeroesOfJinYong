@@ -41,6 +41,7 @@ private:
 private:
     std::vector<std::wstring> text_;
     const Texture *headTex_ = nullptr;
+    std::pair<int, int> headScale_ = {2, 1};
     std::int16_t position_ = 0;
     int index_ = 0, dispLines_ = 0;
 };

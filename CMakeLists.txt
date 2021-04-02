@@ -26,12 +26,10 @@ if(MSVC)
     add_compile_options(
         $<$<CONFIG:Release>:/GL>
         $<$<CONFIG:MinSizeRel>:/GL>
-        $<$<CONFIG:RelWithDebInfo>:/GL>
     )
     add_link_options(
         $<$<CONFIG:Release>:/LTCG>
         $<$<CONFIG:MinSizeRel>:/LTCG>
-        $<$<CONFIG:RelWithDebInfo>:/LTCG>
     )
 endif()
 
