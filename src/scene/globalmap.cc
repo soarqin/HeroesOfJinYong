@@ -155,9 +155,7 @@ void GlobalMap::render() {
         int oty = int(auxHeight_) / 2 + cellDiffY - (ocx + ocy) * cellDiffY;
         ocx = camX - ocx; ocy = camY - ocy;
         renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->clear(0, 0, 0, 0);
-        renderer_->setTargetTexture(drawingTerrainTex2_);
-        renderer_->clear(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 255);
         int delta = -mapWidth_ + 1;
         int cx = ocx, cy = ocy, tx = otx, ty = oty;
         renderer_->setTargetTexture(drawingTerrainTex_);
@@ -202,6 +200,7 @@ void GlobalMap::render() {
                 }
                 if (x == charX && y == charY) {
                     renderer_->setTargetTexture(drawingTerrainTex2_);
+                    renderer_->clear(0, 0, 0, 0);
                 }
             }
             if (j % 2) {

@@ -227,7 +227,7 @@ bool Window::processEvents() {
 bool Window::render() {
     currTime_ = std::chrono::steady_clock::now();
     if (!renderer_->canRender()) {
-        std::this_thread::sleep_for(renderer_->nextRenderTime() - currTime_);
+        SDL_Delay(std::chrono::duration_cast<std::chrono::milliseconds>(renderer_->nextRenderTime() - currTime_).count());
         return false;
     }
     if (map_) {
@@ -236,7 +236,7 @@ bool Window::render() {
     if (popup_) {
         popup_->doRender();
     }
-    std::this_thread::sleep_for(std::chrono::microseconds(1));
+    SDL_Delay(1);
     return true;
 }
 

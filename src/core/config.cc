@@ -77,6 +77,7 @@ bool Config::load(const std::string &filename) {
         windowHeight_ = window["height"].value_or<int>(480);
         showFPS_ = window["show_fps"].value_or<bool>(false);
         limitFPS_ = window["limit_fps"].value_or<int>(0);
+        if (limitFPS_ == 0) { limitFPS_ = 60; }
     }
     auto ui = tbl["ui"];
     if (ui) {

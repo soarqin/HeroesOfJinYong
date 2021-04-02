@@ -137,7 +137,7 @@ void SubMap::render() {
         int delta = -mapWidth_ + 1;
 
         renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->clear(0, 0, 0, 0);
+        renderer_->clear(0, 0, 0, 255);
 
 /* NOTE: Do we really need to do this?
  *       Earth with height > 0 should not stack with =0 ones
