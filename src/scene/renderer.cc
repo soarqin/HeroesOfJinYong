@@ -28,7 +28,7 @@ namespace hojy::scene {
 
 Renderer::Renderer(void *win, int w, int h):
     renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE)),
-    ttf_(new TTF(renderer_)) {
+    ttf_(new TTF(this)) {
     if (core::config.limitFPS() > 0) {
         renderInterval_ = std::chrono::seconds(1);
         renderInterval_ /= core::config.limitFPS();

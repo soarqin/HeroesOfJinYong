@@ -53,7 +53,8 @@ class Warfield: public Map {
         std::int16_t attack, defence;
     };
     struct CellInfo {
-        const Texture *earth = nullptr, *building = nullptr, *effect = nullptr;
+        std::int16_t earthId = 0, buildingId = 0;
+        const std::string *effectData = nullptr;
         bool blocked = false;
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
@@ -65,7 +66,6 @@ class Warfield: public Map {
     struct PopupNumber {
         std::wstring str;
         int x, y;
-        int offsetX;
         std::uint8_t r, g, b;
     };
 public:
@@ -122,13 +122,13 @@ private:
     std::int16_t actIndex_ = -1, actId_ = -1, actLevel_ = 0;
     int effectId_ = -1, effectTexIdx_ = -1, fightTexIdx_ = -1, fightTexCount_ = 0, fightFrame_ = 0;
     int attackTimesLeft_ = 0;
-    const TextureMgr *fightTexMgr_ = nullptr;
+    const std::vector<std::string> *fightTex_ = nullptr;
     std::vector<PopupNumber> popupNumbers_;
     std::function<void()> pendingAutoAction_;
 
     Node *statusPanel_ = nullptr;
     Texture *maskTex_ = nullptr;
-    std::vector<TextureMgr> fightTextures_;
+    std::vector<std::vector<std::string>> fightTexData_;
 };
 
 }

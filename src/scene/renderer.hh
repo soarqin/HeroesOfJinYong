@@ -64,7 +64,7 @@ private:
     int frameCount_ = 0;
     std::chrono::steady_clock::time_point nextCountTime_;
     std::chrono::steady_clock::time_point nextRenderTime_;
-    std::chrono::steady_clock::duration renderInterval_;
+    std::chrono::steady_clock::duration renderInterval_ = std::chrono::steady_clock::duration::zero();
 };
 
 }

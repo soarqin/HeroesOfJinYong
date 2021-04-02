@@ -39,6 +39,8 @@ enum {
     TextLineSpacing = 5,
 };
 
+class Renderer;
+class Texture;
 class RectPacker;
 
 class TTF final {
@@ -60,7 +62,7 @@ protected:
 #endif
     };
 public:
-    explicit TTF(void *renderer);
+    explicit TTF(Renderer *renderer);
     ~TTF();
 
     void init(int size, std::uint8_t width = 0);
@@ -85,10 +87,10 @@ protected:
     std::uint8_t monoWidth_ = 0;
 
 private:
-    void *renderer_;
+    Renderer *renderer_;
 
     std::uint8_t altR_[16] = {}, altG_[16] = {}, altB_[16] = {};
-    std::vector<void*> textures_;
+    std::vector<Texture*> textures_;
 
     std::unique_ptr<RectPacker> rectpacker_;
 #ifdef USE_FREETYPE

@@ -20,6 +20,8 @@
 #include "ttf.hh"
 
 #include "rectpacker.hh"
+#include "renderer.hh"
+#include "texture.hh"
 #include "util/file.hh"
 
 #ifdef USE_FREETYPE
@@ -34,7 +36,7 @@
 
 namespace hojy::scene {
 
-TTF::TTF(void *renderer): renderer_(renderer), rectpacker_(new RectPacker) {
+TTF::TTF(Renderer *renderer): renderer_(renderer), rectpacker_(new RectPacker) {
 #ifdef USE_FREETYPE
     FT_Init_FreeType(&ftLib_);
 #endif
@@ -54,7 +56,7 @@ void TTF::init(int size, std::uint8_t width) {
 
 void TTF::deinit() {
     for (auto &tex: textures_) {
-        SDL_DestroyTexture(static_cast<SDL_Texture*>(tex));
+        delete tex;
     }
     textures_.clear();
     fontCache_.clear();
@@ -117,6 +119,7 @@ int TTF::stringWidth(const std::wstring &str, int fontSize) {
     std::int8_t t, b;
     int res = 0;
     for (auto &ch: str) {
+        if (ch < 32) { continue; }
         charDimension(ch, w, t, b, fontSize);
         res += int(std::uint32_t(w));
     }
@@ -138,7 +141,6 @@ void TTF::setAltColor(int index, std::uint8_t r, std::uint8_t g, std::uint8_t b)
 
 void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
     if (fontSize < 0) fontSize = fontSize_;
-    auto *renderer = static_cast<SDL_Renderer*>(renderer_);
     int colorIndex = 0;
     for (auto ch: str) {
         if (ch > 0 && ch < 17) { colorIndex = ch - 1; continue; }
@@ -155,21 +157,15 @@ void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize)
             if (fd->advW == 0) continue;
         }
         if (shadow) {
-            SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
-            SDL_Rect dstrc = {x + fd->ix0 + 2, y + fd->iy0 + 2, fd->w, fd->h};
-            auto *tex = static_cast<SDL_Texture *>(textures_[fd->rpidx]);
-            SDL_SetTextureColorMod(tex, 0, 0, 0);
-            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
-            dstrc.x -= 2;
-            dstrc.y -= 2;
-            SDL_SetTextureColorMod(tex, altR_[colorIndex], altG_[colorIndex], altB_[colorIndex]);
-            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+            auto *tex = textures_[fd->rpidx];
+            tex->setBlendColor(0, 0, 0, 255);
+            renderer_->renderTexture(tex, x + fd->ix0 + 2, y + fd->iy0 + 2, fd->rpx, fd->rpy, fd->w, fd->h, true);
+            tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
+            renderer_->renderTexture(tex, x + fd->ix0, y + fd->iy0, fd->rpx, fd->rpy, fd->w, fd->h, true);
         } else {
-            SDL_Rect srcrc = {fd->rpx, fd->rpy, fd->w, fd->h};
-            SDL_Rect dstrc = {x + fd->ix0, y + fd->iy0, fd->w, fd->h};
-            auto *tex = static_cast<SDL_Texture *>(textures_[fd->rpidx]);
-            SDL_SetTextureColorMod(tex, altR_[colorIndex], altG_[colorIndex], altB_[colorIndex]);
-            SDL_RenderCopy(renderer, tex, &srcrc, &dstrc);
+            auto *tex = textures_[fd->rpidx];
+            tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
+            renderer_->renderTexture(tex, x + fd->ix0, y + fd->iy0, fd->rpx, fd->rpy, fd->w, fd->h, true);
         }
         x += fd->advW;
     }
@@ -228,8 +224,9 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     fd->h = iy1 - iy0;
 #endif
 
+    int dstPitch = int((fd->w + 1u) & ~1u);
     /* Get last rect pack bitmap */
-    auto rpidx = rectpacker_->pack(fd->w, fd->h, fd->rpx, fd->rpy);
+    auto rpidx = rectpacker_->pack(dstPitch, fd->h, fd->rpx, fd->rpy);
     if (rpidx < 0) {
         memset(fd, 0, sizeof(FontData));
         return nullptr;
@@ -238,7 +235,6 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     fd->rpidx = rpidx;
 
     std::uint8_t dst[64 * 64];
-    int dstPitch = int((fd->w + 3u) & ~3u);
 
 #ifdef USE_FREETYPE
     auto *dstPtr = dst;
@@ -254,21 +250,28 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     if (rpidx >= textures_.size()) {
         textures_.resize(rpidx + 1, nullptr);
     }
-    auto *tex = static_cast<SDL_Texture*>(textures_[rpidx]);
+    auto *tex = textures_[rpidx];
     if (tex == nullptr) {
-        tex = SDL_CreateTexture(static_cast<SDL_Renderer*>(renderer_),
-                                SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-                                RectPackWidth, RectPackWidth);
-        SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+        tex = Texture::create(renderer_, RectPackWidth, RectPackWidth);
+        tex->enableBlendMode(true);
         textures_[rpidx] = tex;
     }
-    std::uint32_t pixels[64 * 64];
-    auto sz = dstPitch * fd->h;
-    for (size_t i = 0; i < sz; ++i) {
-        pixels[i] = 0xFFFFFFu | (std::uint32_t(dst[i]) << 24);
+    int pitch;
+    uint32_t *pixels = tex->lock(pitch);
+    if (pixels) {
+        dstPtr = dst;
+        pixels += fd->rpy * pitch + fd->rpx;
+        int offset = pitch - dstPitch;
+        int h = fd->h;
+        while (h--) {
+            int w = dstPitch;
+            while (w--) {
+                *pixels++ = 0xFFFFFFu | (std::uint32_t(*dstPtr++) << 24);
+            }
+            pixels += offset;
+        }
+        tex->unlock();
     }
-    SDL_Rect updaterc{fd->rpx, fd->rpy, dstPitch, fd->h};
-    SDL_UpdateTexture(tex, &updaterc, pixels, dstPitch * 4);
     return fd;
 }
 

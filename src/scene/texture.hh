@@ -51,6 +51,8 @@ public:
 
     void enableBlendMode(bool r);
     void setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
+    std::uint32_t *lock(int &pitch);
+    void unlock();
 
     static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
     static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);

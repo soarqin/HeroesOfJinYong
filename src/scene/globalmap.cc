@@ -26,7 +26,7 @@
 #include "util/file.hh"
 #include "util/random.hh"
 #include "core/config.hh"
-#include <SDL.h>
+#include <cstring>
 
 namespace hojy::scene {
 
@@ -152,11 +152,9 @@ void GlobalMap::render() {
         int cx = ocx, cy = ocy, tx = otx, ty = oty;
         const auto *colors = gNormalPalette.colors();
         auto *curTex = drawingTerrainTex_;
-        std::uint32_t *pixels;
         int pitch;
-        SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-        memset(pixels, 0, pitch * height_);
-        pitch /= sizeof(std::uint32_t);
+        std::uint32_t *pixels = curTex->lock(pitch);
+        memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -197,11 +195,10 @@ void GlobalMap::render() {
                     Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty + ci.buildingDeltaY);
                 }
                 if (x == charX && y == charY) {
-                    SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
+                    curTex->unlock();
                     curTex = drawingTerrainTex2_;
-                    SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-                    memset(pixels, 0, pitch * height_);
-                    pitch /= sizeof(std::uint32_t);
+                    pixels = curTex->lock(pitch);
+                    memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
                 }
             }
             if (j % 2) {
@@ -214,7 +211,7 @@ void GlobalMap::render() {
                 ty += cellDiffY;
             }
         }
-        SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
+        curTex->unlock();
     }
     renderer_->clear(0, 0, 0, 255);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);

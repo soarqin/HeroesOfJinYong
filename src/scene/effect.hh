@@ -19,20 +19,21 @@
 
 #pragma once
 
-#include "texture.hh"
-
 #include <string>
+#include <vector>
 
 namespace hojy::scene {
+
+class Renderer;
 
 class Effect {
 public:
     void load(Renderer *renderer_, const std::string &filename);
-    const TextureMgr *operator[](std::int16_t index) const;
-    void clear() { effectTexMgr_.clear(); }
+    const std::vector<std::string> &operator[](std::int16_t index) const;
+    void clear() { effectTexData_.clear(); }
 
 private:
-    std::vector<TextureMgr> effectTexMgr_;
+    std::vector<std::vector<std::string>> effectTexData_;
 };
 
 extern Effect gEffect;

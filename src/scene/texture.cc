@@ -91,6 +91,19 @@ void Texture::setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std:
     SDL_SetTextureAlphaMod(tex, a);
 }
 
+std::uint32_t *Texture::lock(int &pitch) {
+    std::uint32_t *pixels;
+    if (SDL_LockTexture(static_cast<SDL_Texture*>(data_), nullptr, reinterpret_cast<void**>(&pixels), &pitch)) {
+        return nullptr;
+    }
+    pitch /= sizeof(std::uint32_t);
+    return pixels;
+}
+
+void Texture::unlock() {
+    SDL_UnlockTexture(static_cast<SDL_Texture*>(data_));
+}
+
 Texture *Texture::loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette) {
     if (data.empty()) { return nullptr; }
     const auto *arr = reinterpret_cast<const uint16_t*>(data.data());

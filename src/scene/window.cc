@@ -370,10 +370,12 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
     map_->fadeOut([this, subMapId, direction, switching]() {
         if (!switching) {
             map_ = subMap_;
-            subMap_->setDirection(Map::Direction(direction));
         }
         const auto *smi = mem::gSaveData.subMapInfo[subMapId];
         dynamic_cast<SubMap *>(map_)->load(subMapId);
+        if (!switching) {
+            subMap_->setDirection(Map::Direction(direction));
+        }
         std::int16_t x, y;
         if (switching && smi->subMapEnterX) {
             x = smi->subMapEnterX;

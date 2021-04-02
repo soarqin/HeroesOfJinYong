@@ -24,7 +24,6 @@
 #include "data/grpdata.hh"
 #include "mem/savedata.hh"
 #include <fmt/format.h>
-#include <SDL.h>
 
 namespace hojy::scene {
 
@@ -136,11 +135,9 @@ void SubMap::render() {
 
         const auto *colors = gNormalPalette.colors();
         auto *curTex = drawingTerrainTex_;
-        std::uint32_t *pixels;
         int pitch;
-        SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-        memset(pixels, 0, pitch * height_);
-        pitch /= sizeof(std::uint32_t);
+        std::uint32_t *pixels = curTex->lock(pitch);
+        memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
 
 /* NOTE: Do we really need to do this?
  *       Earth with height > 0 should not stack with =0 ones
@@ -198,11 +195,10 @@ void SubMap::render() {
                     Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty - h);
                 }
                 if (x == curX && y == curY) {
-                    SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
+                    curTex->unlock();
                     curTex = drawingTerrainTex2_;
-                    SDL_LockTexture(static_cast<SDL_Texture*>(curTex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-                    memset(pixels, 0, pitch * height_);
-                    pitch /= sizeof(std::uint32_t);
+                    pixels = curTex->lock(pitch);
+                    memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
                     charHeight_ = h;
                 }
                 if (ci.eventId > 0 && ci.eventId < texCount) {
@@ -222,7 +218,7 @@ void SubMap::render() {
                 ty += cellDiffY;
             }
         }
-        SDL_UnlockTexture(static_cast<SDL_Texture*>(curTex->data()));
+        curTex->unlock();
     }
 
     renderer_->clear(0, 0, 0, 255);

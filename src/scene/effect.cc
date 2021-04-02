@@ -34,21 +34,22 @@ void Effect::load(Renderer *renderer_, const std::string &filename) {
         return;
     }
     auto effectSz = data::gFactors.effectFrames.size();
-    effectTexMgr_.resize(effectSz);
+    effectTexData_.resize(effectSz);
     size_t index = 0;
     for (size_t i = 0; i < effectSz; ++i) {
-        auto &mgr = effectTexMgr_[i];
-        mgr.setRenderer(renderer_);
-        mgr.setPalette(gNormalPalette);
+        auto &data = effectTexData_[i];
         size_t sz = data::gFactors.effectFrames[i];
-        mgr.loadFromRLE(data::GrpData::DataSet(dset.begin() + index, dset.begin() + index + sz));
+        data.assign(dset.begin() + index, dset.begin() + index + sz);
         index += sz;
     }
 }
 
-const TextureMgr *Effect::operator[](std::int16_t index) const {
-    if (index < 0 || index >= effectTexMgr_.size()) { return nullptr; }
-    return &effectTexMgr_[index];
+const std::vector<std::string> &Effect::operator[](std::int16_t index) const {
+    if (index < 0 || index >= effectTexData_.size()) {
+        static std::vector<std::string> dummy;
+        return dummy;
+    }
+    return effectTexData_[index];
 }
 
 }

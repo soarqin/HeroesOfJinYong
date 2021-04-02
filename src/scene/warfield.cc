@@ -39,15 +39,9 @@ namespace hojy::scene {
 
 Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale):
     Map(renderer, x, y, width, height, scale) {
-    fightTextures_.resize(FightTextureListCount);
+    fightTexData_.resize(FightTextureListCount);
     for (size_t i = 0; i < FightTextureListCount; ++i) {
-        auto &f = fightTextures_[i];
-        f.setRenderer(renderer_);
-        f.setPalette(gNormalPalette);
-        data::GrpData::DataSet dset;
-        if (data::GrpData::loadData(fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i), dset)) {
-            f.loadFromRLE(dset);
-        }
+        data::GrpData::loadData(fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i), fightTexData_[i]);
     }
 }
 
@@ -76,7 +70,7 @@ void Warfield::cleanup() {
     fightTexCount_ = 0;
     fightFrame_ = 0;
     attackTimesLeft_ = 0;
-    fightTexMgr_ = nullptr;
+    fightTex_ = nullptr;
     popupNumbers_.clear();
 }
 
@@ -90,30 +84,27 @@ bool Warfield::load(std::int16_t warId) {
     if (warMapLoaded_.find(warMapId) == warMapLoaded_.end()) {
         mapWidth_ = data::WarFieldWidth;
         mapHeight_ = data::WarFieldHeight;
-        data::GrpData::DataSet dset;
-        if (data::GrpData::loadData("WDX", "WMP", dset)) {
-            textureMgr_.loadFromRLE(dset);
+        if (data::GrpData::loadData("WDX", "WMP", texData_)) {
             for (std::int16_t i = 0; i < 1000; ++i) {
                 warMapLoaded_.insert(i);
             }
         } else {
-            if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), dset)) {
+            if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), texData_)) {
                 return false;
             }
-            textureMgr_.loadFromRLE(dset);
             warMapLoaded_.insert(warMapId);
         }
         if (!maskTex_) {
-            maskTex_ = Texture::loadFromRLE(renderer_, dset[0], gMaskPalette);
+            maskTex_ = Texture::loadFromRLE(renderer_, texData_[0], gMaskPalette);
             maskTex_->enableBlendMode(true);
         }
     }
     {
-        auto *tex = textureMgr_[0];
-        cellWidth_ = tex->width();
-        cellHeight_ = tex->height();
-        offsetX_ = tex->originX();
-        offsetY_ = tex->originY();
+        const auto *arr = reinterpret_cast<const uint16_t*>(texData_[0].data());
+        cellWidth_ = arr[0];
+        cellHeight_ = arr[1];
+        offsetX_ = arr[2];
+        offsetY_ = arr[3];
     }
     int cellDiffX = cellWidth_ / 2;
     int cellDiffY = cellHeight_ / 2;
@@ -129,12 +120,9 @@ bool Warfield::load(std::int16_t warId) {
         for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
             auto &ci = cellInfo_[pos];
             auto texId = layers[0][pos] >> 1;
-            ci.blocked = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
-            ci.earth = textureMgr_[texId];
-            texId = layers[1][pos] >> 1;
-            if (texId) {
-                ci.building = textureMgr_[texId];
-            }
+            ci.earthId = texId;
+            ci.buildingId = layers[1][pos] >> 1;
+            ci.blocked = ci.buildingId > 0 || texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
         }
         x -= cellDiffX; y += cellDiffY;
     }
@@ -226,20 +214,19 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
 void Warfield::render() {
     Map::render();
 
+    bool acting = stage_ == Acting;
     if (drawDirty_) {
         drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = cameraX_, curY = cameraY_;
+        auto aheight = int(auxHeight_);
         int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
-        int ny = int(auxHeight_) / 2 + cellHeight_ * 2;
+        int ny = aheight / 2 + cellHeight_ * 2;
         int wcount = nx * 2 / cellWidth_;
         int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
         int cx, cy, tx, ty;
         int delta = -mapWidth_ + 1;
-
-        renderer_->setTargetTexture(drawingTerrainTex_);
-        renderer_->clear(0, 0, 0, 0);
 
         cx = (nx / cellDiffX + ny / cellDiffY) / 2;
         cy = (ny / cellDiffY - nx / cellDiffX) / 2;
@@ -247,18 +234,16 @@ void Warfield::render() {
         ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
         cx = curX - cx; cy = curY - cy;
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
-        bool acting = stage_ == Acting;
         bool movingOrActing = acting || stage_ == Moving;
         auto *ch = charQueue_.back();
         if (acting && effectTexIdx_ >= 0) {
             const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
-            const auto &effTexMgr = (*gEffect[effectId_]);
-            const auto *tex = effTexMgr[effectTexIdx_];
-            if (!tex) { tex = effTexMgr.last(); }
+            const auto &effTexData = gEffect[effectId_];
+            const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
             auto mw = mapWidth_;
             if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
                 auto sx = cursorX_, sy = cursorY_;
-                cellInfo_[sy * mw + sx].effect = tex;
+                cellInfo_[sy * mw + sx].effectData = tex;
             } else {
                 switch (skillInfo->attackAreaType) {
                 case 1: {
@@ -267,16 +252,28 @@ void Warfield::render() {
                     for (int i = r; i; --i) {
                         switch (charQueue_.back()->direction) {
                         case Map::DirUp:
-                            if (sy >= i) cellInfo_[st - i * mw + sx].effect = tex;
+                            if (sy >= i) {
+                                auto &ci = cellInfo_[st - i * mw + sx];
+                                if (ci.buildingId <= 0) { ci.effectData = tex; }
+                            }
                             break;
                         case Map::DirRight:
-                            if (sx + i < mapWidth_) cellInfo_[st + sx + i].effect = tex;
+                            if (sx + i < mapWidth_) {
+                                auto &ci = cellInfo_[st + sx + i];
+                                if (ci.buildingId <= 0) { ci.effectData = tex; }
+                            }
                             break;
                         case Map::DirLeft:
-                            if (sx >= i) cellInfo_[st + sx - i].effect = tex;
+                            if (sx >= i) {
+                                auto &ci = cellInfo_[st + sx - i];
+                                if (ci.buildingId <= 0) { ci.effectData = tex; }
+                            }
                             break;
                         case Map::DirDown:
-                            if (sy + i < mapHeight_) cellInfo_[st + i * mw + sx].effect = tex;
+                            if (sy + i < mapHeight_) {
+                                auto &ci = cellInfo_[st + i * mw + sx];
+                                if (ci.buildingId <= 0) { ci.effectData = tex; }
+                            }
                             break;
                         default:
                             break;
@@ -288,10 +285,22 @@ void Warfield::render() {
                     auto sx = cameraX_, sy = cameraY_, st = sy * mw;
                     int r = skillInfo->selRange[actLevel_];
                     for (int i = r; i; --i) {
-                        if (sy >= i) cellInfo_[st - i * mw + sx].effect = tex;
-                        if (sx + i < mapWidth_) cellInfo_[st + sx + i].effect = tex;
-                        if (sx >= i) cellInfo_[st + sx - i].effect = tex;
-                        if (sy + i < mapHeight_) cellInfo_[st + i * mw + sx].effect = tex;
+                        if (sy >= i) {
+                            auto &ci = cellInfo_[st - i * mw + sx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
+                        if (sx + i < mapWidth_) {
+                            auto &ci = cellInfo_[st + sx + i];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
+                        if (sx >= i) {
+                            auto &ci = cellInfo_[st + sx - i];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
+                        if (sy + i < mapHeight_) {
+                            auto &ci = cellInfo_[st + i * mw + sx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
                     }
                     break;
                 }
@@ -304,7 +313,8 @@ void Warfield::render() {
                         for (int i = -r; i <= r; ++i) {
                             auto rx = sx + i;
                             if (rx < 0 || rx >= mapWidth_) { continue; }
-                            cellInfo_[ry * mw + rx].effect = tex;
+                            auto &ci = cellInfo_[ry * mw + rx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
                         }
                     }
                     break;
@@ -314,6 +324,11 @@ void Warfield::render() {
                 }
             }
         }
+        const auto *colors = gNormalPalette.colors();
+        auto *curTex = drawingTerrainTex_;
+        int pitch;
+        std::uint32_t *pixels = curTex->lock(pitch);
+        memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -323,7 +338,7 @@ void Warfield::render() {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
-                renderer_->renderTexture(ci.earth, dx, ty);
+                Texture::renderRLE(texData_[ci.earthId], colors, pixels, pitch, aheight, dx, ty);
                 if (!movingOrActing) {
                     if (ci.insideMovingArea == 2) {
                         maskTex_->setBlendColor(160, 160, 160, 160);
@@ -336,24 +351,20 @@ void Warfield::render() {
                         renderer_->renderTexture(maskTex_, dx, ty);
                     }
                 }
-                if (ci.building) {
-                    renderer_->renderTexture(ci.building, dx, ty);
-                    if (ci.effect) {
-                        ci.effect = nullptr;
-                    }
+                if (ci.buildingId > 0) {
+                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty);
                 } else {
                     if (ci.charInfo) {
-                        const Texture *tex;
-                        if (acting && ci.charInfo == ch && (tex = (*fightTexMgr_)[fightTexIdx_]) != nullptr) {
-                            renderer_->renderTexture(tex, dx, ty);
+                        if (acting && ci.charInfo == ch && fightTex_ && fightTexIdx_ >= 0 && fightTexIdx_ < fightTex_->size()) {
+                            Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels, pitch, aheight, dx, ty);
                         } else {
-                            renderer_->renderTexture(textureMgr_[2553 + 4 * ci.charInfo->texId
-                                + int(ci.charInfo->direction)], dx, ty);
+                            Texture::renderRLE(texData_[2553 + 4 * ci.charInfo->texId
+                                + int(ci.charInfo->direction)], colors, pixels, pitch, aheight, dx, ty);
                         }
                     }
-                    if (ci.effect) {
-                        renderer_->renderTexture(ci.effect, dx, ty);
-                        ci.effect = nullptr;
+                    if (ci.effectData) {
+                        Texture::renderRLE(*ci.effectData, colors, pixels, pitch, aheight, dx, ty);
+                        ci.effectData = nullptr;
                     }
                 }
             }
@@ -367,25 +378,27 @@ void Warfield::render() {
                 ty += cellDiffY;
             }
         }
-        if (acting && effectTexIdx_ >= 3) {
-            int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
-            auto *ttf = renderer_->ttf();
-            auto fsize = 8 * scale_.first / scale_.second;
-            for (auto &n: popupNumbers_) {
-                int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
-                int texX = ax + (deltax - deltay) * cellDiffX + n.offsetX;
-                int texY = ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - effectTexIdx_ * 2;
-                ttf->setColor((n.r + 256) / 2, (n.g + 256) / 2, (n.b + 256) / 2);
-                ttf->render(n.str, texX + 1, texY, false, fsize);
-                ttf->setColor(n.r, n.g, n.b);
-                ttf->render(n.str, texX, texY, false, fsize);
-            }
-        }
-        renderer_->setTargetTexture(nullptr);
+        curTex->unlock();
     }
-
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    if (acting && effectTexIdx_ >= 3) {
+        int cellDiffX = cellWidth_ / 2;
+        int cellDiffY = cellHeight_ / 2;
+        int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
+        auto *ttf = renderer_->ttf();
+        auto fsize = 12 * scale_.first / scale_.second;
+        for (auto &n: popupNumbers_) {
+            int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
+            int texX = (ax + (deltax - deltay) * cellDiffX) * scale_.first / scale_.second;
+            int texY = (ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - effectTexIdx_ * 2) * scale_.first / scale_.second;
+            texX -= ttf->stringWidth(n.str, fsize) / 2;
+            ttf->setColor((n.r + 256) / 2, (n.g + 256) / 2, (n.b + 256) / 2);
+            ttf->render(n.str, texX + 1, texY, false, fsize);
+            ttf->setColor(n.r, n.g, n.b);
+            ttf->render(n.str, texX, texY, false, fsize);
+        }
+    }
     if (stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving) {
         statusPanel_->render();
     }
@@ -526,7 +539,7 @@ void Warfield::frameUpdate() {
             gWindow->playEffectSound(effectId_);
         }
         ++fightFrame_;
-        if (++effectTexIdx_ >= int(gEffect[effectId_]->idMax() + 1) + 3) {
+        if (++effectTexIdx_ >= int(gEffect[effectId_].size()) + 3) {
             auto postFunc = [this]() {
                 if (--attackTimesLeft_ > 0) {
                     auto *ch = charQueue_.back();
@@ -551,7 +564,7 @@ void Warfield::frameUpdate() {
                     fightTexCount_ = 0;
                     fightFrame_ = 0;
                     attackTimesLeft_ = 0;
-                    fightTexMgr_ = nullptr;
+                    fightTex_ = nullptr;
                     endTurn();
                 }
             };
@@ -1291,7 +1304,7 @@ void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
         for (int i = 0; i < ncnt; ++i) {
             int tx = nx[i], ty = ny[i];
             auto &ci = cellInfo_[ty * w + tx];
-            if (ci.charInfo || ci.blocked || ci.building) {
+            if (ci.charInfo || ci.blocked) {
                 continue;
             }
             auto currMove = mc->moves + 1;
@@ -1357,7 +1370,7 @@ void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, Sel
             for (int i = 0; i < ncnt; ++i) {
                 int tx = nx[i], ty = ny[i];
                 auto &ci = cellInfo_[ty * w + tx];
-                if (ci.blocked || ci.building) {
+                if (ci.blocked) {
                     continue;
                 }
                 auto currRange = mc->ranges + 1;
@@ -1532,15 +1545,14 @@ void Warfield::startActAction() {
         if (popup) {
             if (result != 0) { ch->exp += std::abs(result); }
             auto txt = fmt::format(L"{:+}", result);
-            popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_,
-                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
-                                                   r, g, b});
+            popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_, r, g, b});
         }
         stage_ = Acting;
         if (cameraX_ != cursorX_ || cameraY_ != cursorY_) {
             ch->direction = calcDirection(cameraX_, cameraY_, cursorX_, cursorY_);
         }
-        fightTexMgr_ = &fightTextures_[ch->info.headId];
+        fightTex_ = ch->info.headId >= 0 && ch->info.headId < fightTexData_.size()
+            ? &fightTexData_[ch->info.headId] : nullptr;
         fightTexCount_ = ch->info.frame[0];
         fightTexIdx_ = fightTexCount_ * int(ch->direction);
         fightTexCount_ += fightTexIdx_;
@@ -1559,7 +1571,8 @@ void Warfield::startActAction() {
             && (cameraX_ != cursorX_ || cameraY_ != cursorY_)) {
             ch->direction = calcDirection(cameraX_, cameraY_, cursorX_, cursorY_);
         }
-        fightTexMgr_ = &fightTextures_[ch->info.headId];
+        fightTex_ = ch->info.headId >= 0 && ch->info.headId < fightTexData_.size()
+                    ? &fightTexData_[ch->info.headId] : nullptr;
         fightTexIdx_ = 0;
         for (std::int16_t i = 0; i < skillType; ++i) {
             fightTexIdx_ += 4 * ch->info.frame[i];
@@ -1653,14 +1666,10 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
         auto *ttf = renderer_->ttf();
         if (dmg < 0) {
             auto txt = fmt::format(L"{:+}", dmg);
-            popupNumbers_.emplace_back(PopupNumber{txt, x, y,
-                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
-                                                   112, 12, 112});
+            popupNumbers_.emplace_back(PopupNumber{txt, x, y, 112, 12, 112});
         } else {
             auto txt = fmt::format(L"{:+}", -dmg);
-            popupNumbers_.emplace_back(PopupNumber{txt, x, y,
-                                                   -ttf->stringWidth(txt, 8 * scale_.first / scale_.second) / 2,
-                                                   232, 32, 44});
+            popupNumbers_.emplace_back(PopupNumber{txt, x, y, 232, 32, 44});
         }
     }
 }
