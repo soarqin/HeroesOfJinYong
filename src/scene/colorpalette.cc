@@ -22,18 +22,9 @@
 #include "core/config.hh"
 #include "util/file.hh"
 
-#include <SDL.h>
-
 namespace hojy::scene {
 
 ColorPalette gNormalPalette, gEndPalette, gMaskPalette;
-
-ColorPalette::~ColorPalette() {
-    if (paletteObj_) {
-        SDL_FreePalette(static_cast<SDL_Palette *>(paletteObj_));
-        paletteObj_ = nullptr;
-    }
-}
 
 void ColorPalette::load(const std::string &name) {
     auto ifs = util::File::open(core::config.dataFilePath(name + ".COL"));
@@ -43,22 +34,14 @@ void ColorPalette::load(const std::string &name) {
         for (int j = 0; j < 3; ++j) {
             c[j] = std::uint8_t(std::uint32_t(c[j]) * 4);
         }
+        std::swap(c[0], c[2]);
         palette_[i] = *reinterpret_cast<std::uint32_t*>(c);
     }
     palette_[0] = 0;
-    createObj();
 }
 
 void ColorPalette::create(const std::array<std::uint32_t, 256> &colors) {
     palette_ = colors;
-    createObj();
-}
-
-void ColorPalette::createObj() {
-    auto sz = palette_.size();
-    auto *paletteObj = SDL_AllocPalette(sz);
-    SDL_SetPaletteColors(paletteObj, reinterpret_cast<const SDL_Color*>(palette_.data()), 0, sz);
-    paletteObj_ = paletteObj;
 }
 
 }

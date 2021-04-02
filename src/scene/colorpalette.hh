@@ -27,19 +27,13 @@ namespace hojy::scene {
 
 class ColorPalette final {
 public:
-    ~ColorPalette();
     void load(const std::string &name);
     void create(const std::array<std::uint32_t, 256> &colors);
     [[nodiscard]] constexpr size_t size() const { return palette_.size(); }
     [[nodiscard]] const std::uint32_t *colors() const { return palette_.data(); }
-    [[nodiscard]] void *obj() const { return paletteObj_; }
-
-private:
-    void createObj();
 
 private:
     std::array<std::uint32_t, 256> palette_;
-    void *paletteObj_ = nullptr;
 };
 
 extern ColorPalette gNormalPalette, gEndPalette, gMaskPalette;
