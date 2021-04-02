@@ -259,14 +259,14 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     int pitch;
     uint32_t *pixels = tex->lock(pitch);
     if (pixels) {
-        dstPtr = dst;
+        auto *pdst = dst;
         pixels += fd->rpy * pitch + fd->rpx;
         int offset = pitch - dstPitch;
         int h = fd->h;
         while (h--) {
             int w = dstPitch;
             while (w--) {
-                *pixels++ = 0xFFFFFFu | (std::uint32_t(*dstPtr++) << 24);
+                *pixels++ = 0xFFFFFFu | (std::uint32_t(*pdst++) << 24);
             }
             pixels += offset;
         }
