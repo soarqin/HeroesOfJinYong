@@ -100,6 +100,16 @@ std::uint32_t *Texture::lock(int &pitch) {
     return pixels;
 }
 
+std::uint32_t *Texture::lock(int &pitch, int x, int y, int w, int h) {
+    std::uint32_t *pixels;
+    SDL_Rect rc {x, y, w, h};
+    if (SDL_LockTexture(static_cast<SDL_Texture*>(data_), &rc, reinterpret_cast<void**>(&pixels), &pitch)) {
+        return nullptr;
+    }
+    pitch /= sizeof(std::uint32_t);
+    return pixels;
+}
+
 void Texture::unlock() {
     SDL_UnlockTexture(static_cast<SDL_Texture*>(data_));
 }

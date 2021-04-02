@@ -32,7 +32,6 @@
 #define STBTT_STATIC
 #include <external/stb_truetype.h>
 #endif
-#include <SDL.h>
 
 namespace hojy::scene {
 
@@ -257,10 +256,9 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
         textures_[rpidx] = tex;
     }
     int pitch;
-    uint32_t *pixels = tex->lock(pitch);
+    uint32_t *pixels = tex->lock(pitch, fd->rpx, fd->rpy, dstPitch, fd->h);
     if (pixels) {
         auto *pdst = dst;
-        pixels += fd->rpy * pitch + fd->rpx;
         int offset = pitch - dstPitch;
         int h = fd->h;
         while (h--) {
