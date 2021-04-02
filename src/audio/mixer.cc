@@ -72,7 +72,7 @@ void Mixer::init(int channels) {
     sampleRate_ = obtained.freq;
     format_ = obtained.format;
     channels_.resize(channels);
-    cache_.resize(desired.size);
+    cache_.resize(obtained.size);
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, double fadeIn, double fadeOut) {
