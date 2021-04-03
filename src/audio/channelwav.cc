@@ -44,41 +44,66 @@ void ChannelWav::load(const std::string &filename) {
     loadFromData();
 }
 
-size_t ChannelWav::readPCMData(const void **data, size_t size) {
+size_t ChannelWav::readPCMData(const void **data, size_t size, bool convType) {
+    bool needConv = convType && typeIn_ != typeOut_;
+    bool needCopy = false;
+    if (needConv) {
+        size_t inSize = Mixer::dataTypeToSize(typeIn_);
+        size_t outSize = Mixer::dataTypeToSize(typeOut_);
+        size = size / outSize / 2 * inSize * 2;
+    }
     if (repeat_) {
         if (!length_) { return 0; }
         if (pos_ + size <= length_) {
             *data = buffer_ + pos_;
             pos_ = (pos_ + size) % length_;
-            return size;
-        }
-        if (cache_.size() < size) {
-            cache_.resize(size);
-        }
-        auto *writedata = cache_.data();
-        *data = writedata;
-        auto left = size;
-        while (left) {
-            if (pos_ + left >= length_) {
-                auto readsz = length_ - pos_;
-                memcpy(writedata, buffer_ + pos_, readsz);
-                left -= readsz;
-                reset();
-            } else {
-                memcpy(writedata, buffer_ + pos_, left);
-                pos_ += left;
-                left = 0;
+            needCopy = true;
+        } else {
+            if (cache_.size() < size) {
+                cache_.resize(size);
+            }
+            auto *writedata = cache_.data();
+            *data = writedata;
+            auto left = size;
+            while (left) {
+                if (pos_ + left >= length_) {
+                    auto readsz = length_ - pos_;
+                    memcpy(writedata, buffer_ + pos_, readsz);
+                    left -= readsz;
+                    reset();
+                } else {
+                    memcpy(writedata, buffer_ + pos_, left);
+                    pos_ += left;
+                    left = 0;
+                }
             }
         }
+    } else {
+        if (pos_ >= length_) { return 0; }
+        *data = buffer_ + pos_;
+        if (pos_ + size > length_) {
+            size = length_ - pos_;
+        }
+        pos_ += size;
+        needCopy = true;
+    }
+    if (!needConv) {
         return size;
     }
-    if (pos_ >= length_) { return 0; }
-    *data = buffer_ + pos_;
-    if (pos_ + size > length_) {
-        size = length_ - pos_;
+    SDL_AudioCVT cvt;
+    SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
+                      Mixer::convertType(typeOut_), 2, int(sampleRateOut_));
+    int osize = int(size * cvt.len_mult);
+    int smax = std::max<int>(size, osize);
+    if (cache_.size() < smax) {
+        cache_.resize(smax);
     }
-    pos_ += size;
-    return size;
+    memcpy(cache_.data(), *data, size);
+    cvt.len = size;
+    cvt.buf = cache_.data();
+    SDL_ConvertAudio(&cvt);
+    *data = cache_.data();
+    return cvt.len_cvt;
 }
 
 void ChannelWav::loadFromData() {
@@ -92,12 +117,11 @@ void ChannelWav::loadFromData() {
             format = format != AUDIO_F32 && format != AUDIO_S32 && format != AUDIO_S16 ? AUDIO_S16 : format;
             SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq, format, 2, spec.freq);
             cvt.len = length_;
-            cvt.buf = static_cast<Uint8*>(SDL_realloc(buffer_, length_ * cvt.len_mult));
+            buffer_ = static_cast<Uint8*>(SDL_realloc(buffer_, length_ * cvt.len_mult));
+            cvt.buf = buffer_;
             SDL_ConvertAudio(&cvt);
-            buffer_ = cvt.buf;
             length_ = cvt.len_cvt;
         }
-        channels_ = 2;
         typeIn_ = Mixer::convertDataType(format);
         ok_ = true;
     } else {

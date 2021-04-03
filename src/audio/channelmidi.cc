@@ -20,6 +20,7 @@
 #include "channelmidi.hh"
 
 #include <adlmidi.h>
+#include <SDL.h>
 
 namespace hojy::audio {
 
@@ -54,17 +55,40 @@ void ChannelMIDI::setRepeat(bool r) {
     adl_setLoopEnabled(static_cast<ADL_MIDIPlayer*>(midiplayer_), r ? 1 : 0);
 }
 
-size_t ChannelMIDI::readPCMData(const void **data, size_t size) {
-    auto count = size / sizeof(short);
-    if (cache_.size() < count) {
-        cache_.resize(count);
+size_t ChannelMIDI::readPCMData(const void **data, size_t size, bool convType) {
+    bool needConv = convType && typeIn_ != typeOut_;
+    int count;
+    if (needConv) {
+        size_t outSize = Mixer::dataTypeToSize(typeOut_);
+        count = int(size / outSize / 2) * 2;
+        size = count * sizeof(short);
+    } else {
+        count = int(size / sizeof(short));
     }
-    auto res = adl_play(static_cast<ADL_MIDIPlayer*>(midiplayer_), count, cache_.data());
+    if (cache_.size() < size) {
+        cache_.resize(size);
+    }
+    auto res = adl_play(static_cast<ADL_MIDIPlayer *>(midiplayer_), count, reinterpret_cast<short *>(cache_.data()));
     if (res < 0) {
         return 0;
     }
+    if (!needConv) {
+        *data = cache_.data();
+        return res * sizeof(short);
+    }
+    SDL_AudioCVT cvt;
+    SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
+                      Mixer::convertType(typeOut_), 2, int(sampleRateOut_));
+    int isize = int(res * sizeof(short));
+    int osize = isize * cvt.len_mult;
+    if (cache_.size() < osize) {
+        cache_.resize(osize);
+    }
+    cvt.len = isize;
+    cvt.buf = cache_.data();
+    SDL_ConvertAudio(&cvt);
     *data = cache_.data();
-    return res * sizeof(short);
+    return cvt.len_cvt;
 }
 
 void ChannelMIDI::loadFromData() {
@@ -80,7 +104,6 @@ void ChannelMIDI::loadFromData() {
         ok_ = false;
         return;
     }
-    channels_ = 2;
     sampleRateIn_ = ADL_CHIP_SAMPLE_RATE;
     typeIn_ = Mixer::I16;
     ok_ = true;

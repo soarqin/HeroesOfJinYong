@@ -57,7 +57,7 @@ size_t Channel::readData(void *data, size_t size) {
         return resampler_->read(data, size);
     }
     const void *pcmdata;
-    auto res = readPCMData(&pcmdata, size);
+    auto res = readPCMData(&pcmdata, size, true);
     if (res) {
         memcpy(data, pcmdata, size);
     }
@@ -65,10 +65,10 @@ size_t Channel::readData(void *data, size_t size) {
 }
 
 void Channel::start() {
-    if (sampleRateIn_ != sampleRateOut_ || typeIn_ != typeOut_) {
-        resampler_ = std::make_unique<Resampler>(channels_, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
+    if (sampleRateIn_ != sampleRateOut_) {
+        resampler_ = std::make_unique<Resampler>(2, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
         resampler_->setInputCallback([this](const void **data, size_t size)->size_t {
-            return readPCMData(data, size);
+            return readPCMData(data, size, false);
         });
     }
 }

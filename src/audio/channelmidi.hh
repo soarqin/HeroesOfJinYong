@@ -34,14 +34,14 @@ public:
     void setRepeat(bool r) override;
 
 protected:
-    size_t readPCMData(const void **data, size_t size) override;
+    size_t readPCMData(const void **data, size_t size, bool convType) override;
 
 private:
     void loadFromData();
 
 private:
     void *midiplayer_ = nullptr;
-    std::vector<short> cache_;
+    std::vector<std::uint8_t> cache_;
 };
 
 }

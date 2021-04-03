@@ -58,6 +58,8 @@ public:
     [[nodiscard]] inline DataType dataType() const { return convertDataType(format_); }
 
     static DataType convertDataType(std::uint16_t type);
+    static std::uint16_t convertType(DataType);
+    static size_t dataTypeToSize(Mixer::DataType type);
 
 private:
     static void callback(void *userdata, std::uint8_t *stream, int len);

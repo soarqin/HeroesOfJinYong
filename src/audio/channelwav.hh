@@ -34,7 +34,7 @@ public:
     void reset() override { pos_ = 0; }
 
 protected:
-    size_t readPCMData(const void **data, size_t size) override;
+    size_t readPCMData(const void **data, size_t size, bool convType) override;
 
 private:
     void loadFromData();

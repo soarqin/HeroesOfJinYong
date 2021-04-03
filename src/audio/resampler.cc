@@ -19,39 +19,28 @@
 
 #include "resampler.hh"
 
+#if defined(USE_SOXR)
 #include <soxr.h>
+#else
+#include <zita-resampler/vresampler.h>
+#endif
 #include <cmath>
 
 namespace hojy::audio {
 
-void DataTypeToSize(Mixer::DataType type, size_t &size) {
-    switch (type) {
-    case Mixer::F32:
-        size = 4;
-        break;
-    case Mixer::F64:
-        size = 8;
-        break;
-    case Mixer::I32:
-        size = 4;
-        break;
-    case Mixer::I16:
-        size = 2;
-        break;
-    default:
-        size = 1;
-        break;
-    }
-}
-
 Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut,
                      Mixer::DataType typeIn, Mixer::DataType typeOut):
                      rate_(sampleRateOut / sampleRateIn) {
+#if defined(USE_SOXR)
     auto io_spec = soxr_io_spec(soxr_datatype_t(typeIn), soxr_datatype_t(typeOut));
     auto *resampler = soxr_create(sampleRateIn, sampleRateOut, channels, nullptr, &io_spec, nullptr, nullptr);
+#else
+    auto *resampler = new VResampler;
+    resampler->setup(rate_, channels, 48);
+#endif
     resampler_ = resampler;
-    DataTypeToSize(typeIn, sampleSizeIn_);
-    DataTypeToSize(typeOut, sampleSizeOut_);
+    sampleSizeIn_ = Mixer::dataTypeToSize(typeIn);
+    sampleSizeOut_ = Mixer::dataTypeToSize(typeOut);
     sampleSizeIn_ *= channels;
     sampleSizeOut_ *= channels;
     buffer_.setUnitSize(sampleSizeOut_);
@@ -59,26 +48,31 @@ Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleR
 
 void Resampler::setInputCallback(Resampler::InputCallback callback) {
     inputCB_ = std::move(callback);
+#if defined(USE_SOXR)
     if (inputCB_) {
         soxr_set_input_fn(static_cast<soxr_t>(resampler_), readCB, this, 0);
     } else {
         soxr_set_input_fn(static_cast<soxr_t>(resampler_), nullptr, this, 0);
     }
+#endif
 }
 
 size_t Resampler::read(void *data, size_t size) {
     if (inputCB_) {
+#if defined(USE_SOXR)
         return soxr_output(static_cast<soxr_t>(resampler_), data, size / sampleSizeOut_) * sampleSizeOut_;
+#else
+#endif
     } else {
-        buffer_.pop(data, size / sampleSizeOut_, 0);
+        return buffer_.pop(data, size / sampleSizeOut_, 0);
     }
-    return 0;
 }
 
 size_t Resampler::write(const void *data, size_t size) {
     if (inputCB_) {
         return 0;
     }
+#if defined(USE_SOXR)
     size_t idone, odone;
     auto isize = size_t(size / sampleSizeIn_);
     auto osize = size_t(std::ceil(isize * rate_));
@@ -91,6 +85,16 @@ size_t Resampler::write(const void *data, size_t size) {
     }
     buffer_.push(odata, odone);
     return idone;
+#else
+/*
+    auto *resampler = static_cast<VResampler*>(resampler_);
+    resampler->inp_data = (float*)data;
+    resampler->out_data = (float*)odata;
+    resampler->inp_count = isize / resampler->nchan();
+    resampler->out_count = osize / resampler->nchan();
+    resampler->process();
+*/
+#endif
 }
 
 size_t Resampler::readCB(void *userdata, const void **data, size_t len) {

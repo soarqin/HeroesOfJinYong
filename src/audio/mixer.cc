@@ -176,6 +176,32 @@ Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
     }
 }
 
+std::uint16_t Mixer::convertType(Mixer::DataType dtype) {
+    switch (dtype) {
+    case I16:
+        return AUDIO_S16;
+    case I32:
+        return AUDIO_S32;
+    default:
+        return AUDIO_F32;
+    }
+}
+
+size_t Mixer::dataTypeToSize(Mixer::DataType type) {
+    switch (type) {
+    case Mixer::F32:
+        return 4;
+    case Mixer::F64:
+        return 8;
+    case Mixer::I32:
+        return 4;
+    case Mixer::I16:
+        return 2;
+    default:
+        return 1;
+    }
+}
+
 void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
     auto &cache = mixer->cache_;
