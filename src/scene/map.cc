@@ -80,7 +80,7 @@ void Map::showMiniPanel() {
         renderer_->setTargetTexture(miniPanelTex_);
         renderer_->clear(0, 0, 0, 0);
         auto *ttf = renderer_->ttf();
-        int smallFontSize = (ttf->fontSize() * 2 / 3 + 1) & ~1;
+        int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
         auto lineheight = smallFontSize + TextLineSpacing;
         auto windowBorder = core::config.windowBorder() * 2 / 3;
         int h = windowBorder * 2 + lineheight - TextLineSpacing;
@@ -99,10 +99,10 @@ void Map::showMiniPanel() {
         ttf->setColor(192, 192, 192);
         int y = windowBorder;
         if (name) {
-            ttf->render(*name, (w - w0) / 2, y, true, smallFontSize);
+            ttf->render(*name, (w - w0) / 2, y, false, smallFontSize);
             y += lineheight;
         }
-        ttf->render(coordStr, (w - w1) / 2, y, true, smallFontSize);
+        ttf->render(coordStr, (w - w1) / 2, y, false, smallFontSize);
         renderer_->setTargetTexture(nullptr);
         miniPanelX_ = width_ - w - windowBorder;
         miniPanelY_ = windowBorder;
