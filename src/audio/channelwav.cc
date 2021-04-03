@@ -92,13 +92,15 @@ size_t ChannelWav::readPCMData(const void **data, size_t size, bool convType) {
     }
     SDL_AudioCVT cvt;
     SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
-                      Mixer::convertType(typeOut_), 2, int(sampleRateOut_));
+                      Mixer::convertType(typeOut_), 2, int(sampleRateIn_));
     int osize = int(size * cvt.len_mult);
     int smax = std::max<int>(size, osize);
     if (cache_.size() < smax) {
         cache_.resize(smax);
     }
-    memcpy(cache_.data(), *data, size);
+    if (needCopy) {
+        memcpy(cache_.data(), *data, size);
+    }
     cvt.len = size;
     cvt.buf = cache_.data();
     SDL_ConvertAudio(&cvt);

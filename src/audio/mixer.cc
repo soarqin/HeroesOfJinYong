@@ -43,6 +43,7 @@ void Mixer::init(int channels) {
         SDL_InitSubSystem(SDL_INIT_AUDIO);
     }
     SDL_AudioFormat format;
+#if defined(USE_SOXR)
     switch (core::config.sampleFormat()) {
     case 1:
         format = AUDIO_S32;
@@ -54,6 +55,9 @@ void Mixer::init(int channels) {
         format = AUDIO_S16;
         break;
     }
+#else
+    format = AUDIO_F32;
+#endif
     SDL_AudioSpec desired = {
         core::config.sampleRate(),
         format,

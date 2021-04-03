@@ -20,9 +20,7 @@
 #pragma once
 
 #include "mixer.hh"
-
-#include <util/fifobuffer.hh>
-
+#include "util/fifobuffer.hh"
 #include <functional>
 #include <cstdint>
 
@@ -32,9 +30,9 @@ class Resampler final {
 public:
     using InputCallback = std::function<size_t (const void**, size_t)>;
     Resampler(std::uint32_t channels, double sampleRateIn, double sampleRateOut, Mixer::DataType typeIn, Mixer::DataType typeOut);
+    ~Resampler();
     void setInputCallback(InputCallback callback);
     size_t read(void *data, size_t size);
-    size_t write(const void *data, size_t size);
 
 private:
     static size_t readCB(void *userdata, void const **data, size_t len);
@@ -42,9 +40,11 @@ private:
 private:
     void *resampler_ = nullptr;
     InputCallback inputCB_;
-    util::FIFOBuffer buffer_;
     double rate_ = 0.;
     size_t sampleSizeIn_ = 0, sampleSizeOut_ = 0;
+#if !defined(USE_SOXR)
+    util::FIFOBuffer buffer_;
+#endif
 };
 
 }

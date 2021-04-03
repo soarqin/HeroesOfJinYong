@@ -78,7 +78,7 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size, bool convType) {
     }
     SDL_AudioCVT cvt;
     SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
-                      Mixer::convertType(typeOut_), 2, int(sampleRateOut_));
+                      Mixer::convertType(typeOut_), 2, int(sampleRateIn_));
     int isize = int(res * sizeof(short));
     int osize = isize * cvt.len_mult;
     if (cache_.size() < osize) {

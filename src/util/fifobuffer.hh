@@ -78,8 +78,8 @@ public:
                         rbuf += step;
                     }
                 } else {
-                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_, readsz * step);
-                    buf += readsz;
+                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_ * step, readsz * step);
+                    buf += readsz * step;
                 }
                 size -= readsz;
                 pos_ = 0;
@@ -94,7 +94,7 @@ public:
                         rbuf += step;
                     }
                 } else {
-                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_, size * step);
+                    memcpy(buf, static_cast<std::uint8_t *>(slice.buf) + pos_ * step, size * step);
                 }
                 pos_ += size;
                 size = 0;

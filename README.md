@@ -35,6 +35,7 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
    * [FreeType](https://www.freetype.org) (found in OSes)
 * GPLv3 licensed:
    * [libADLMIDI](https://github.com/Wohlstand/libADLMIDI) ([deps/libADLMIDI](deps/libADLMIDI))
+   * [zita-resampler](https://kokkinizita.linuxaudio.org/linuxaudio/zita-resampler/resampler.html) ([deps/zita-resampler](deps/zita-resampler))
 * LGPLv2.1 licensed:
    * [soxr](http://soxr.sourceforge.net/) ([deps/soxr](deps/soxr))
 * Zlib licensed:

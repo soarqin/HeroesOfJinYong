@@ -43,7 +43,17 @@ Resampler::Resampler(std::uint32_t channels, double sampleRateIn, double sampleR
     sampleSizeOut_ = Mixer::dataTypeToSize(typeOut);
     sampleSizeIn_ *= channels;
     sampleSizeOut_ *= channels;
+#if !defined(USE_SOXR)
     buffer_.setUnitSize(sampleSizeOut_);
+#endif
+}
+
+Resampler::~Resampler() {
+#if defined(USE_SOXR)
+    soxr_delete(static_cast<soxr_t>(resampler_));
+#else
+    delete static_cast<VResampler*>(resampler_);
+#endif
 }
 
 void Resampler::setInputCallback(Resampler::InputCallback callback) {
@@ -58,42 +68,36 @@ void Resampler::setInputCallback(Resampler::InputCallback callback) {
 }
 
 size_t Resampler::read(void *data, size_t size) {
-    if (inputCB_) {
+    if (!inputCB_) { return 0; }
 #if defined(USE_SOXR)
-        return soxr_output(static_cast<soxr_t>(resampler_), data, size / sampleSizeOut_) * sampleSizeOut_;
+    return soxr_output(static_cast<soxr_t>(resampler_), data, size / sampleSizeOut_) * sampleSizeOut_;
 #else
-#endif
-    } else {
-        return buffer_.pop(data, size / sampleSizeOut_, 0);
-    }
-}
-
-size_t Resampler::write(const void *data, size_t size) {
-    if (inputCB_) {
-        return 0;
-    }
-#if defined(USE_SOXR)
-    size_t idone, odone;
-    auto isize = size_t(size / sampleSizeIn_);
-    auto osize = size_t(std::ceil(isize * rate_));
-    auto *odata = buffer_.alloc(osize);
-    if (!odata) {
-        return 0;
-    }
-    if (soxr_process(static_cast<soxr_t>(resampler_), data, isize, &idone, odata, osize, &odone) != nullptr) {
-        return 0;
-    }
-    buffer_.push(odata, odone);
-    return idone;
-#else
-/*
+    auto sampleSize = sampleSizeOut_;
+    size = size / sampleSize * sampleSize;
     auto *resampler = static_cast<VResampler*>(resampler_);
-    resampler->inp_data = (float*)data;
-    resampler->out_data = (float*)odata;
-    resampler->inp_count = isize / resampler->nchan();
-    resampler->out_count = osize / resampler->nchan();
-    resampler->process();
-*/
+    auto osize = size / sampleSize;
+    auto *ptr = (std::uint8_t*)data;
+    while (osize) {
+        auto rsize = buffer_.pop(ptr, osize, 0);
+        if (rsize) {
+            osize -= rsize;
+            ptr += rsize * sampleSize;
+            if (!osize) { break; }
+        }
+        auto psize = std::max<size_t>(osize * 2, size / sampleSize);
+        auto isize = size_t(double(psize) / rate_);
+        const void *pcmdata;
+        rsize = inputCB_(&pcmdata, isize * sampleSize) / sampleSize;
+        if (!rsize) { break; }
+        auto *buf = buffer_.alloc(psize);
+        resampler->inp_data = (float *)pcmdata;
+        resampler->inp_count = rsize;
+        resampler->out_data = (float *)buf;
+        resampler->out_count = psize;
+        resampler->process();
+        buffer_.push(buf, psize - resampler->out_count);
+    }
+    return ptr - (std::uint8_t*)data;
 #endif
 }
 

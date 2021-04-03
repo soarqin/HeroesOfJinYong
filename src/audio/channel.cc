@@ -66,10 +66,17 @@ size_t Channel::readData(void *data, size_t size) {
 
 void Channel::start() {
     if (sampleRateIn_ != sampleRateOut_) {
+#if defined(USE_SOXR)
         resampler_ = std::make_unique<Resampler>(2, sampleRateIn_, sampleRateOut_, typeIn_, typeOut_);
         resampler_->setInputCallback([this](const void **data, size_t size)->size_t {
             return readPCMData(data, size, false);
         });
+#else
+        resampler_ = std::make_unique<Resampler>(2, sampleRateIn_, sampleRateOut_, Mixer::F32, Mixer::F32);
+        resampler_->setInputCallback([this](const void **data, size_t size)->size_t {
+            return readPCMData(data, size, true);
+        });
+#endif
     }
 }
 
