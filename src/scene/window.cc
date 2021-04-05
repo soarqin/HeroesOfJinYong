@@ -258,7 +258,7 @@ void Window::playMusic(int idx) {
     if (playingMusic_ == idx) {
         return;
     }
-    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true);
+    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true, audio::Mixer::VolumeMax, 500, 2000);
     playingMusic_ = idx;
 }
 
