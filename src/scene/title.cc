@@ -197,8 +197,8 @@ void Title::makeCache() {
         auto windowBorder = core::config.windowBorder();
         auto ttf = renderer_->ttf();
         int lineheight = ttf->fontSize() + TextLineSpacing;
-        y = height_ - lineheight * 6;
-        int hh = lineheight - TextLineSpacing / 4;
+        y = height_ - lineheight * 5;
+        int hh = lineheight - 2 - TextLineSpacing / 4;
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
         int ox = x, oy = y;
