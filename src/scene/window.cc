@@ -111,6 +111,24 @@ Window::Window(int w, int h): width_(w), height_(h) {
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
     warfield_ = new Warfield(renderer_, 0, 0, w, h, core::config.scale());
 
+    {
+        const auto *arr = reinterpret_cast<const int16_t*>(globalMap_->texData(data::ItemTexIdStart).data());
+        itemTexW_ = arr[0];
+        itemTexH_ = arr[1];
+    }
+    itemWCount_ = 1024 / itemTexW_;
+    itemHCount_ = 1024 / itemTexH_;(data::BagItemCount + itemWCount_ - 1) / itemWCount_;
+    int width = itemTexW_ * itemWCount_;
+    int height = itemTexH_ * itemHCount_;
+    itemTexture_ = Texture::create(renderer_, width, height);
+    itemTexture_->enableBlendMode(true);
+    int pitch;
+    const auto *colors = gNormalPalette.colors();
+    auto *pixels = itemTexture_->lock(pitch, 0, 0, width, height);
+    for (int i = 0; i < data::BagItemCount; ++i) {
+        Texture::renderRLE(globalMap_->texData(data::ItemTexIdStart + i), colors, pixels, pitch, height, itemTexW_ * (i % itemWCount_), itemTexH_ * (i / itemWCount_));
+    }
+    itemTexture_->unlock();
     SDL_ShowWindow(win);
     audio::gMixer.init(3);
     audio::gMixer.pause(false);
@@ -122,6 +140,7 @@ Window::~Window() {
     globalTextureMgr_.clear();
     headTextureMgr_.clear();
     gEffect.clear();
+    delete itemTexture_;
     delete talkBox_;
     delete globalMap_;
     delete subMap_;
@@ -133,6 +152,12 @@ Window::~Window() {
 const Texture *Window::smpTexture(std::int16_t id) const {
     if (!subMap_) { return nullptr; }
     return subMap_->texture(id);
+}
+
+void Window::renderItemTexture(std::int16_t id, int x, int y, int w, int h) {
+    renderer_->renderTexture(itemTexture_, x, y, w, h,
+                             itemTexW_ * (id % itemWCount_), itemTexH_ * (id / itemWCount_),
+                             itemTexW_, itemTexH_, true);
 }
 
 bool Window::processEvents() {

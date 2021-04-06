@@ -44,6 +44,14 @@ Map::~Map() {
     delete drawingTerrainTex_;
 }
 
+const std::string &Map::texData(std::int16_t id) const {
+    if (id < 0 || id >= texData_.size()) {
+        static const std::string dummy;
+        return dummy;
+    }
+    return texData_[id];
+}
+
 void Map::resetFrame() {
     frames_ = 0;
     nextFrameTime_ = gWindow->currTime();

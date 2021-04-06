@@ -48,6 +48,9 @@ public:
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
     [[nodiscard]] const Texture *smpTexture(std::int16_t id) const;
     [[nodiscard]] const TextureMgr &mapTextureMgr() const { return map_->textureMgr(); }
+    void renderItemTexture(std::int16_t id, int x, int y, int w, int h);
+    [[nodiscard]] int itemTexWidth() const { return itemTexW_; }
+    [[nodiscard]] int itemTexHeight() const { return itemTexH_; }
 
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
 
@@ -95,6 +98,8 @@ private:
     Map *warfield_ = nullptr;
     Node *talkBox_ = nullptr;
     TextureMgr globalTextureMgr_, headTextureMgr_;
+    Texture *itemTexture_ = nullptr;
+    int itemTexW_ = 0, itemTexH_ = 0, itemWCount_ = 0, itemHCount_ = 0;
 
     std::chrono::steady_clock::time_point currTime_;
     std::map<int, std::pair<std::chrono::steady_clock::time_point, Node::Key>> pressedKeys_;

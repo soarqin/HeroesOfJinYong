@@ -45,11 +45,10 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
         }
         items_.emplace_back(std::make_pair(p.first, p.second));
     }
-    const auto *tex = gWindow->globalMap()->getOrLoadTexture(data::ItemTexIdStart);
     int scale0 = gWindow->width() / 320, scale1 = gWindow->height() / 200;
     scale_ = std::max(1, std::min(scale0, scale1));
-    cellWidth_ = tex->width() * scale_;
-    cellHeight_ = tex->height() * scale_;
+    cellWidth_ = gWindow->itemTexWidth() * scale_;
+    cellHeight_ = gWindow->itemTexHeight() * scale_;
     cols_ = (width_ + ItemCellSpacing - windowBorder * 2) / (cellWidth_ + ItemCellSpacing);
     rows_ = (height_ + ItemCellSpacing - windowBorder * 2) / (cellHeight_ + ItemCellSpacing);
     width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + windowBorder * 2;
@@ -275,8 +274,7 @@ void ItemView::makeCache() {
     for (int j = rows_; j && idx < totalSz; --j) {
         x = windowBorder;
         for (int i = cols_; i && idx < totalSz; --i, ++idx) {
-            const auto *tex = gmap->getOrLoadTexture(data::ItemTexIdStart + items_[idx].first);
-            renderer_->renderTexture(tex, x, y, cellWidth_, cellHeight_, 0, 0, tex->width(), tex->height(), true);
+            gWindow->renderItemTexture(items_[idx].first, x, y, cellWidth_, cellHeight_);
             auto countStr = std::to_wstring(items_[idx].second);
             int countw = ttf->stringWidth(countStr, smallFontSize);
             ttf->render(countStr, x + cellWidth_ - countw - 4 * scale_, y + cellHeight_ - smallFontSize - 4 * scale_, true, smallFontSize);

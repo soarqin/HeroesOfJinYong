@@ -33,7 +33,7 @@ static const std::vector<std::uint8_t> &loadDataFromCacheOrFile(const std::strin
     if (util::File::getFileContent(filename, data)) {
         return data;
     }
-    static std::vector<std::uint8_t> dummy;
+    static const std::vector<std::uint8_t> dummy;
     return dummy;
 }
 

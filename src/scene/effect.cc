@@ -46,7 +46,7 @@ void Effect::load(Renderer *renderer_, const std::string &filename) {
 
 const std::vector<std::string> &Effect::operator[](std::int16_t index) const {
     if (index < 0 || index >= effectTexData_.size()) {
-        static std::vector<std::string> dummy;
+        static const std::vector<std::string> dummy;
         return dummy;
     }
     return effectTexData_[index];
