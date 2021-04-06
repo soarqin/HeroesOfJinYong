@@ -55,7 +55,7 @@ public:
     void initWithTeamMembers(const std::vector<std::wstring> &title, const std::vector<ValueType> &valueTypes,
               const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler = nullptr,
               const std::function<bool(ValueType, std::int16_t)> &filterFunc = nullptr);
-    void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle = nullptr);
+    void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle = nullptr) override;
     void makeCenter(int w, int h, int x = 0, int y = 0) override;
     void render() override;
 

@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(HeroesOfJinYong)
 
-set(CMAKE_CXX_STANDARD 17)
-
+option(BUILD_SHARED_LIBS  "Build shared libraries" ON)
 option(USE_STATIC_CRT "Use static C runtime" OFF)
 option(USE_FREETYPE "Use freetype instead of stb_truetype" OFF)
 option(USE_SOXR "Use soxr instead of zita-resampler(better quality with more cpu use)" OFF)

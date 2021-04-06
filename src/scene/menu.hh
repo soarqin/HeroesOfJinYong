@@ -30,7 +30,7 @@ public:
 
     [[nodiscard]] int currIndex() const { return currIndex_; }
     inline void setTitle(const std::wstring &title) { title_ = title; }
-    inline void enableCheckBox(bool b, const std::function<bool(int)> &onCheckBoxToggle = nullptr) {
+    virtual void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle = nullptr) {
         checkbox_ = b;
         onCheckBoxToggle_ = b ? onCheckBoxToggle : nullptr;
     }
@@ -57,7 +57,7 @@ protected:
     int currIndex_ = 0;
     bool checkbox_ = false;
     bool horizonal_ = false;
-    std::function<bool(int)> onCheckBoxToggle_;
+    std::function<bool(std::int16_t)> onCheckBoxToggle_;
 };
 
 class MenuTextList: public Menu {

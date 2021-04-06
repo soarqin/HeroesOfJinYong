@@ -205,7 +205,7 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
         if (currIndex_ >= 0) {
             okHandler(std::abs(charIdList_[currIndex_]));
         }
-    }, [this, cancelHandler]()->bool {
+    }, [cancelHandler]()->bool {
         if (cancelHandler) { return cancelHandler(); }
         return true;
     });
