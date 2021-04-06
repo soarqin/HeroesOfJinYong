@@ -30,9 +30,10 @@
 
 using namespace hojy;
 
-
 int main(int argc, char *argv[]) {
     core::config.load("config.toml");
+    core::config.load(core::config.saveFilePath("options.toml"));
+    core::config.postLoad();
     mem::gStrings.load("strings.toml");
     core::config.fixOnTextLoaded();
     data::loadData();

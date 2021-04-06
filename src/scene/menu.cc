@@ -260,4 +260,61 @@ void MenuYesNo::onCancel() {
     noHandler_();
 }
 
+void MenuOption::setValue(int index, const std::wstring &value) {
+    if (index < 0 || index >= values_.size()) { return; }
+    values_[index] = value;
+    update();
+}
+
+void MenuOption::handleKeyInput(Node::Key key) {
+    switch (key) {
+    case KeyUp:
+        if (!horizonal_) {
+            break;
+        }
+        if (handler_) {
+            handler_(1);
+        }
+        return;
+    case KeyDown:
+        if (!horizonal_) {
+            break;
+        }
+        if (handler_) {
+            handler_(2);
+        }
+        return;
+    case KeyLeft:
+        if (horizonal_) {
+            break;
+        }
+        if (handler_) {
+            handler_(1);
+        }
+        return;
+    case KeyRight:
+        if (horizonal_) {
+            break;
+        }
+        if (handler_) {
+            handler_(2);
+        }
+        return;
+    case KeyOK: case KeySpace:
+        if (handler_) {
+            handler_(3);
+        }
+        return;
+    case KeyCancel:
+        if (handler_) {
+            handler_(0);
+        }
+        delete this;
+        return;
+    default:
+        break;
+    }
+    Menu::handleKeyInput(key);
+}
+
 }

@@ -199,6 +199,13 @@ void Mixer::pause(bool on) const {
     SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
 }
 
+void Mixer::setVolume(size_t channelId, int volume) {
+    if (channelId >= channels_.size()) { return; }
+    auto &chi = channels_[channelId];
+    if (!chi.ch) { return; }
+    chi.volume = chi.volumeNext = volume;
+}
+
 Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
     switch (type) {
     case AUDIO_F32:
@@ -303,7 +310,7 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
                     chi.ch->start();
                 } else {
                     int volume = int(chi.volume * (chi.fadeOut - delta) / chi.fadeOut);
-                    SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume);
+                    if (volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume); }
                     continue;
                 }
             }
@@ -313,11 +320,11 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
                     chi.fadeInStart = chi.fadeIn = 0;
                 } else {
                     int volume = int(chi.volume * delta / chi.fadeIn);
-                    SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume);
+                    if (volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume); }
                     continue;
                 }
             }
-            SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, chi.volume);
+            if (chi.volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, chi.volume); }
         } else {
             chi.reset();
         }

@@ -27,6 +27,8 @@ namespace hojy::core {
 class Config {
 public:
     bool load(const std::string &filename);
+    bool saveOptions(const std::string &filename) const;
+    bool postLoad();
     void fixOnTextLoaded();
 
     [[nodiscard]] std::string dataFilePath(const std::string &filename) const;
@@ -49,6 +51,7 @@ public:
     [[nodiscard]] bool simplifiedChinese() const { return simplifiedChinese_; }
     [[nodiscard]] bool showPotential() const { return showPotential_; }
     [[nodiscard]] bool showMapMiniPanel() const { return showMapMiniPanel_; }
+    void setShowMapMiniPanel(bool show) { showMapMiniPanel_ = show; }
     [[nodiscard]] std::pair<int, int> scale() const { return scale_; }
     [[nodiscard]] float animationSpeed() const { return animationSpeed_; }
     [[nodiscard]] float fadeSpeed() const { return fadeSpeed_; }
@@ -61,6 +64,11 @@ public:
 
     [[nodiscard]] int sampleRate() const { return sampleRate_; }
     [[nodiscard]] int sampleFormat() const { return sampleFormat_; }
+
+    [[nodiscard]] int musicVolume() const { return musicVolume_; }
+    void setMusicVolume(int volume) { musicVolume_ = volume; }
+    [[nodiscard]] int soundVolume() const { return soundVolume_; }
+    void setSoundVolume(int volume) { soundVolume_ = volume; }
 
 private:
     std::vector<std::string> dataPath_, fonts_;
@@ -80,6 +88,8 @@ private:
     int limitFPS_ = 0;
     int sampleRate_ = 0;
     int sampleFormat_ = 0;
+    int musicVolume_ = 5;
+    int soundVolume_ = 5;
 };
 
 extern Config config;

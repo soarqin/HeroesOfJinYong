@@ -61,6 +61,7 @@ static void showCharStatus(Node *parent, std::int16_t charId);
 static void leaveTeamMenu(Node *mainMenu);
 static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
+static void optionMenu(Node *mainMenu, int x, int y);
 
 static const char *GameWindowTitle = "Heroes of Jin Yong";
 
@@ -258,7 +259,7 @@ void Window::playMusic(int idx) {
     if (playingMusic_ == idx) {
         return;
     }
-    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true, audio::Mixer::VolumeMax, 500, 2000);
+    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true, 16 * core::config.musicVolume(), 500, 2000);
     playingMusic_ = idx;
 }
 
@@ -268,12 +269,12 @@ void Window::playAtkSound(int idx) {
         playEffectSound(idx - 24);
         return;
     }
-    audio::gMixer.play(1, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx)), false);
+    audio::gMixer.play(1, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
 }
 
 void Window::playEffectSound(int idx) {
     (void)this;
-    audio::gMixer.play(2, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx)), false);
+    audio::gMixer.play(2, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
 }
 
 void Window::title() {
@@ -700,7 +701,7 @@ static void systemMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->popup({GETTEXT(62), GETTEXT(63), GETTEXT(64)});
+    subMenu->popup({GETTEXT(62), GETTEXT(63), GETTEXT(131), GETTEXT(64)});
     subMenu->forceUpdate();
     x += subMenu->width() + core::config.windowBorder();
     subMenu->setHandler([mainMenu, subMenu, x, y]() {
@@ -711,7 +712,10 @@ static void systemMenu(Node *mainMenu) {
         case 1:
             selectSaveSlotMenu(mainMenu, x, y, true);
             break;
-        case 2: {
+        case 2:
+            optionMenu(mainMenu, x, y);
+            break;
+        case 3: {
             auto *yesNo = new MenuYesNo(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
             yesNo->setHandler([]() { gWindow->forceQuit(); },
                               [yesNo]() { delete yesNo; });
@@ -740,6 +744,69 @@ static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
             }
         }
     }, nullptr);
+}
+
+void optionMenu(Node *mainMenu, int x, int y) {
+    auto *subMenu = new MenuOption(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
+    std::vector<std::wstring> values = {
+        fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)),
+        fmt::format(L" {:>2}", core::config.musicVolume()),
+        fmt::format(L" {:>2}", core::config.soundVolume()),
+    };
+    subMenu->popup({GETTEXT(132), GETTEXT(133), GETTEXT(134)}, values);
+    subMenu->setHandler([subMenu](int inputType) {
+        switch (inputType) {
+        case 0:
+            core::config.saveOptions(core::config.saveFilePath("options.toml"));
+            break;
+        case 1:
+        case 2:
+            switch (subMenu->currIndex()) {
+            case 1: {
+                int val = core::config.musicVolume();
+                if (inputType == 1) {
+                    if (val <= 0) { break; }
+                    --val;
+                } else {
+                    if (val >= 8) { break; }
+                    ++val;
+                }
+                core::config.setMusicVolume(val);
+                audio::gMixer.setVolume(0, 16 * val);
+                subMenu->setValue(1, fmt::format(L" {:>2}", val));
+                break;
+            }
+            case 2: {
+                int val = core::config.soundVolume();
+                if (inputType == 1) {
+                    if (val <= 0) { break; }
+                    --val;
+                } else {
+                    if (val >= 8) { break; }
+                    ++val;
+                }
+                core::config.setSoundVolume(val);
+                subMenu->setValue(2, fmt::format(L" {:>2}", val));
+                break;
+            }
+            default:
+                break;
+            }
+            /* fallthrough */
+        case 3:
+            switch (subMenu->currIndex()) {
+            case 0:
+                core::config.setShowMapMiniPanel(!core::config.showMapMiniPanel());
+                subMenu->setValue(0, fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)));
+                break;
+            default:
+                break;
+            }
+            break;
+        default:
+            break;
+        }
+    });
 }
 
 }

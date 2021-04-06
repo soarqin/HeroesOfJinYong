@@ -61,6 +61,7 @@ public:
     void pause(bool on) const;
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }
     [[nodiscard]] inline DataType dataType() const { return convertDataType(format_); }
+    void setVolume(size_t channelId, int volume);
 
     static DataType convertDataType(std::uint16_t type);
     static std::uint16_t convertType(DataType);

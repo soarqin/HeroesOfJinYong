@@ -100,4 +100,16 @@ private:
     std::function<void()> yesHandler_, noHandler_;
 };
 
+class MenuOption: public Menu {
+public:
+    using Menu::Menu;
+
+    void setValue(int index, const std::wstring &value);
+    void setHandler(const std::function<void(int)> &handler) { handler_ = handler; }
+    void handleKeyInput(Key key) override;
+
+protected:
+    std::function<void(int)> handler_;
+};
+
 }
