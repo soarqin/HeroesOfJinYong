@@ -39,6 +39,8 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     MapWithEvent(renderer, ix, iy, width, height, scale),
     drawingTerrainTex2_(Texture::create(renderer_, width, height)) {
     drawingTerrainTex2_->enableBlendMode(true);
+    miniMapTex_ = Texture::create(renderer_, 2 * (GlobalMapWidth + GlobalMapHeight - 1) + 1, GlobalMapWidth + GlobalMapHeight - 1 + 1);
+    miniMapTex_->enableBlendMode(true);
     mapWidth_ = GlobalMapWidth;
     mapHeight_ = GlobalMapHeight;
     cloudTexMgr_.setRenderer(renderer_);
@@ -75,7 +77,7 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
 
     int pos = 0;
     for (int j = 0; j < mapHeight_; ++j) {
-        for (int i = 0; i < mapHeight_; ++i, ++pos) {
+        for (int i = 0; i < mapWidth_; ++i, ++pos) {
             auto &ci = cellInfo_[pos];
             auto &n = earth_[pos];
             n >>= 1;
@@ -93,29 +95,29 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
             ci.surfaceId = surface_[pos] >> 1;
             auto &n1 = building_[pos];
             n1 >>= 1;
-            if (n1 <= 0) { continue; }
-            ci.canWalk = false;
-            if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
-                ci.type = 2;
-            }
-            if (n1 && n1 < texData_.size() && !texData_[n1].empty()) {
-                const auto *arr = reinterpret_cast<const uint16_t*>(texData_[n1].data());
-                auto deltaY = (arr[0] + 35) / 36 / 2;
-                if (n1 >= 1176 && n1 <= 1182 || n1 == 1352) {
-                    deltaY = arr[1] / 18 + 1;
+            if (n1 > 0) {
+                ci.canWalk = false;
+                if (n1 >= 1008 && n1 <= 1164 || n1 >= 1214 && n1 <= 1238) {
+                    ci.type = 2;
                 }
-                if (deltaY) {
-                    auto &ci2 = cellInfo_[(j - deltaY) * mapWidth_ + (i - deltaY)];
-                    ci2.buildingId = n1;
-                    ci2.buildingDeltaY = deltaY * cellHeight_;
-                } else {
-                    ci.buildingId = n1;
-                    ci.buildingDeltaY = 0;
+                if (n1 && n1 < texData_.size() && !texData_[n1].empty()) {
+                    const auto *arr = reinterpret_cast<const uint16_t *>(texData_[n1].data());
+                    auto deltaY = (arr[0] + 35) / 36 / 2;
+                    if (n1 >= 1176 && n1 <= 1182 || n1 == 1352) {
+                        deltaY = arr[1] / 18 + 1;
+                    }
+                    if (deltaY) {
+                        auto &ci2 = cellInfo_[(j - deltaY) * mapWidth_ + (i - deltaY)];
+                        ci2.buildingId = n1;
+                        ci2.buildingDeltaY = deltaY * cellHeight_;
+                    } else {
+                        ci.buildingId = n1;
+                        ci.buildingDeltaY = 0;
+                    }
                 }
             }
         }
     }
-
     resetTime();
     updateMainCharTexture();
 }
@@ -125,6 +127,69 @@ GlobalMap::~GlobalMap() {
 }
 
 void GlobalMap::load() {
+    int pos = 0;
+    std::map<std::int16_t, std::uint32_t> colorMap;
+    const auto *colors = gNormalPalette.colors();
+    int pitch;
+    auto *pixels = miniMapTex_->lock(pitch);
+    int miniMapStartX = 2 * (mapHeight_ - 1) + 1;
+    int miniMapStartY = 1;
+    for (int j = 0; j < mapHeight_; ++j) {
+        for (int i = 0; i < mapWidth_; ++i, ++pos) {
+            int mmx = miniMapStartX + (i - j) * 2;
+            int mmy = miniMapStartY + (i + j);
+            auto &ci = cellInfo_[pos];
+            std::uint32_t c;
+            if (!ci.canWalk || (buildx_[pos] != 0 && building_[buildy_[pos] * mapWidth_ + buildx_[pos]] != 0)) {
+                c = 0x202020U;
+            } else {
+                auto n = ci.earthId;
+                auto ite = colorMap.find(n);
+                if (ite == colorMap.end()) {
+                    c = Texture::calcRLEAvgColor(texData_[ci.earthId], colors);
+                    colorMap[n] = c;
+                } else {
+                    c = ite->second;
+                }
+            }
+            c |= 0xE0000000u;
+            int mmoff = mmx + mmy * pitch;
+            pixels[mmoff - 1] = c;
+            pixels[mmoff] = c;
+            pixels[mmoff + 1] = c;
+            pixels[mmoff - pitch] = c;
+        }
+    }
+    auto subMapSz = mem::gSaveData.subMapInfo.size();
+    for (size_t i = 0; i < subMapSz; ++i) {
+        const auto &smi = mem::gSaveData.subMapInfo[i];
+        auto ex = smi->globalEnterX1;
+        auto ey = smi->globalEnterY1;
+        subMapEntries_[std::make_pair(ex, ey)] = i;
+        int mmx = miniMapStartX + (ex - ey) * 2;
+        int mmy = miniMapStartY + (ex + ey);
+        int mmoff = mmx + mmy * pitch;
+        const std::uint32_t c = 0xE0C080C0;
+        pixels[mmoff - 1] = c;
+        pixels[mmoff] = c;
+        pixels[mmoff + 1] = c;
+        pixels[mmoff - pitch] = c;
+
+        ex = smi->globalEnterX2;
+        if (ex >= 0) {
+            ey = smi->globalEnterY2;
+            subMapEntries_[std::make_pair(ex, ey)] = i;
+            mmx = miniMapStartX + (ex - ey) * 2;
+            mmy = miniMapStartY + (ex + ey);
+            mmoff = mmx + mmy * pitch;
+            pixels[mmoff - 1] = c;
+            pixels[mmoff] = c;
+            pixels[mmoff + 1] = c;
+            pixels[mmoff - pitch] = c;
+        }
+    }
+    miniMapTex_->unlock();
+
     onShip_ = cellInfo_[currY_ * mapWidth_ + currX_].type == 1;
     if (core::config.shipLogicEnabled()) {
         showShip(!onShip_);
@@ -212,6 +277,10 @@ void GlobalMap::render() {
             }
         }
         curTex->unlock();
+        int miniMapStartX = 2 * (mapHeight_ - 1) + 1 + 2 * (cameraX_ - cameraY_);
+        int miniMapStartY = 1 + cameraX_ + cameraY_;
+        miniMapAuxX_ = miniMapStartX - miniMapAuxW_ / 2;
+        miniMapAuxY_ = miniMapStartY - miniMapAuxH_ / 2;
     }
     renderer_->clear(0, 0, 0, 255);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
@@ -255,18 +324,6 @@ void GlobalMap::showShip(bool show) {
 }
 
 bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
-    if (subMapEntries_.empty()) {
-        auto subMapSz = mem::gSaveData.subMapInfo.size();
-        for (size_t i = 0; i < subMapSz; ++i) {
-            const auto &smi = mem::gSaveData.subMapInfo[i];
-            auto ex = smi->globalEnterX1;
-            auto ey = smi->globalEnterY1;
-            subMapEntries_[std::make_pair(ex, ey)] = i;
-            ex = smi->globalEnterX2;
-            ey = smi->globalEnterY2;
-            subMapEntries_[std::make_pair(ex, ey)] = i;
-        }
-    }
     auto ite = subMapEntries_.find(std::make_pair(std::int16_t(x), std::int16_t(y)));
     if (ite != subMapEntries_.end()) {
         auto *subMapInfo = mem::gSaveData.subMapInfo[ite->second];

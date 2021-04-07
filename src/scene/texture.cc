@@ -239,6 +239,56 @@ void Texture::renderRLE(const std::string &data, const std::uint32_t *colors, st
     }
 }
 
+std::uint32_t Texture::calcRLEAvgColor(const std::string &data, const std::uint32_t *colors) {
+    size_t left = data.size();
+    if (left < 8) {
+        return 0;
+    }
+    const auto *buf = reinterpret_cast<const std::uint8_t*>(data.data());
+    struct Header {
+        std::int16_t w, h, x, y;
+    };
+    const auto *hdr = reinterpret_cast<const Header*>(buf);
+    if (hdr->w == 0 && hdr->h == 0) {
+        return 0;
+    }
+    buf += 8;
+    left -= 8;
+    std::uint32_t r = 0, g = 0, b = 0, pixcount = 0;
+    std::int32_t y = 0, w = hdr->w, h = hdr->h;
+    while (left && y < h) {
+        auto size = std::uint32_t(*buf++);
+        if (--left < size) {
+            break;
+        }
+        left -= size;
+        while (size) {
+            auto cnt = *buf++;
+            --size;
+            if (!size) {
+                break;
+            }
+            cnt = *buf++;
+            --size;
+            if (size < cnt) {
+                break;
+            }
+            pixcount += cnt;
+            size -= cnt;
+            for (; cnt; --cnt) {
+                const auto *c = reinterpret_cast<const std::uint8_t*>(&colors[*buf++]);
+                r += c[2];
+                g += c[1];
+                b += c[0];
+            }
+        }
+    }
+    r /= pixcount;
+    g /= pixcount;
+    b /= pixcount;
+    return b | (g << 8) | (r << 16);
+}
+
 TextureMgr::~TextureMgr() {
     for (auto &p: textures_) {
         delete p.second;

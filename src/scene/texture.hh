@@ -58,6 +58,7 @@ public:
     static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
     static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
     static void renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
+    static std::uint32_t calcRLEAvgColor(const std::string &data, const std::uint32_t *colors);
 
 private:
     void *data_ = nullptr;

@@ -70,6 +70,8 @@ protected:
     std::pair<int, int> scale_ = {1, 1};
     std::uint32_t auxWidth_ = 0, auxHeight_ = 0;
     std::int32_t currX_ = 0, currY_ = 0;
+    std::int32_t miniMapX_ = 0, miniMapY_ = 0, miniMapW_ = 0, miniMapH_ = 0;
+    std::int32_t miniMapAuxX_ = 0, miniMapAuxY_ = 0, miniMapAuxW_ = 0, miniMapAuxH_ = 0;
     bool drawDirty_ = false, miniPanelDirty_ = true;
     std::chrono::steady_clock::time_point nextFrameTime_;
     std::chrono::steady_clock::duration eachFrameTime_;
@@ -77,6 +79,7 @@ protected:
     std::int32_t offsetX_ = 0, offsetY_ = 0;
     std::vector<std::string> texData_;
     Texture *drawingTerrainTex_ = nullptr;
+    Texture *miniMapTex_ = nullptr;
     Texture *miniPanelTex_ = nullptr;
     std::int32_t miniPanelX_ = 0, miniPanelY_ = 0;
 };

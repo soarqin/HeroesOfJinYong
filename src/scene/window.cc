@@ -118,13 +118,12 @@ Window::Window(int w, int h): width_(w), height_(h) {
     }
     itemWCount_ = 1024 / itemTexW_;
     itemHCount_ = 1024 / itemTexH_;(data::BagItemCount + itemWCount_ - 1) / itemWCount_;
-    int width = itemTexW_ * itemWCount_;
     int height = itemTexH_ * itemHCount_;
-    itemTexture_ = Texture::create(renderer_, width, height);
+    itemTexture_ = Texture::create(renderer_, itemTexW_ * itemWCount_, height);
     itemTexture_->enableBlendMode(true);
     int pitch;
     const auto *colors = gNormalPalette.colors();
-    auto *pixels = itemTexture_->lock(pitch, 0, 0, width, height);
+    auto *pixels = itemTexture_->lock(pitch);
     for (int i = 0; i < data::BagItemCount; ++i) {
         Texture::renderRLE(globalMap_->texData(data::ItemTexIdStart + i), colors, pixels, pitch, height, itemTexW_ * (i % itemWCount_), itemTexH_ * (i / itemWCount_));
     }
@@ -775,10 +774,11 @@ void optionMenu(Node *mainMenu, int x, int y) {
     auto *subMenu = new MenuOption(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     std::vector<std::wstring> values = {
         fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)),
+        fmt::format(L" {:<2}", core::config.showMinimap() ? GETTEXT(135) : GETTEXT(136)),
         fmt::format(L" {:>2}", core::config.musicVolume()),
         fmt::format(L" {:>2}", core::config.soundVolume()),
     };
-    subMenu->popup({GETTEXT(132), GETTEXT(133), GETTEXT(134)}, values);
+    subMenu->popup({GETTEXT(132), GETTEXT(137), GETTEXT(133), GETTEXT(134)}, values);
     subMenu->setHandler([subMenu](int inputType) {
         switch (inputType) {
         case 0:
@@ -787,7 +787,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
         case 1:
         case 2:
             switch (subMenu->currIndex()) {
-            case 1: {
+            case 2: {
                 int val = core::config.musicVolume();
                 if (inputType == 1) {
                     if (val <= 0) { break; }
@@ -801,7 +801,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
                 subMenu->setValue(1, fmt::format(L" {:>2}", val));
                 break;
             }
-            case 2: {
+            case 3: {
                 int val = core::config.soundVolume();
                 if (inputType == 1) {
                     if (val <= 0) { break; }
@@ -823,6 +823,10 @@ void optionMenu(Node *mainMenu, int x, int y) {
             case 0:
                 core::config.setShowMapMiniPanel(!core::config.showMapMiniPanel());
                 subMenu->setValue(0, fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)));
+                break;
+            case 1:
+                core::config.setShowMinimap(!core::config.showMinimap());
+                subMenu->setValue(1, fmt::format(L" {:<2}", core::config.showMinimap() ? GETTEXT(135) : GETTEXT(136)));
                 break;
             default:
                 break;

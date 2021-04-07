@@ -95,6 +95,14 @@ void Renderer::drawRoundedRect(int x, int y, int w, int h, int rad, std::uint8_t
     roundedRectangleRGBA(static_cast<SDL_Renderer*>(renderer_), x, y, x + w - 1, y + h - 1, rad, r, g, b, a);
 }
 
+void Renderer::drawCircle(int x, int y, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    circleRGBA(static_cast<SDL_Renderer*>(renderer_), x, y, rad, r, g, b, a);
+}
+
+void Renderer::fillCircle(int x, int y, int rad, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    filledCircleRGBA(static_cast<SDL_Renderer*>(renderer_), x, y, rad, r, g, b, a);
+}
+
 void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {
     auto w = tex->width(), h = tex->height();
     SDL_Rect src {0, 0, w, h};

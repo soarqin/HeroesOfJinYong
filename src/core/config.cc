@@ -76,6 +76,7 @@ bool Config::load(const std::string &filename) {
         simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(std::move(simplifiedChinese_));
         showPotential_ = ui["show_potential"].value_or<bool>(std::move(showPotential_));
         showMapMiniPanel_ = ui["show_map_mini_panel"].value_or<bool>(std::move(showMapMiniPanel_));
+        showMinimap_ = ui["show_minimap"].value_or<bool>(std::move(showMinimap_));
         auto scale = ui["scale"].value<double>();
         if (scale) {
             scale_ = util::calcSmallestDivision(*scale);
@@ -117,6 +118,7 @@ bool Config::saveOptions(const std::string &filename) const {
         {"ui",
             toml::table{{
                 {"show_map_mini_panel", showMapMiniPanel_},
+                {"show_minimap", showMinimap_},
             }},
         },
         {"audio",
