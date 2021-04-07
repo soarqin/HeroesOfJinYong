@@ -169,7 +169,7 @@ void Title::makeCache() {
         auto scale = y == 0 ? util::calcSmallestDivision(height_, 200) : util::calcSmallestDivision(width_, 320);
         const auto *img0 = titleTextureMgr_[0];
         int x0 = (width_ - (img0->width() + img0->originX()) * scale.first / scale.second) / 2;
-        int y0 = height_ - 70 * scale.first / scale.second;
+        int y0 = height_ - 65 * scale.first / scale.second;
         static const std::pair<int, int> offsetY[9] = {
             {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second},
             {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second}, {y0, 40}
