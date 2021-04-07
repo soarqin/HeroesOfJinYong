@@ -158,9 +158,9 @@ void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize)
         if (shadow) {
             auto *tex = textures_[fd->rpidx];
             tex->setBlendColor(0, 0, 0, 255);
-            renderer_->renderTexture(tex, x + fd->ix0 + 1, y + fd->iy0 + 1, fd->rpx, fd->rpy, fd->w, fd->h, true);
+            renderer_->renderTexture(tex, x + fd->ix0 + 2, y + fd->iy0 + 2, fd->rpx, fd->rpy, fd->w, fd->h, true);
             tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
-            renderer_->renderTexture(tex, x + fd->ix0 - 1, y + fd->iy0 - 1, fd->rpx, fd->rpy, fd->w, fd->h, true);
+            renderer_->renderTexture(tex, x + fd->ix0, y + fd->iy0, fd->rpx, fd->rpy, fd->w, fd->h, true);
         } else {
             auto *tex = textures_[fd->rpidx];
             tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
