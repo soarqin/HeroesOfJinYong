@@ -169,7 +169,7 @@ void GlobalMap::load() {
         int mmx = miniMapStartX + (ex - ey) * 2;
         int mmy = miniMapStartY + (ex + ey);
         int mmoff = mmx + mmy * pitch;
-        const std::uint32_t c = 0xE0C080C0;
+        const std::uint32_t c = 0xE040C0C0;
         pixels[mmoff - 1] = c;
         pixels[mmoff] = c;
         pixels[mmoff + 1] = c;
