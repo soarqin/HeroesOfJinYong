@@ -26,6 +26,18 @@ namespace hojy::util {
 Big5Conv big5Conv;
 Trad2SimpConv trad2SimpConv;
 
+struct PairCompare {
+    bool operator()(const Conv::Pair &a1, const Conv::Pair &a2) {
+        return a1.from == a2.from ? a1.to < a2.to : a1.from < a2.from;
+    }
+    bool operator()(std::uint32_t a1, const Conv::Pair &a2) {
+        return a1 == a2.from ? 0 < a2.to : a1 < a2.from;
+    }
+    bool operator()(const Conv::Pair &a1, std::uint32_t a2) {
+        return a1.from == a2 ? a1.to < 0 : a1.from < a2;
+    }
+};
+
 std::wstring Conv::toUnicode(std::string_view str) {
     size_t len = str.length();
     const char *cstr = str.data();
@@ -44,11 +56,11 @@ std::wstring Conv::toUnicode(std::string_view str) {
             break;
         }
         std::uint32_t charcode = (std::uint16_t(c) << 8) | std::uint8_t(*(cstr + 1));
-        auto ite = std::lower_bound(table_.begin(), table_.end(), std::make_pair(charcode, std::uint32_t(0)));
-        if (ite == table_.end() || ite->first != charcode) {
+        auto ite = std::lower_bound(table_, table_ + size_, charcode, PairCompare());
+        if (ite >= table_ + size_ || ite->from != charcode) {
             result.append(L"  ");
         } else {
-            result += wchar_t(ite->second);
+            result += wchar_t(ite->to);
         }
         cstr += 2;
     }
@@ -68,12 +80,12 @@ std::string Conv::fromUnicode(std::wstring_view wstr) {
             ++cstr;
             continue;
         }
-        auto ite = std::lower_bound(tableRev_.begin(), tableRev_.end(), std::make_pair(c, std::uint32_t(0)));
-        if (ite == tableRev_.end() || ite->first != c) {
+        auto ite = std::lower_bound(tableRev_, tableRev_ + size_, c, PairCompare());
+        if (ite >= tableRev_ + size_ || ite->from != c) {
             result.append("  ");
         } else {
-            result += char(ite->second >> 8);
-            result += char(ite->second & 0xFF);
+            result += char(ite->to >> 8);
+            result += char(ite->to & 0xFF);
         }
         ++cstr;
     }
@@ -81,19 +93,20 @@ std::string Conv::fromUnicode(std::wstring_view wstr) {
 }
 
 void Conv::postInit() {
-    auto size = table_.size();
-    tableRev_.resize(size);
-    for (size_t i = 0; i < size; ++i) {
+    tableRev_ = new Pair[size_];
+    for (size_t i = 0; i < size_; ++i) {
         auto &p = table_[i];
-        tableRev_[i] = std::make_pair(p.second, p.first);
+        tableRev_[i] = { p.to, p.from };
     }
-    std::sort(table_.begin(), table_.end());
-    std::sort(tableRev_.begin(), tableRev_.end());
+    std::sort(table_, table_ + size_, PairCompare());
+    std::sort(tableRev_, tableRev_ + size_, PairCompare());
 }
 
 Big5Conv::Big5Conv() noexcept {
-    table_ =
+    static Pair table[] =
 #include "big5table.inl"
+    table_ = table;
+    size_ = sizeof(table) / sizeof(Pair);
     postInit();
 }
 

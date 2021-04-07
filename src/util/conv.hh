@@ -31,14 +31,20 @@ namespace hojy::util {
 
 class Conv {
 public:
+    struct Pair {
+        std::uint32_t from;
+        std::uint32_t to;
+    };
     std::wstring toUnicode(std::string_view str);
     std::string fromUnicode(std::wstring_view wstr);
+    virtual ~Conv() { delete[] tableRev_; }
 
 protected:
     void postInit();
 
 protected:
-    std::vector<std::pair<std::uint32_t, std::uint32_t>> table_, tableRev_;
+    Pair *table_ = nullptr, *tableRev_ = nullptr;
+    size_t size_ = 0;
 };
 
 class Big5Conv final: public Conv {
