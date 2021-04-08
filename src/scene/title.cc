@@ -226,7 +226,7 @@ void Title::makeCache() {
             drawProperty(GETTEXT(29), data->potential, 100, x + colwidth * 4, y, hh);
         }
         cacheEnd();
-        if (mode_ == 3 && menu_ == nullptr) {
+        if (menu_ == nullptr) {
             int mx = ox + ttf->stringWidth(askText) + windowBorder * 2;
             int my = oy - windowBorder;
             auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
