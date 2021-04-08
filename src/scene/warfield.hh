@@ -125,9 +125,8 @@ private:
     const std::vector<std::string> *fightTex_ = nullptr;
     std::vector<PopupNumber> popupNumbers_;
     std::function<void()> pendingAutoAction_;
-
     Node *statusPanel_ = nullptr;
-    Texture *maskTex_ = nullptr;
+    Texture *drawingTerrainTex2_ = nullptr;
     std::vector<std::vector<std::string>> fightTexData_;
 };
 

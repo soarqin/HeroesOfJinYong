@@ -29,7 +29,7 @@ namespace hojy::scene {
 
 SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale):
     MapWithEvent(renderer, ix, iy, width, height, scale),
-    drawingTerrainTex2_(Texture::create(renderer_, width, height)) {
+    drawingTerrainTex2_(Texture::create(renderer_, auxWidth_, auxHeight_)) {
     drawingTerrainTex2_->enableBlendMode(true);
 }
 

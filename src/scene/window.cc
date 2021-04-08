@@ -95,8 +95,6 @@ Window::Window(int w, int h): width_(w), height_(h) {
         gMaskPalette.create(n);
     }
 
-    globalTextureMgr_.setPalette(gNormalPalette);
-    globalTextureMgr_.setRenderer(renderer_);
     headTextureMgr_.setPalette(gNormalPalette);
     headTextureMgr_.setRenderer(renderer_);
     data::GrpData::DataSet dset;
@@ -136,7 +134,6 @@ Window::Window(int w, int h): width_(w), height_(h) {
 
 Window::~Window() {
     closePopup();
-    globalTextureMgr_.clear();
     headTextureMgr_.clear();
     gEffect.clear();
     delete itemTexture_;
@@ -150,7 +147,7 @@ Window::~Window() {
 
 const Texture *Window::smpTexture(std::int16_t id) const {
     if (!subMap_) { return nullptr; }
-    return subMap_->texture(id);
+    return subMap_->getOrLoadTexture(id);
 }
 
 void Window::renderItemTexture(std::int16_t id, int x, int y, int w, int h) {

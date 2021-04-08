@@ -26,9 +26,17 @@
 namespace hojy::scene {
 
 struct RectPackData {
-    stbrp_context context;
-    stbrp_node nodes[RectPackWidth];
+    explicit RectPackData(int nodeCount): nodes(new stbrp_node[nodeCount]) {
+    }
+    ~RectPackData() {
+        delete[] nodes;
+    }
+    stbrp_context context = {};
+    stbrp_node *nodes;
 };
+
+RectPacker::RectPacker(int width, int height): width_(width), height_(height) {
+}
 
 RectPacker::~RectPacker() {
     for (auto *rpd: rectpackData_) {
@@ -68,8 +76,8 @@ int RectPacker::pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int
 void RectPacker::newRectPack() {
     rectpackData_.resize(rectpackData_.size() + 1);
     auto *&rpd = rectpackData_.back();
-    rpd = new RectPackData;
-    stbrp_init_target(&rpd->context, RectPackWidth, RectPackWidth, rpd->nodes, RectPackWidth);
+    rpd = new RectPackData(width_);
+    stbrp_init_target(&rpd->context, width_, height_, rpd->nodes, width_);
 }
 
 }

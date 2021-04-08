@@ -35,7 +35,7 @@
 
 namespace hojy::scene {
 
-TTF::TTF(Renderer *renderer): renderer_(renderer), rectpacker_(new RectPacker) {
+TTF::TTF(Renderer *renderer): renderer_(renderer), rectpacker_(new RectPacker(RectPackWidthDefault, RectPackWidthDefault)) {
 #ifdef USE_FREETYPE
     FT_Init_FreeType(&ftLib_);
 #endif
@@ -251,7 +251,7 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     }
     auto *tex = textures_[rpidx];
     if (tex == nullptr) {
-        tex = Texture::create(renderer_, RectPackWidth, RectPackWidth);
+        tex = Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault);
         tex->enableBlendMode(true);
         textures_[rpidx] = tex;
     }

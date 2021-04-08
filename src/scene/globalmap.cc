@@ -37,7 +37,7 @@ enum {
 
 GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale):
     MapWithEvent(renderer, ix, iy, width, height, scale),
-    drawingTerrainTex2_(Texture::create(renderer_, width, height)) {
+    drawingTerrainTex2_(Texture::create(renderer_, auxWidth_, auxHeight_)) {
     drawingTerrainTex2_->enableBlendMode(true);
     miniMapTex_ = Texture::create(renderer_, 2 * (GlobalMapWidth + GlobalMapHeight - 1) + 1, GlobalMapWidth + GlobalMapHeight - 1 + 1);
     miniMapTex_->enableBlendMode(true);

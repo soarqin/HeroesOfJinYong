@@ -105,7 +105,7 @@ void Renderer::fillCircle(int x, int y, int rad, std::uint8_t r, std::uint8_t g,
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {
     auto w = tex->width(), h = tex->height();
-    SDL_Rect src {0, 0, w, h};
+    SDL_Rect src {tex->x(), tex->y(), w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {x, y, w, h};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
@@ -117,7 +117,7 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, std::pair<int, int> scale, bool ignoreOrigin) {
     auto w = tex->width(), h = tex->height();
-    SDL_Rect src {0, 0, w, h};
+    SDL_Rect src {tex->x(), tex->y(), w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {x, y, w * scale.first / scale.second, h * scale.first / scale.second};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
@@ -129,7 +129,7 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, std::pair<int, in
 }
 
 void Renderer::renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin) {
-    SDL_Rect src {x, y, w, h};
+    SDL_Rect src {tex->x() + x, tex->y() + y, w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {destx, desty, w, h};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
@@ -140,7 +140,7 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int x, in
 }
 
 void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin) {
-    SDL_Rect src {x, y, w, h};
+    SDL_Rect src {tex->x() + x, tex->y() + y, w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {destx, desty, destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);

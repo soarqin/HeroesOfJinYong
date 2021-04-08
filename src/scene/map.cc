@@ -30,7 +30,7 @@ namespace hojy::scene {
 
 Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale): Node(renderer, x, y, width, height),
     scale_(scale), auxWidth_(width_ * scale.second / scale.first), auxHeight_(height_ * scale.second / scale.first),
-    drawDirty_(true), drawingTerrainTex_(Texture::create(renderer_, width, height)),
+    drawDirty_(true), drawingTerrainTex_(Texture::create(renderer_, auxWidth_, auxHeight_)),
     miniPanelTex_(Texture::createAsTarget(renderer_, 256, 256)),
     eachFrameTime_(std::chrono::microseconds(int(1000000.f / 15.f / core::config.animationSpeed()))) {
     textureMgr_.clear();

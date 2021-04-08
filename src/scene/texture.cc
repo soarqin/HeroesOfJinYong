@@ -21,7 +21,7 @@
 
 #include "renderer.hh"
 #include "colorpalette.hh"
-
+#include "rectpacker.hh"
 #include <SDL.h>
 
 namespace hojy::scene {
@@ -42,7 +42,8 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     w = upToPowerOf2(w);
     h = upToPowerOf2(h);
 #endif
-    auto *tex = new Texture;
+    auto *tex = new(std::nothrow) Texture;
+    if (!tex) { return nullptr; }
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
     auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
     tex->data_ = texture;
@@ -52,7 +53,8 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
 }
 
 Texture *Texture::create(Renderer *renderer, std::int16_t w, std::int16_t h) {
-    auto *tex = new Texture;
+    auto *tex = new(std::nothrow) Texture;
+    if (!tex) { return nullptr; }
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
     auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
     tex->data_ = texture;
@@ -239,6 +241,99 @@ void Texture::renderRLE(const std::string &data, const std::uint32_t *colors, st
     }
 }
 
+inline std::uint32_t blendAlpha(std::uint32_t p1, std::uint32_t p2) {
+    static const std::uint32_t AMASK = 0xFF000000;
+    static const std::uint32_t RBMASK = 0x00FF00FF;
+    static const std::uint32_t GMASK = 0x0000FF00;
+    std::uint32_t a = (p2 & AMASK) >> 24;
+    std::uint32_t na = 255 - a;
+    std::uint32_t rb = (na * (p1 & RBMASK)) + (a * (p2 & RBMASK));
+    rb = (rb + 0x10001 + ((rb >> 8) & 0xFF00FF)) >> 8;
+    std::uint32_t g = (na * (p1 & GMASK)) + (a * (p2 & GMASK));
+    g = ((g + 1) * 257) >> 16;
+    return (rb & RBMASK) | (g & GMASK) | 0xFF000000u;
+}
+
+void Texture::renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int ox, int oy, bool ignoreOrigin) {
+    size_t left = data.size();
+    if (left < 8) {
+        return;
+    }
+    const auto *obuf = reinterpret_cast<const std::uint8_t*>(data.data());
+    struct Header {
+        std::int16_t w, h, x, y;
+    };
+    const auto *hdr = reinterpret_cast<const Header*>(obuf);
+    obuf += 8;
+    left -= 8;
+    if (!ignoreOrigin) {
+        ox -= hdr->x;
+        oy -= hdr->y;
+    }
+    std::int32_t w = hdr->w, h = hdr->h;
+    if (ox + w <= 0 || oy + h <= 0) { return; }
+    while (left && h--) {
+        auto size = std::uint32_t(*obuf++);
+        if (--left < size) {
+            break;
+        }
+        const auto *buf = obuf;
+        left -= size;
+        obuf += size;
+        if (oy < 0) { ++oy; continue; }
+        if (oy >= height) { break; }
+        auto *ptr = pixels + ox + pitch * (oy++);
+        int x = ox;
+        while (size) {
+            auto cnt = *buf++;
+            --size;
+            if (!size) {
+                break;
+            }
+            ptr += cnt;
+            x += cnt;
+            cnt = *buf++;
+            --size;
+            if (size < cnt) {
+                break;
+            }
+            if (x < 0) {
+                if (x + cnt <= 0) {
+                    ptr += cnt;
+                    buf += cnt;
+                } else {
+                    ptr -= x;
+                    buf -= x;
+                    for (int z = x + cnt; z; --z) {
+                        *ptr = blendAlpha(*ptr, colors[*buf++]);
+                        ++ptr;
+                    }
+                }
+            } else if (x + cnt > pitch) {
+                if (x >= pitch) {
+                    ptr += cnt;
+                    buf += cnt;
+                } else {
+                    for (int z = pitch - x; z; --z) {
+                        *ptr = blendAlpha(*ptr, colors[*buf++]);
+                        ++ptr;
+                    }
+                    int offset = x + cnt - pitch;
+                    ptr += offset;
+                    buf += offset;
+                }
+            } else {
+                for (int z = cnt; z; --z) {
+                    *ptr = blendAlpha(*ptr, colors[*buf++]);
+                    ++ptr;
+                }
+            }
+            x += cnt;
+            size -= cnt;
+        }
+    }
+}
+
 std::uint32_t Texture::calcRLEAvgColor(const std::string &data, const std::uint32_t *colors) {
     size_t left = data.size();
     if (left < 8) {
@@ -289,11 +384,25 @@ std::uint32_t Texture::calcRLEAvgColor(const std::string &data, const std::uint3
     return b | (g << 8) | (r << 16);
 }
 
+TextureSlice::TextureSlice(Texture *tex, std::int16_t x, std::int16_t y, std::int16_t w, std::int16_t h, std::int16_t ox, std::int16_t oy):
+    x_(x), y_(y) {
+    data_ = tex->data();
+    width_ = w;
+    height_ = h;
+    originX_ = ox;
+    originY_ = oy;
+}
+
+TextureSlice::~TextureSlice() {
+    data_ = nullptr;
+}
+
+TextureMgr::TextureMgr(): rectPacker_(new RectPacker(RectPackWidthDefault, RectPackWidthDefault)) {
+}
+
 TextureMgr::~TextureMgr() {
-    for (auto &p: textures_) {
-        delete p.second;
-    }
-    textures_.clear();
+    delete rectPacker_;
+    clear();
 }
 
 void TextureMgr::setPalette(const ColorPalette &col) {
@@ -301,16 +410,36 @@ void TextureMgr::setPalette(const ColorPalette &col) {
 }
 
 Texture *TextureMgr::loadFromRLE(const std::string &data, std::int16_t index) {
-    if (textures_.find(index) != textures_.end()) {
+    auto ite = textures_.find(index);
+    if (ite != textures_.end()) {
+        return ite->second;
+    }
+    const auto *arr = reinterpret_cast<const uint16_t*>(data.data());
+    auto w = arr[0], h = arr[1];
+    std::int16_t x, y;
+    auto rpidx = rectPacker_->pack(w, h, x, y);
+    if (rpidx < 0) {
         return nullptr;
     }
-    auto *tex = Texture::loadFromRLE(renderer_, data, *palette_);
-    if (!tex) {
-        return nullptr;
+    if (rpidx >= textureContainers_.size()) {
+        textureContainers_.resize(rpidx + 1, nullptr);
     }
-    textures_[index] = tex;
+    auto *tex = textureContainers_[rpidx];
+    if (tex == nullptr) {
+        tex = Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault);
+        tex->enableBlendMode(true);
+        textureContainers_[rpidx] = tex;
+    }
+    int pitch;
+    auto *pixels = tex->lock(pitch, x, y, w, h);
+    if (pixels) {
+        Texture::renderRLE(data, palette_->colors(), pixels, pitch, h, 0, 0, true);
+        tex->unlock();
+    }
+    auto *texture = new TextureSlice(tex, x, y, w, h, arr[2], arr[3]);
+    textures_[index] = texture;
     textureIdMax_ = std::max<std::int32_t>(index, textureIdMax_);
-    return tex;
+    return texture;
 }
 
 void TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
@@ -348,6 +477,17 @@ const Texture *TextureMgr::operator[](std::int32_t id) const {
 
 const Texture *TextureMgr::last() const {
     return (*this)[textureIdMax_];
+}
+
+void TextureMgr::clear() {
+    for (auto &p: textures_) {
+        delete p.second;
+    }
+    textures_.clear();
+    for (auto *p: textureContainers_) {
+        delete p;
+    }
+    textureContainers_.clear();
 }
 
 }

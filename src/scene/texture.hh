@@ -29,7 +29,7 @@ namespace hojy::scene {
 class Renderer;
 class ColorPalette;
 
-class Texture final {
+class Texture {
     friend class TextureMgr;
 
 public:
@@ -38,12 +38,14 @@ public:
 
 public:
     Texture() = default;
-    ~Texture();
+    virtual ~Texture();
     Texture(const Texture &tex) = delete;
     Texture(Texture &&other) noexcept;
     Texture& operator=(Texture &&other) noexcept;
 
     [[nodiscard]] void *data() const { return data_; }
+    [[nodiscard]] virtual std::int16_t x() const { return 0; }
+    [[nodiscard]] virtual std::int16_t y() const { return 0; }
     [[nodiscard]] std::int16_t width() const { return width_; }
     [[nodiscard]] std::int16_t height() const { return height_; }
     [[nodiscard]] std::int16_t originX() const { return originX_; }
@@ -58,15 +60,30 @@ public:
     static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
     static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
     static void renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
+    static void renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
     static std::uint32_t calcRLEAvgColor(const std::string &data, const std::uint32_t *colors);
 
-private:
+protected:
     void *data_ = nullptr;
     std::int16_t width_ = 0, height_ = 0, originX_ = 0, originY_ = 0;
 };
 
+class TextureSlice final: public Texture {
+public:
+    TextureSlice(Texture *tex, std::int16_t x, std::int16_t y, std::int16_t w, std::int16_t h, std::int16_t ox = 0, std::int16_t oy = 0);
+    ~TextureSlice() override;
+    [[nodiscard]] std::int16_t x() const override { return x_; }
+    [[nodiscard]] std::int16_t y() const override { return y_; }
+
+private:
+    std::int16_t x_ = 0, y_ = 0;
+};
+
+class RectPacker;
+
 class TextureMgr final {
 public:
+    TextureMgr();
     ~TextureMgr();
     inline void setRenderer(Renderer *renderer) { renderer_ = renderer; }
     void setPalette(const ColorPalette &col);
@@ -77,10 +94,12 @@ public:
     const Texture *operator[](std::int32_t id) const;
     const Texture *last() const;
     std::int32_t idMax() const { return textureIdMax_; }
-    void clear() { textures_.clear(); }
+    void clear();
 
 private:
     std::unordered_map<std::int32_t, Texture*> textures_;
+    std::vector<Texture*> textureContainers_;
+    RectPacker *rectPacker_ = nullptr;
     std::int32_t textureIdMax_ = 0;
     Renderer *renderer_ = nullptr;
     const ColorPalette *palette_ = nullptr;

@@ -38,7 +38,9 @@
 namespace hojy::scene {
 
 Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale):
-    Map(renderer, x, y, width, height, scale) {
+    Map(renderer, x, y, width, height, scale),
+    drawingTerrainTex2_(Texture::create(renderer, auxWidth_, auxHeight_)) {
+    drawingTerrainTex2_->enableBlendMode(true);
     fightTexData_.resize(FightTextureListCount);
     for (size_t i = 0; i < FightTextureListCount; ++i) {
         data::GrpData::loadData(fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i), fightTexData_[i]);
@@ -46,8 +48,8 @@ Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std:
 }
 
 Warfield::~Warfield() {
+    delete drawingTerrainTex2_;
     delete statusPanel_;
-    delete maskTex_;
 }
 
 void Warfield::cleanup() {
@@ -93,10 +95,6 @@ bool Warfield::load(std::int16_t warId) {
                 return false;
             }
             warMapLoaded_.insert(warMapId);
-        }
-        if (!maskTex_) {
-            maskTex_ = Texture::loadFromRLE(renderer_, texData_[0], gMaskPalette);
-            maskTex_->enableBlendMode(true);
         }
     }
     {
@@ -325,10 +323,11 @@ void Warfield::render() {
             }
         }
         const auto *colors = gNormalPalette.colors();
-        auto *curTex = drawingTerrainTex_;
-        int pitch;
-        std::uint32_t *pixels = curTex->lock(pitch);
+        int pitch, pitch2;
+        std::uint32_t *pixels = drawingTerrainTex_->lock(pitch);
+        std::uint32_t *pixels2 = drawingTerrainTex2_->lock(pitch2);
         memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
+        memset(pixels2, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -340,30 +339,31 @@ void Warfield::render() {
                 auto &ci = cellInfo_[offset];
                 Texture::renderRLE(texData_[ci.earthId], colors, pixels, pitch, aheight, dx, ty);
                 if (!movingOrActing) {
+                    static std::uint32_t maskColors[256] = {0};
                     if (ci.insideMovingArea == 2) {
-                        maskTex_->setBlendColor(160, 160, 160, 160);
-                        renderer_->renderTexture(maskTex_, dx, ty);
+                        maskColors[254] = 0xA0A0A0A0u;
+                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
                     } else if (ci.charInfo) {
-                        maskTex_->setBlendColor(160, 160, 160, 128);
-                        renderer_->renderTexture(maskTex_, dx, ty);
+                        maskColors[254] = 0x80A0A0A0u;
+                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
                     } else if (selecting && !ci.insideMovingArea) {
-                        maskTex_->setBlendColor(160, 160, 160, 208);
-                        renderer_->renderTexture(maskTex_, dx, ty);
+                        maskColors[254] = 0xD0A0A0A0u;
+                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
                     }
                 }
                 if (ci.buildingId > 0) {
-                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty);
+                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels2, pitch2, aheight, dx, ty);
                 } else {
                     if (ci.charInfo) {
                         if (acting && ci.charInfo == ch && fightTex_ && fightTexIdx_ >= 0 && fightTexIdx_ < fightTex_->size()) {
-                            Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels, pitch, aheight, dx, ty);
+                            Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels2, pitch2, aheight, dx, ty);
                         } else {
                             Texture::renderRLE(texData_[2553 + 4 * ci.charInfo->texId
-                                + int(ci.charInfo->direction)], colors, pixels, pitch, aheight, dx, ty);
+                                + int(ci.charInfo->direction)], colors, pixels2, pitch2, aheight, dx, ty);
                         }
                     }
                     if (ci.effectData) {
-                        Texture::renderRLE(*ci.effectData, colors, pixels, pitch, aheight, dx, ty);
+                        Texture::renderRLE(*ci.effectData, colors, pixels2, pitch2, aheight, dx, ty);
                         ci.effectData = nullptr;
                     }
                 }
@@ -378,10 +378,12 @@ void Warfield::render() {
                 ty += cellDiffY;
             }
         }
-        curTex->unlock();
+        drawingTerrainTex2_->unlock();
+        drawingTerrainTex_->unlock();
     }
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
+    renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     if (acting && effectTexIdx_ >= 3) {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;

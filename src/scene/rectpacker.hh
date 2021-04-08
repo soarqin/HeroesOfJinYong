@@ -25,13 +25,14 @@
 namespace hojy::scene {
 
 enum {
-    RectPackWidth = 1024,
+    RectPackWidthDefault = 1024,
 };
 
 struct RectPackData;
 
 class RectPacker final {
 public:
+    RectPacker(int width = 1024, int height = 1024);
     ~RectPacker();
     int pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y);
 
@@ -39,6 +40,7 @@ private:
     void newRectPack();
 
 private:
+    int width_, height_;
     std::vector<RectPackData*> rectpackData_;
 };
 

@@ -45,7 +45,6 @@ public:
 
     [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
     [[nodiscard]] const std::string &texData(std::int16_t id) const;
-    [[nodiscard]] inline const Texture *texture(std::int16_t id) const { return textureMgr_[id]; }
     [[nodiscard]] const Texture *getOrLoadTexture(std::int16_t id);
 
     void resetFrame();

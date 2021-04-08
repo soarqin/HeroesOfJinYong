@@ -268,9 +268,7 @@ void ItemView::makeCache() {
     }
     auto *ttf = renderer_->ttf();
     int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
-    const auto &mgr = gWindow->mapTextureMgr();
     ttf->setColor(236, 236, 236);
-    auto *gmap = gWindow->globalMap();
     for (int j = rows_; j && idx < totalSz; --j) {
         x = windowBorder;
         for (int i = cols_; i && idx < totalSz; --i, ++idx) {

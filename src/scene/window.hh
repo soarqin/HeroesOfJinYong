@@ -47,7 +47,6 @@ public:
 
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
     [[nodiscard]] const Texture *smpTexture(std::int16_t id) const;
-    [[nodiscard]] const TextureMgr &mapTextureMgr() const { return map_->textureMgr(); }
     void renderItemTexture(std::int16_t id, int x, int y, int w, int h);
     [[nodiscard]] int itemTexWidth() const { return itemTexW_; }
     [[nodiscard]] int itemTexHeight() const { return itemTexH_; }
@@ -97,7 +96,7 @@ private:
     MapWithEvent *subMap_ = nullptr;
     Map *warfield_ = nullptr;
     Node *talkBox_ = nullptr;
-    TextureMgr globalTextureMgr_, headTextureMgr_;
+    TextureMgr headTextureMgr_;
     Texture *itemTexture_ = nullptr;
     int itemTexW_ = 0, itemTexH_ = 0, itemWCount_ = 0, itemHCount_ = 0;
 
