@@ -62,39 +62,39 @@ bool Config::load(const std::string &filename) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }
         }
-        shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(std::move(shipLogicEnabled_));
+        shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(std::forward<bool>(shipLogicEnabled_));
     }
     auto window = tbl["window"];
     if (window) {
-        windowWidth_ = window["width"].value_or<int>(std::move(windowWidth_));
-        windowHeight_ = window["height"].value_or<int>(std::move(windowHeight_));
-        showFPS_ = window["show_fps"].value_or<bool>(std::move(showFPS_));
-        limitFPS_ = window["limit_fps"].value_or<int>(std::move(limitFPS_));
+        windowWidth_ = window["width"].value_or<int>(std::forward<int>(windowWidth_));
+        windowHeight_ = window["height"].value_or<int>(std::forward<int>(windowHeight_));
+        showFPS_ = window["show_fps"].value_or<bool>(std::forward<bool>(showFPS_));
+        limitFPS_ = window["limit_fps"].value_or<int>(std::forward<int>(limitFPS_));
     }
     auto ui = tbl["ui"];
     if (ui) {
-        simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(std::move(simplifiedChinese_));
-        showPotential_ = ui["show_potential"].value_or<bool>(std::move(showPotential_));
-        showMapMiniPanel_ = ui["show_map_mini_panel"].value_or<bool>(std::move(showMapMiniPanel_));
-        showMinimap_ = ui["show_minimap"].value_or<bool>(std::move(showMinimap_));
+        simplifiedChinese_ = ui["simplified_chinese"].value_or<bool>(std::forward<bool>(simplifiedChinese_));
+        showPotential_ = ui["show_potential"].value_or<bool>(std::forward<bool>(showPotential_));
+        showMapMiniPanel_ = ui["show_map_mini_panel"].value_or<bool>(std::forward<bool>(showMapMiniPanel_));
+        showMinimap_ = ui["show_minimap"].value_or<bool>(std::forward<bool>(showMinimap_));
         auto scale = ui["scale"].value<double>();
         if (scale) {
             scale_ = util::calcSmallestDivision(*scale);
         }
-        animationSpeed_ = ui["animation_speed"].value_or<float>(std::move(animationSpeed_));
-        fadeSpeed_ = ui["fade_speed"].value_or<float>(std::move(fadeSpeed_));
-        windowBorder_ = ui["window_border"].value_or<int>(std::move(windowBorder_));
-        noNameInput_ = ui["no_name_input"].value_or<bool>(std::move(noNameInput_));
+        animationSpeed_ = ui["animation_speed"].value_or<float>(std::forward<float>(animationSpeed_));
+        fadeSpeed_ = ui["fade_speed"].value_or<float>(std::forward<float>(fadeSpeed_));
+        windowBorder_ = ui["window_border"].value_or<int>(std::forward<int>(windowBorder_));
+        noNameInput_ = ui["no_name_input"].value_or<bool>(std::forward<bool>(noNameInput_));
     }
     auto audio = tbl["audio"];
     if (audio) {
-        sampleRate_ = audio["sample_rate"].value_or<int>(std::move(sampleRate_));
+        sampleRate_ = audio["sample_rate"].value_or<int>(std::forward<int>(sampleRate_));
         auto formatStr = audio["sample_format"].value<std::string>();
         if (formatStr) {
             sampleFormat_ = formatStr == "I32" ? 1 : (formatStr == "F32" ? 2 : 0);
         }
-        musicVolume_ = audio["music_volume"].value_or<int>(std::move(musicVolume_));
-        soundVolume_ = audio["sound_volume"].value_or<int>(std::move(soundVolume_));
+        musicVolume_ = audio["music_volume"].value_or<int>(std::forward<int>(musicVolume_));
+        soundVolume_ = audio["sound_volume"].value_or<int>(std::forward<int>(soundVolume_));
     }
 
     auto fixPath = [](std::string &path) {
