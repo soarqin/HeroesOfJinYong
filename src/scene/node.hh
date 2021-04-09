@@ -46,7 +46,6 @@ public:
     Node(const Node&) = delete;
     virtual ~Node();
     void add(Node *child);
-    void addAtFront(Node *child);
     void remove(Node *child);
 
     [[nodiscard]] inline int x() const { return x_; }
@@ -59,7 +58,7 @@ public:
     void fadeOut(const std::function<void()> &postAction = nullptr);
     void fadeEnd();
 
-    virtual void makeCenter(int w, int h, int x = 0, int y = 0);
+    virtual void makeCenter(int w, int h, int x, int y);
     virtual void close() { removeAllChildren(); }
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}

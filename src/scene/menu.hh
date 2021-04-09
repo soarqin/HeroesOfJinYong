@@ -30,7 +30,7 @@ public:
 
     [[nodiscard]] int currIndex() const { return currIndex_; }
     inline void setTitle(const std::wstring &title) { title_ = title; }
-    virtual void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle = nullptr) {
+    virtual void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) {
         checkbox_ = b;
         onCheckBoxToggle_ = b ? onCheckBoxToggle : nullptr;
     }

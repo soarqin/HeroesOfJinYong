@@ -27,10 +27,6 @@ ChannelWav::ChannelWav(Mixer *mixer, const std::string &filename) : Channel(mixe
     if (ok_) { loadFromData(); }
 }
 
-ChannelWav::ChannelWav(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
-    if (ok_) { loadFromData(); }
-}
-
 ChannelWav::~ChannelWav() {
     if (buffer_) {
         SDL_FreeWAV(buffer_);

@@ -28,10 +28,6 @@ ChannelMIDI::ChannelMIDI(Mixer *mixer, const std::string &filename) : Channel(mi
     if (ok_) { loadFromData(); }
 }
 
-ChannelMIDI::ChannelMIDI(Mixer *mixer, const void *data, size_t size) : Channel(mixer, data, size) {
-    if (ok_) { loadFromData(); }
-}
-
 ChannelMIDI::~ChannelMIDI() {
     if (midiplayer_) {
         adl_close(static_cast<ADL_MIDIPlayer*>(midiplayer_));

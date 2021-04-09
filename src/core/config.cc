@@ -97,7 +97,6 @@ bool Config::load(const std::string &filename) {
         soundVolume_ = audio["sound_volume"].value_or<int>(std::move(soundVolume_));
     }
 
-    musicVolume_ = std::clamp(musicVolume_, 0, 8);
     auto fixPath = [](std::string &path) {
         if (!path.empty() && path.back() != '/') { path += '/'; }
     };
@@ -107,9 +106,6 @@ bool Config::load(const std::string &filename) {
     for (auto &path: dataPath_) {
         fixPath(path);
     }
-    if (limitFPS_ == 0) { limitFPS_ = 60; }
-    musicVolume_ = std::clamp(musicVolume_, 0, 8);
-    soundVolume_ = std::clamp(soundVolume_, 0, 8);
     return true;
 }
 
@@ -136,6 +132,10 @@ bool Config::saveOptions(const std::string &filename) const {
 }
 
 bool Config::postLoad() {
+    if (limitFPS_ == 0) { limitFPS_ = 60; }
+    musicVolume_ = std::clamp(musicVolume_, 0, 8);
+    soundVolume_ = std::clamp(soundVolume_, 0, 8);
+
     gResourceMgr.init();
     const auto &missingFiles = gResourceMgr.missingFiles();
     if (!missingFiles.empty()) {

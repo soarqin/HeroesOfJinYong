@@ -1173,10 +1173,10 @@ bool MapWithEvent::setSex(MapWithEvent *map, std::int16_t charId, std::int16_t v
 struct ShopEventInfo {
     std::int16_t subMapId;
     std::int16_t shopEventIndex;
-    std::vector<std::int16_t> randomEventIndex;
+    std::int16_t randomEventIndex[3];
 };
 
-const ShopEventInfo shopEventInfo[5] = {
+static const ShopEventInfo shopEventInfo[5] = {
     {1, 16, {17, 18}},
     {3, 14, {15, 16}},
     {40, 20, {21, 22}},
@@ -1195,7 +1195,7 @@ bool MapWithEvent::openShop(MapWithEvent *map) {
         if (evi.subMapId == map->subMapId_) {
             auto &evts = mem::gSaveData.subMapEventInfo[map->subMapId_]->events;
             for (auto &n: evi.randomEventIndex) {
-                evts[n].event[2] = data::RandomShopEventId;
+                if (n > 0) { evts[n].event[2] = data::RandomShopEventId; }
             }
             break;
         }
@@ -1220,7 +1220,7 @@ bool MapWithEvent::randomShop(MapWithEvent *map) {
             ev.event[0] = -1;
             ev.currTex = ev.begTex = ev.endTex = -1;
             for (auto &n: evi.randomEventIndex) {
-                evts[n].event[2] = -1;
+                if (n > 0) { evts[n].event[2] = -1; }
             }
             break;
         }

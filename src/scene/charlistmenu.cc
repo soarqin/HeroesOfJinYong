@@ -178,9 +178,8 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
     } else {
         charIdList_ = charIds;
     }
-    MessageBox *msgBox = nullptr;
     if (!title.empty()) {
-        msgBox = new MessageBox(renderer_, x_, y_, gWindow->width() - x_, gWindow->height() - y_);
+        auto *msgBox = new MessageBox(renderer_, x_, y_, gWindow->width() - x_, gWindow->height() - y_);
         msgBox_ = msgBox;
         msgBox->popup(title, MessageBox::Normal, MessageBox::TopLeft);
         msgBox->forceUpdate();
@@ -226,7 +225,7 @@ void CharListMenu::initWithTeamMembers(const std::vector<std::wstring> &title, c
 
 void CharListMenu::enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) {
     if (!b) {
-        Menu::enableCheckBox(false);
+        Menu::enableCheckBox(false, nullptr);
     } else {
         onCheckBoxToggle2_ = onCheckBoxToggle;
         Menu::enableCheckBox(true, [this](int index)->bool {
@@ -245,7 +244,7 @@ void CharListMenu::makeCenter(int w, int h, int x, int y) {
 }
 
 void CharListMenu::render() {
-    msgBox_->render();
+    if (msgBox_) { msgBox_->render(); }
     NodeWithCache::render();
 }
 

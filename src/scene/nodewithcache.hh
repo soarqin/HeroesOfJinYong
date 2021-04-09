@@ -32,7 +32,7 @@ public:
     inline void update() { cacheDirty_ = true; }
     inline void forceUpdate() { cacheDirty_ = false; makeCache(); }
 
-    void makeCenter(int w, int h, int x = 0, int y = 0) override;
+    void makeCenter(int w, int h, int x, int y) override;
     void close() override;
     void render() override;
 

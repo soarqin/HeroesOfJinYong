@@ -38,8 +38,6 @@ public:
 
     void enableLinear(bool linear = true);
     void setTargetTexture(Texture *tex);
-    void setClipRect(int x, int y, int w, int h);
-    void unsetClipRect();
     void clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void drawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);

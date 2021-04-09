@@ -22,13 +22,12 @@
 #include "colorpalette.hh"
 #include "data/grpdata.hh"
 #include "data/factors.hh"
-#include "core/config.hh"
 
 namespace hojy::scene {
 
 Effect gEffect;
 
-void Effect::load(Renderer *renderer_, const std::string &filename) {
+void Effect::load(const std::string &filename) {
     data::GrpData::DataSet dset;
     if (!data::GrpData::loadData(filename, dset)) {
         return;

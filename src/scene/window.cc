@@ -103,7 +103,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
         headTextureMgr_.loadFromRLE(dset);
     }
     renderer_->enableLinear(false);
-    gEffect.load(renderer_, "EFT");
+    gEffect.load("EFT");
 
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
@@ -115,7 +115,7 @@ Window::Window(int w, int h): width_(w), height_(h) {
         itemTexH_ = arr[1];
     }
     itemWCount_ = 1024 / itemTexW_;
-    itemHCount_ = 1024 / itemTexH_;(data::BagItemCount + itemWCount_ - 1) / itemWCount_;
+    itemHCount_ = (data::BagItemCount + itemWCount_ - 1) / itemWCount_;
     int height = itemTexH_ * itemHCount_;
     itemTexture_ = Texture::create(renderer_, itemTexW_ * itemWCount_, height);
     itemTexture_->enableBlendMode(true);
@@ -440,7 +440,7 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
                 clm->checkItem(i, true);
             }
         }
-        clm->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
+        clm->makeCenter(gWindow->width(), gWindow->height() * 4 / 5, 0, 0);
         popup_ = clm;
         freeOnClose_ = true;
     } else {
@@ -585,7 +585,7 @@ bool Window::runShop(std::int16_t id) {
         indices.emplace_back(i);
     }
     subMenu->popup(items, prices);
-    subMenu->makeCenter(gWindow->width(), gWindow->height());
+    subMenu->makeCenter(gWindow->width(), gWindow->height(), 0, 0);
     subMenu->setHandler([subMenu, shopInfo, indices]() {
         int index = subMenu->currIndex();
         if (index < 0 || index >= indices.size()) { return; }
@@ -779,7 +779,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
     subMenu->setHandler([subMenu](int inputType) {
         switch (inputType) {
         case 0:
-            core::config.saveOptions(core::config.saveFilePath("options.toml"));
+            (void)core::config.saveOptions(core::config.saveFilePath("options.toml"));
             break;
         case 1:
         case 2:

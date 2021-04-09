@@ -40,12 +40,6 @@ void Node::add(Node *child) {
     children_.push_back(child);
 }
 
-void Node::addAtFront(Node *child) {
-    child->parent_ = this;
-    child->renderer_ = renderer_;
-    children_.insert(children_.begin(), child);
-}
-
 void Node::remove(Node *child) {
     auto ite = std::remove(children_.begin(), children_.end(), child);
     if (ite == children_.end()) { return; }

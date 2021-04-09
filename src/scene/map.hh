@@ -49,8 +49,6 @@ public:
 
     void resetFrame();
 
-    [[nodiscard]] const TextureMgr &textureMgr() const { return textureMgr_; }
-
     void render() override;
 
 protected:

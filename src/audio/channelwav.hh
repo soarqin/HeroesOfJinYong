@@ -26,10 +26,9 @@ namespace hojy::audio {
 class ChannelWav final: public Channel {
 public:
     ChannelWav(Mixer *mixer, const std::string &filename);
-    ChannelWav(Mixer *mixer, const void *data, size_t size);
     ~ChannelWav() override;
 
-    virtual void load(const std::string &filename) override;
+    void load(const std::string &filename) override;
 
     void reset() override { pos_ = 0; }
 

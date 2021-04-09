@@ -20,7 +20,6 @@
 #include "renderer.hh"
 
 #include "window.hh"
-#include "texture.hh"
 #include "core/config.hh"
 #include <SDL2_gfxPrimitives.h>
 
@@ -60,15 +59,6 @@ void Renderer::enableLinear(bool linear) {
 
 void Renderer::setTargetTexture(Texture *tex) {
     SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
-}
-
-void Renderer::setClipRect(int x, int y, int w, int h) {
-    SDL_Rect rc {x, y, w, h};
-    SDL_RenderSetClipRect(static_cast<SDL_Renderer*>(renderer_), &rc);
-}
-
-void Renderer::unsetClipRect() {
-    SDL_RenderSetClipRect(static_cast<SDL_Renderer*>(renderer_), nullptr);
 }
 
 void Renderer::clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {

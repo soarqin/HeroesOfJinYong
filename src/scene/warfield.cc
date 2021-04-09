@@ -1199,9 +1199,9 @@ void Warfield::playerMenu() {
                              if (!found) {
                                  sv->show(charId);
                              }
-                             sv->makeCenter(gWindow->width(), gWindow->height());
+                             sv->makeCenter(width_, height_, x_, y_);
                          }, nullptr);
-            svmenu->makeCenter(gWindow->width(), gWindow->height() * 4 / 5);
+            svmenu->makeCenter(width_, height_ * 4 / 5, x_, y_);
             return;
         }
         case 8:

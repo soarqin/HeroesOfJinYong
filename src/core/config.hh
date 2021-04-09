@@ -27,7 +27,7 @@ namespace hojy::core {
 class Config {
 public:
     bool load(const std::string &filename);
-    bool saveOptions(const std::string &filename) const;
+    [[nodiscard]] bool saveOptions(const std::string &filename) const;
     bool postLoad();
     void fixOnTextLoaded();
 

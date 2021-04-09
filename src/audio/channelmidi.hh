@@ -26,7 +26,6 @@ namespace hojy::audio {
 class ChannelMIDI final: public Channel {
 public:
     ChannelMIDI(Mixer *mixer, const std::string &filename);
-    ChannelMIDI(Mixer *mixer, const void *data, size_t size);
     ~ChannelMIDI() override;
 
     void load(const std::string &filename) override;
