@@ -63,7 +63,11 @@ static void systemMenu(Node *mainMenu);
 static void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
 static void optionMenu(Node *mainMenu, int x, int y);
 
-static const char *GameWindowTitle = "Heroes of Jin Yong";
+#if !defined(HOJY_VERSION)
+#define HOJY_VERSION "development"
+#endif
+
+static const char *GameWindowTitle = "Heroes of Jin Yong " HOJY_VERSION;
 
 Window::Window(int w, int h): width_(w), height_(h) {
     if (gWindow) {

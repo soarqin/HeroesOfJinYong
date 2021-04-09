@@ -6,6 +6,11 @@ file(GLOB MEM_FILES   mem/*.cc   mem/*.hh)
 file(GLOB SCENE_FILES scene/*.cc scene/*.hh)
 file(GLOB AUDIO_FILES audio/*.cc audio/*.hh)
 file(GLOB UTIL_FILES  util/*.cc  util/*.hh)
+
+find_package(Git)
+set(VERSION_UPDATE_FROM_GIT ON)
+include(GetVersionFromGitTag.cmake)
+
 add_executable(${PROJECT_NAME} WIN32 main.cc
     ${CORE_FILES} ${DATA_FILES} ${MEM_FILES} ${SCENE_FILES} ${AUDIO_FILES} ${UTIL_FILES})
 
@@ -14,7 +19,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     RUNTIME_OUTPUT_NAME hojy)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(${PROJECT_NAME} PRIVATE SDL_MAIN_HANDLED)
+target_compile_definitions(${PROJECT_NAME} PRIVATE SDL_MAIN_HANDLED HOJY_VERSION="${${PROJECT_NAME}_VERSION_STRING_FULL}")
 if(USE_FREETYPE)
     find_package(Freetype REQUIRED)
     target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS})
