@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
 #include <zita-resampler/resampler-table.h>
 
@@ -62,7 +63,7 @@ static double wind (double x)
 
 
 Resampler_table  *Resampler_table::_list = 0;
-Resampler_mutex   Resampler_table::_mutex;
+std::mutex        Resampler_table::_mutex;
 
 
 Resampler_table::Resampler_table (double fr, unsigned int hl, unsigned int np) :
