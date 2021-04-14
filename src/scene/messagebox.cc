@@ -30,7 +30,7 @@ void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align a
     text_ = text;
     type_ = type;
     align_ = align;
-    update();
+    setDirty();
 }
 
 void MessageBox::handleKeyInput(Node::Key key) {

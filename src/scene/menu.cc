@@ -33,7 +33,7 @@ void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
         selected_.resize(items_.size(), false);
         items_.emplace_back(GETTEXT(80));
     }
-    update();
+    setDirty();
 }
 
 void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex) {
@@ -46,7 +46,7 @@ void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::
         items_.emplace_back(GETTEXT(80));
         values_.emplace_back(L"");
     }
-    update();
+    setDirty();
 }
 
 void Menu::checkItem(size_t index, bool check) {
@@ -70,7 +70,7 @@ void Menu::handleKeyInput(Key key) {
         } else {
             if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
         }
-        update();
+        setDirty();
         break;
     case KeyDown:
         if (horizonal_) {
@@ -79,7 +79,7 @@ void Menu::handleKeyInput(Key key) {
         } else {
             if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
         }
-        update();
+        setDirty();
         break;
     case KeyLeft:
         if (horizonal_) {
@@ -88,7 +88,7 @@ void Menu::handleKeyInput(Key key) {
             if (currIndex_ == 0) { break; }
             currIndex_ = 0;
         }
-        update();
+        setDirty();
         break;
     case KeyRight:
         if (horizonal_) {
@@ -97,7 +97,7 @@ void Menu::handleKeyInput(Key key) {
             if (currIndex_ == int(items_.size()) - 1) { break; }
             currIndex_ = int(items_.size()) - 1;
         }
-        update();
+        setDirty();
         break;
     case KeyOK: case KeySpace:
         if (checkbox_) {
@@ -109,7 +109,7 @@ void Menu::handleKeyInput(Key key) {
             if (!onCheckBoxToggle_ || onCheckBoxToggle_(currIndex_)) {
                 selected_[currIndex_] = !selected_[currIndex_];
             }
-            update();
+            setDirty();
         } else {
             onOK();
         }
@@ -227,14 +227,14 @@ void MenuYesNo::handleKeyInput(Node::Key key) {
     case KeyLeft:
         if (currIndex_ != 0) {
             currIndex_ = 0;
-            update();
+            setDirty();
         }
         break;
     case KeyDown:
     case KeyRight:
         if (currIndex_ != 1) {
             currIndex_ = 1;
-            update();
+            setDirty();
         }
         break;
     default:
@@ -263,7 +263,7 @@ void MenuYesNo::onCancel() {
 void MenuOption::setValue(int index, const std::wstring &value) {
     if (index < 0 || index >= values_.size()) { return; }
     values_[index] = value;
-    update();
+    setDirty();
 }
 
 void MenuOption::handleKeyInput(Node::Key key) {

@@ -41,18 +41,18 @@ void ExtendedNode::setWaitForKeyPress() {
 
 void ExtendedNode::addBox(int x0, int y0, int x1, int y1) {
     boxlist_.emplace_back(std::make_tuple(x0, y0, x1 - x0 + 1, y1 - y0 + 1));
-    update();
+    setDirty();
 }
 
 void ExtendedNode::addText(int x, int y, const std::wstring &text, int c0, int c1) {
     textlist_.emplace_back(std::make_tuple(x, y, text, c0, c1));
-    update();
+    setDirty();
 }
 
 void ExtendedNode::addTexture(int x, int y, const Texture *tex, std::pair<int, int> scale) {
     if (!tex) { return; }
     texturelist_.emplace_back(std::make_tuple(x, y, tex, scale));
-    update();
+    setDirty();
 }
 
 void ExtendedNode::checkTimeout() {

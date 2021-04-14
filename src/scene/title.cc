@@ -52,18 +52,18 @@ void Title::init() {
     if (data::GrpData::loadData("TITLE", dset)) {
         titleTextureMgr_.loadFromRLE(dset);
     }
-    update();
+    setDirty();
 }
 
 void Title::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyUp:
         if (currSel_-- == 0) { currSel_ = 2; }
-        update();
+        setDirty();
         break;
     case KeyDown:
         if (currSel_++ == 2) { currSel_ = 0; }
-        update();
+        setDirty();
         break;
     case KeyOK: case KeySpace:
         switch (mode_) {
@@ -79,12 +79,12 @@ void Title::handleKeyInput(Node::Key key) {
                     mainCharName_.clear();
                     mode_ = 2;
                 }
-                update();
+                setDirty();
                 break;
             case 1:
                 currSel_ = 0;
                 mode_ = 1;
-                update();
+                setDirty();
                 break;
             case 2:
                 gWindow->closePopup();
@@ -107,7 +107,7 @@ void Title::handleKeyInput(Node::Key key) {
                 mode_ = 3;
                 mem::gSaveData.newGame();
                 doRandomBaseInfo();
-                update();
+                setDirty();
             }
             break;
         }
@@ -118,7 +118,7 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             currSel_ = 0;
             mode_ = 0;
-            update();
+            setDirty();
             break;
         }
         break;
@@ -127,7 +127,7 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             if (!mainCharName_.empty()) {
                 mainCharName_.pop_back();
-                update();
+                setDirty();
             }
             break;
         }
@@ -147,7 +147,7 @@ void Title::handleTextInput(const std::wstring &str) {
         }
     }
     if (dirty) {
-        update();
+        setDirty();
     }
 }
 
@@ -252,7 +252,7 @@ void Title::makeCache() {
                 });
             }, [this] {
                 doRandomBaseInfo();
-                update();
+                setDirty();
             });
             menu_ = menu;
         }

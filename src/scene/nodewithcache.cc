@@ -41,11 +41,14 @@ void NodeWithCache::close() {
     Node::close();
 }
 
-void NodeWithCache::render() {
+void NodeWithCache::update() {
     if (cacheDirty_) {
         makeCache();
         cacheDirty_ = false;
     }
+}
+
+void NodeWithCache::render() {
     renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
 }
 

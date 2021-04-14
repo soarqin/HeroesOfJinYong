@@ -154,12 +154,12 @@ bool Renderer::canRender() {
         nextCountTime_ = now + std::chrono::seconds(1);
         frameCount_ = 0;
     }
-    ++frameCount_;
     return true;
 }
 
 void Renderer::present() {
     SDL_RenderPresent(static_cast<SDL_Renderer*>(renderer_));
+    ++frameCount_;
 }
 
 }

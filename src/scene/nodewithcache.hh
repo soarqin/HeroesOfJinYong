@@ -29,11 +29,12 @@ public:
 
     ~NodeWithCache() override;
 
-    inline void update() { cacheDirty_ = true; }
+    inline void setDirty() { cacheDirty_ = true; }
     inline void forceUpdate() { cacheDirty_ = false; makeCache(); }
 
     void makeCenter(int w, int h, int x, int y) override;
     void close() override;
+    void update() override;
     void render() override;
 
 protected:

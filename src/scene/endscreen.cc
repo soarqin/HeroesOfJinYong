@@ -56,7 +56,7 @@ void EndScreen::handleKeyInput(Node::Key key) {
             frame_ = 0;
             frameTotal_ = 60000;
             y_ = height_;
-            update();
+            setDirty();
             break;
         case 3:
             if (frame_ + 1 < frameTotal_) { break; }
@@ -84,7 +84,7 @@ void EndScreen::render() {
             stage_ = 1; frame_ = 0;
             frameTotal_ = 600;
             y_ = height_;
-            update();
+            setDirty();
             break;
         }
         break;
@@ -95,14 +95,14 @@ void EndScreen::render() {
         } else {
             stage_ = 2; frame_ = 0;
             frameTotal_ = imgTexMgr_.idMax() + 1;
-            update();
+            setDirty();
             break;
         }
         break;
     case 2:
         if (frame_ + 1 < frameTotal_) {
             ++ frame_;
-            update();
+            setDirty();
         }
         break;
     case 3:

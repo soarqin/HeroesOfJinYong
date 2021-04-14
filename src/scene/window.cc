@@ -250,20 +250,28 @@ bool Window::processEvents() {
     return true;
 }
 
-bool Window::render() {
+bool Window::update() {
     currTime_ = std::chrono::steady_clock::now();
     if (!renderer_->canRender()) {
         SDL_Delay(std::chrono::duration_cast<std::chrono::milliseconds>(renderer_->nextRenderTime() - currTime_).count());
         return false;
     }
     if (map_) {
+        map_->doUpdate();
+    }
+    if (popup_) {
+        popup_->doUpdate();
+    }
+    return true;
+}
+
+void Window::render() {
+    if (map_) {
         map_->doRender();
     }
     if (popup_) {
         popup_->doRender();
     }
-    SDL_Delay(1);
-    return true;
 }
 
 void Window::flush() {
@@ -276,6 +284,7 @@ void Window::flush() {
                                fmt::format("{}     FPS: {}", GameWindowTitle, fps).c_str());
         }
     }
+    SDL_Delay(1);
 }
 
 void Window::playMusic(int idx) {

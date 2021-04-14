@@ -40,7 +40,8 @@ int main(int argc, char *argv[]) {
     scene::Window win(core::config.windowWidth(), core::config.windowHeight());
     // win.newGame();
     while (win.processEvents()) {
-        if (win.render()) {
+        if (win.update()) {
+            win.render();
             win.flush();
         }
     }

@@ -60,11 +60,13 @@ public:
 
     virtual void makeCenter(int w, int h, int x, int y);
     virtual void close() { removeAllChildren(); }
+    virtual void update() {}
     virtual void render() = 0;
     virtual void handleKeyInput(Key key) {}
     virtual void handleTextInput(const std::wstring &str) {}
 
 protected:
+    void doUpdate();
     void doRender();
     void doHandleKeyInput(Key key);
     void doTextInput(const std::wstring &str);

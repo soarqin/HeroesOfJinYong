@@ -115,7 +115,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                                                                                    gWindow->height());
                                                      msgBox->popup({GETTEXT(43)}, MessageBox::PressToCloseThis);
                                                  } else {
-                                                     update();
+                                                     setDirty();
                                                  }
                                                  delete clm;
                                              }, [clm]() {
@@ -127,7 +127,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                                                  auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
                                                  msgBox->popup({GETTEXT(46)}, MessageBox::PressToCloseThis);
                                              } else {
-                                                 update();
+                                                 setDirty();
                                              }
                                              delete clm;
                                          }
@@ -189,7 +189,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         } else {
             currSel_ -= cols_;
         }
-        update();
+        setDirty();
         break;
     case KeyLeft:
         if (currSel_ == 0) {
@@ -207,7 +207,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         } else {
             --currSel_;
         }
-        update();
+        setDirty();
         break;
     case KeyRight: {
         int sz = int(items_.size());
@@ -220,7 +220,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                 currSel_ -= cols_;
             }
         }
-        update();
+        setDirty();
         break;
     }
     case KeyDown: {
@@ -235,7 +235,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                 currSel_ -= cols_;
             }
         }
-        update();
+        setDirty();
         break;
     }
     default:

@@ -66,10 +66,10 @@ void Node::makeCenter(int w, int h, int x, int y) {
     y_ = y + (h - height_) / 2;
 }
 
-void Node::doRender() {
-    render();
+void Node::doUpdate() {
+    update();
     for (auto *node : children_) {
-        node->doRender();
+        node->doUpdate();
     }
     if (runFadePostAction_) {
         runFadePostAction_ = false;
@@ -77,6 +77,13 @@ void Node::doRender() {
         delete fadeNode_;
         fadeNode_ = nullptr;
         if (fn) { fn(); }
+    }
+}
+
+void Node::doRender() {
+    render();
+    for (auto *node : children_) {
+        node->doRender();
     }
 }
 
