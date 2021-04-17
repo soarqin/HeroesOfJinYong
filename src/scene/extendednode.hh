@@ -20,7 +20,6 @@
 #pragma once
 
 #include "nodewithcache.hh"
-#include <chrono>
 #include <vector>
 #include <tuple>
 #include <string>
@@ -33,7 +32,7 @@ class Texture;
 class ExtendedNode: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
-    void setTimeToClose(int millisec);
+    void setTimeToClose(std::uint32_t millisec);
     void setWaitForKeyPress();
     void addBox(int x0, int y0, int x1, int y1);
     void addText(int x, int y, const std::wstring &text, int c0, int c1);
@@ -49,7 +48,7 @@ protected:
 
 private:
     int closeType_ = -1;
-    std::chrono::steady_clock::time_point closeDeadline_;
+    std::uint64_t closeDeadline_ = 0;
     std::vector<std::tuple<int, int, int, int>> boxlist_;
     std::vector<std::tuple<int, int, std::wstring, int, int>> textlist_;
     std::vector<std::tuple<int, int, const Texture*, std::pair<int, int>>> texturelist_;

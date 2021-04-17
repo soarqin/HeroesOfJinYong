@@ -22,7 +22,6 @@
 #include "node.hh"
 #include "texture.hh"
 
-#include <chrono>
 #include <cstdint>
 
 namespace hojy::scene {
@@ -70,8 +69,8 @@ protected:
     std::int32_t miniMapX_ = 0, miniMapY_ = 0, miniMapW_ = 0, miniMapH_ = 0;
     std::int32_t miniMapAuxX_ = 0, miniMapAuxY_ = 0, miniMapAuxW_ = 0, miniMapAuxH_ = 0;
     bool drawDirty_ = false, miniPanelDirty_ = true;
-    std::chrono::steady_clock::time_point nextFrameTime_;
-    std::chrono::steady_clock::duration eachFrameTime_;
+    std::uint64_t nextFrameTime_ = 0;
+    std::uint64_t eachFrameTime_ = 0;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
     std::int32_t offsetX_ = 0, offsetY_ = 0;
     std::vector<std::string> texData_;

@@ -21,7 +21,6 @@
 
 #include "ttf.hh"
 
-#include <chrono>
 #include <cstdint>
 
 namespace hojy::scene {
@@ -54,7 +53,7 @@ public:
     void present();
     [[nodiscard]] inline TTF *ttf() { return ttf_; }
     [[nodiscard]] inline float fps() const { return fps_; }
-    [[nodiscard]] std::chrono::steady_clock::time_point nextRenderTime() const { return nextRenderTime_; }
+    [[nodiscard]] std::uint64_t nextRenderTime() const { return nextRenderTime_; }
 
 private:
     float fps_ = 0.f;
@@ -62,9 +61,9 @@ private:
     TTF *ttf_ = nullptr;
 
     int frameCount_ = 0;
-    std::chrono::steady_clock::time_point nextCountTime_;
-    std::chrono::steady_clock::time_point nextRenderTime_;
-    std::chrono::steady_clock::duration renderInterval_ = std::chrono::steady_clock::duration::zero();
+    std::uint64_t nextCountTime_ = 0;
+    std::uint64_t nextRenderTime_ = 0;
+    std::uint64_t renderInterval_ = 0;
 };
 
 }

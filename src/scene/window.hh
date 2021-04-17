@@ -24,7 +24,6 @@
 #include "mapwithevent.hh"
 #include "messagebox.hh"
 
-#include <chrono>
 #include <map>
 #include <string>
 #include <cstdint>
@@ -43,7 +42,7 @@ public:
     [[nodiscard]] inline int width() const { return width_; }
     [[nodiscard]] inline int height() const { return height_; }
 
-    [[nodiscard]] std::chrono::steady_clock::time_point currTime() { return currTime_; }
+    [[nodiscard]] std::uint64_t currTime() { return currTime_; }
 
     [[nodiscard]] inline const Texture *headTexture(std::int16_t id) const { return headTextureMgr_[id]; }
     [[nodiscard]] const Texture *smpTexture(std::int16_t id) const;
@@ -54,9 +53,9 @@ public:
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
 
     bool processEvents();
-    bool update();
+    void update();
     void render();
-    void flush();
+    bool flush();
 
     void playMusic(int idx);
     void playAtkSound(int idx);
@@ -101,8 +100,8 @@ private:
     Texture *itemTexture_ = nullptr;
     int itemTexW_ = 0, itemTexH_ = 0, itemWCount_ = 0, itemHCount_ = 0;
 
-    std::chrono::steady_clock::time_point currTime_;
-    std::map<int, std::pair<std::chrono::steady_clock::time_point, Node::Key>> pressedKeys_;
+    std::uint64_t currTime_ = 0, freq_ = 0;
+    std::map<int, std::pair<std::uint64_t, Node::Key>> pressedKeys_;
     int playingMusic_ = -1;
 };
 

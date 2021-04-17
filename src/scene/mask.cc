@@ -30,7 +30,7 @@ Mask::Mask(Node *parent, Mask::Type type, int interval):
 }
 
 void Mask::render() {
-    auto alpha = (gWindow->currTime() - start_) / std::chrono::microseconds(int(float(1333 * interval_) / core::config.fadeSpeed()));
+    auto alpha = (gWindow->currTime() - start_) / std::uint64_t(float(4000 * interval_) / 3.f / core::config.fadeSpeed());
     if (alpha > 255) {
         alpha = 255;
         parent_->fadeEnd();

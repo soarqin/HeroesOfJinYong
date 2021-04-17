@@ -24,7 +24,6 @@
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include <fmt/format.h>
-#include <chrono>
 
 namespace hojy::scene {
 
@@ -32,7 +31,7 @@ Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int,
     scale_(scale), auxWidth_(width_ * scale.second / scale.first), auxHeight_(height_ * scale.second / scale.first),
     drawDirty_(true), drawingTerrainTex_(Texture::create(renderer_, auxWidth_, auxHeight_)),
     miniPanelTex_(Texture::createAsTarget(renderer_, 256, 256)),
-    eachFrameTime_(std::chrono::microseconds(int(1000000.f / 15.f / core::config.animationSpeed()))) {
+    eachFrameTime_(std::round(1000000.f / 15.f / core::config.animationSpeed())) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
     textureMgr_.setPalette(gNormalPalette);
@@ -42,7 +41,7 @@ Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int,
     auto windowBorder = core::config.windowBorder();
     miniMapW_ = width_ / 4 - windowBorder;
     miniMapH_ = height_ / 4 - windowBorder;
-    miniMapX_ = x_ + width_ - miniMapW_;
+    miniMapX_ = x_ + width_ - miniMapW_ - windowBorder + 1;
     miniMapY_ = y_ + windowBorder;
     miniMapAuxW_ = miniMapW_ * scale_.second / scale_.first;
     miniMapAuxH_ = miniMapH_ * scale_.second / scale_.first;

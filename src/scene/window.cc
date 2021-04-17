@@ -69,7 +69,7 @@ static void optionMenu(Node *mainMenu, int x, int y);
 
 static const char *GameWindowTitle = "Heroes of Jin Yong " HOJY_VERSION;
 
-Window::Window(int w, int h): width_(w), height_(h) {
+Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFrequency() / 1000000ULL) {
     if (gWindow) {
         throw std::runtime_error("Duplicate window creation");
     }
@@ -163,7 +163,7 @@ void Window::renderItemTexture(std::int16_t id, int x, int y, int w, int h) {
 bool Window::processEvents() {
     for (auto &p: pressedKeys_) {
         if (currTime_ >= p.second.first) {
-            p.second.first += std::chrono::milliseconds(20);
+            p.second.first += 20 * 1000;
             if (p.second.first < currTime_) { p.second.first = currTime_; }
             auto *node = popup_ ? popup_ : map_;
             if (node) { node->doHandleKeyInput(p.second.second); }
@@ -208,7 +208,7 @@ bool Window::processEvents() {
         case SDL_CONTROLLERBUTTONDOWN: {
             auto ite = buttonMap.find(SDL_GameControllerButton(e.cbutton.button));
             if (ite != buttonMap.end()) {
-                pressedKeys_[-int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(180), ite->second);
+                pressedKeys_[-int(ite->first)] = std::make_pair(currTime_ + 180 * 1000, ite->second);
                 auto *node = popup_ ? popup_ : map_;
                 if (node) { node->doHandleKeyInput(ite->second); }
             }
@@ -230,7 +230,7 @@ bool Window::processEvents() {
             if (e.key.repeat) { break; }
             auto ite = inputMap.find(e.key.keysym.scancode);
             if (ite != inputMap.end()) {
-                pressedKeys_[int(ite->first)] = std::make_pair(currTime_ + std::chrono::milliseconds(180), ite->second);
+                pressedKeys_[int(ite->first)] = std::make_pair(currTime_ + 180 * 1000, ite->second);
                 auto *node = popup_ ? popup_ : map_;
                 if (node) { node->doHandleKeyInput(ite->second); }
             }
@@ -250,19 +250,14 @@ bool Window::processEvents() {
     return true;
 }
 
-bool Window::update() {
-    currTime_ = std::chrono::steady_clock::now();
-    if (!renderer_->canRender()) {
-        SDL_Delay(std::chrono::duration_cast<std::chrono::milliseconds>(renderer_->nextRenderTime() - currTime_).count());
-        return false;
-    }
+void Window::update() {
+    currTime_ = SDL_GetPerformanceCounter() / freq_;
     if (map_) {
         map_->doUpdate();
     }
     if (popup_) {
         popup_->doUpdate();
     }
-    return true;
 }
 
 void Window::render() {
@@ -274,7 +269,12 @@ void Window::render() {
     }
 }
 
-void Window::flush() {
+bool Window::flush() {
+    currTime_ = SDL_GetPerformanceCounter() / freq_;
+    if (!renderer_->canRender()) {
+        SDL_Delay((renderer_->nextRenderTime() - currTime_) / 1000ULL);
+        return false;
+    }
     renderer_->present();
     if (core::config.showFPS()) {
         static float lastFPS = 0.f;
@@ -285,6 +285,7 @@ void Window::flush() {
         }
     }
     SDL_Delay(1);
+    return true;
 }
 
 void Window::playMusic(int idx) {

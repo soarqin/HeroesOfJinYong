@@ -25,13 +25,13 @@
 
 namespace hojy::scene {
 
-void ExtendedNode::setTimeToClose(int millisec) {
+void ExtendedNode::setTimeToClose(std::uint32_t millisec) {
     if (millisec <= 0) {
         closeType_ = 0;
-        closeDeadline_ = std::chrono::steady_clock::time_point();
+        closeDeadline_ = 0;
     } else {
         closeType_ = 0;
-        closeDeadline_ = gWindow->currTime() + std::chrono::milliseconds(millisec);
+        closeDeadline_ = gWindow->currTime() + millisec * 1000ULL;
     }
 }
 

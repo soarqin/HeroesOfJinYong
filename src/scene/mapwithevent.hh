@@ -160,7 +160,7 @@ protected:
     bool showChar_ = true;
     bool resting_ = false;
     std::int32_t currMainCharFrame_ = 0;
-    std::chrono::steady_clock::time_point nextMainTexTime_;
+    std::uint64_t nextMainTexTime_ = 0;
 
     std::int16_t animEventId_[3] = {}, animCurrTex_[3] = {}, animEndTex_[3] = {};
 

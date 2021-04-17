@@ -38,11 +38,15 @@ int main(int argc, char *argv[]) {
     core::config.fixOnTextLoaded();
     data::loadData();
     scene::Window win(core::config.windowWidth(), core::config.windowHeight());
-    // win.newGame();
-    while (win.processEvents()) {
-        if (win.update()) {
-            win.render();
-            win.flush();
+    for (;;) {
+        win.update();
+        win.render();
+eventStart:
+        if (!win.processEvents()) {
+            break;
+        }
+        if (!win.flush()) {
+            goto eventStart;
         }
     }
     return 0;

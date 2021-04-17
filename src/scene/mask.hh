@@ -21,7 +21,6 @@
 
 #include "node.hh"
 
-#include <chrono>
 #include <functional>
 
 namespace hojy::scene {
@@ -39,7 +38,7 @@ public:
 private:
     Type type_;
     int interval_;
-    std::chrono::steady_clock::time_point start_;
+    std::uint64_t start_;
 };
 
 }

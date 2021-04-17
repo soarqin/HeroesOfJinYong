@@ -68,8 +68,7 @@ void Dead::makeCache() {
     ttf->setColor(68, 68, 68);
     ttf->render(GETCHARNAME(0), x + 100 * w / 320, y + 48 * h / 200, false, fsize);
     ttf->setColor(176, 4, 8);
-    auto clock = std::chrono::system_clock::now();
-    auto t = std::chrono::system_clock::to_time_t(clock);
+    auto t = time(nullptr);
     tm ltm = *localtime(&t);
     ttf->render(fmt::format(L"{}/{:>2}/{:>2}", ltm.tm_year + 1900, ltm.tm_mon + 1, ltm.tm_mday), x + 190 * w / 320, y + 10 * h / 200, false, fsize);
     ttf->render(GETTEXT(111), x + 185 * w / 320, y + 30 * h / 200, false, fsize);

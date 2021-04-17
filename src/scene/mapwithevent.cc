@@ -419,7 +419,7 @@ void MapWithEvent::renderChar(int deltaY) {
 
 void MapWithEvent::resetTime() {
     resting_ = false;
-    nextMainTexTime_ = gWindow->currTime() + std::chrono::seconds(currMainCharFrame_ > 0 ? 2 : 5);
+    nextMainTexTime_ = gWindow->currTime() + (currMainCharFrame_ > 0 ? 2 : 5) * 1000000ULL;
 }
 
 void MapWithEvent::frameUpdate() {
@@ -481,7 +481,7 @@ bool MapWithEvent::checkTime() {
             return false;
         }
         currMainCharFrame_ = (currMainCharFrame_ + 1) % 6;
-        nextMainTexTime_ = now + std::chrono::milliseconds(500);
+        nextMainTexTime_ = 500 * 1000;
         return true;
     }
     if (now < nextMainTexTime_) {
@@ -489,11 +489,11 @@ bool MapWithEvent::checkTime() {
     }
     if (currMainCharFrame_ > 0) {
         currMainCharFrame_ = 0;
-        nextMainTexTime_ = now + std::chrono::seconds(5);
+        nextMainTexTime_ = now + 5 * 1000000ULL;
     } else {
         currMainCharFrame_ = 0;
         resting_ = true;
-        nextMainTexTime_ = now + std::chrono::milliseconds(500);
+        nextMainTexTime_ = now + 500 * 1000;
     }
     return true;
 }
