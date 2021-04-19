@@ -214,13 +214,15 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     int advW, leftB;
     float fontScale = stbtt_ScaleForMappingEmToPixels(info, static_cast<float>(fontSize));
     stbtt_GetGlyphHMetrics(info, index, &advW, &leftB);
+    int ascent, descent;
+    stbtt_GetFontVMetrics(info, &ascent, &descent, nullptr);
     fd->advW = std::uint8_t(std::lround(fontScale * float(advW)));
-    int ix0, iy0, ix1, iy1;
-    stbtt_GetGlyphBitmapBoxSubpixel(info, index, fontScale, fontScale, 0, 0, &ix0, &iy0, &ix1, &iy1);
-    fd->ix0 = ix0;
-    fd->iy0 = fontSize * 7 / 8 + iy0;
-    fd->w = ix1 - ix0;
-    fd->h = iy1 - iy0;
+    int w, h, x, y;
+    stbtt_GetGlyphBitmap(info, fontScale, fontScale, index, &w, &h, &x, &y);
+    fd->ix0 = x;
+    fd->iy0 = int(float(ascent + descent) * fontScale) + y;
+    fd->w = w;
+    fd->h = h;
 #endif
 
     int dstPitch = int((fd->w + 1u) & ~1u);
@@ -243,7 +245,7 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
         dstPtr += dstPitch;
     }
 #else
-    stbtt_MakeGlyphBitmapSubpixel(info, dst, fd->w, fd->h, dstPitch, fontScale, fontScale, 3, 3, index);
+    stbtt_MakeGlyphBitmapSubpixel(info, dst, fd->w, fd->h, dstPitch, fontScale, fontScale, 0, 0, index);
 #endif
 
     if (rpidx >= textures_.size()) {

@@ -38,6 +38,7 @@ public:
     ~GlobalMap() override;
 
     void load();
+    void update() override;
     void render() override;
     [[nodiscard]] bool onShip() const { return onShip_; }
 

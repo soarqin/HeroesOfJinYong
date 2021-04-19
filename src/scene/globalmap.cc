@@ -196,8 +196,22 @@ void GlobalMap::load() {
     }
 }
 
+void GlobalMap::update() {
+    MapWithEvent::update();
+    for (int i = 0; i < 3; ++i) {
+        auto &c = cloud_[i];
+        if (!c) {
+            if (util::gRandom(2500)) { continue; }
+            c = cloudTexMgr_[util::gRandom(4)];
+            cloudStartX_[i] = cameraX_; cloudStartY_[i] = cameraY_;
+            cloudX_[i] = -width_ * 3 / 5;
+            cloudY_[i] = int(util::gRandom(int(auxHeight_) + height_ / 10) + height_ / 20);
+        }
+    }
+}
+
 void GlobalMap::render() {
-    MapWithEvent::render();
+    Map::render();
     if (drawDirty_) {
         drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
@@ -289,11 +303,7 @@ void GlobalMap::render() {
     for (int i = 0; i < 3; ++i) {
         auto &c = cloud_[i];
         if (!c) {
-            if (util::gRandom(2500)) { continue; }
-            c = cloudTexMgr_[util::gRandom(4)];
-            cloudStartX_[i] = cameraX_; cloudStartY_[i] = cameraY_;
-            cloudX_[i] = -width_ * 3 / 5;
-            cloudY_[i] = int(util::gRandom(int(auxHeight_) + height_ / 10) + height_ / 20);
+            continue;
         }
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;

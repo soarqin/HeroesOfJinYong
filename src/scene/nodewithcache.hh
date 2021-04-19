@@ -34,7 +34,6 @@ public:
 
     void makeCenter(int w, int h, int x, int y) override;
     void close() override;
-    void update() override;
     void render() override;
 
 protected:

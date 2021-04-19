@@ -43,7 +43,7 @@ public:
     void setPosition(int x, int y, bool checkEvent = true);
     void move(Direction direction);
 
-    void render() override;
+    void update() override;
     void handleKeyInput(Key key) override;
 
 protected:

@@ -321,8 +321,7 @@ void MapWithEvent::move(Map::Direction direction) {
     updateMainCharTexture();
 }
 
-void MapWithEvent::render() {
-    Map::render();
+void MapWithEvent::update() {
     if (checkTime()) {
         updateMainCharTexture();
     }
@@ -481,7 +480,7 @@ bool MapWithEvent::checkTime() {
             return false;
         }
         currMainCharFrame_ = (currMainCharFrame_ + 1) % 6;
-        nextMainTexTime_ = 500 * 1000;
+        nextMainTexTime_ = now + 500 * 1000;
         return true;
     }
     if (now < nextMainTexTime_) {

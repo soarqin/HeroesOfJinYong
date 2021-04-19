@@ -117,7 +117,7 @@ void SubMap::forceMainCharTexture(std::int16_t id) {
 }
 
 void SubMap::render() {
-    MapWithEvent::render();
+    Map::render();
 
     if (drawDirty_) {
         drawDirty_ = false;
