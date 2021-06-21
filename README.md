@@ -2,7 +2,7 @@
 A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠传)`
 
 # How to build
-1. Install cmake and C++ compiler (either GCC/Clang or MSVC)
+1. Install cmake and C++ compiler (either GCC-10/Clang or MSVC)
 2. Clone the project: `git clone --recurse-submodules https://github.com/soarqin/HeroesOfJinYong`
 3. (optional after pull new commits from repository) Update submodules: `git submodule update --init`
 4. Use cmake to compile the project (recommended steps):
