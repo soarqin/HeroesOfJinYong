@@ -26,7 +26,6 @@ namespace hojy::core {
 
 class Config {
 public:
-    Config() noexcept = default;
     bool load(const std::string &filename);
     [[nodiscard]] bool saveOptions(const std::string &filename) const;
     bool postLoad();
