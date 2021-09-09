@@ -26,8 +26,10 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
 3. Copy `src/config.toml` to root folder
 4. Create a subfolder `data` in game root folder
 5. Copy `src/strings.toml` to `data` folder
-6. Extract downloaded game into `data` (do not create any 2nd-level subfolder)
-7. Run `hojy.exe` and enjoy!
+6. Create a subfolder `font` in `data` folder
+7. Copy a chinese ttf/otf to `font` folder (config.tml: fonts = "data/font/chinese.otf" )
+8. Extract downloaded game into `data` (do not create any 2nd-level subfolder)
+9. Run `hojy.exe` and enjoy!
 
 ## How to merge Submap and Warfield pictures/textures
 1. Add `-DBUILD_TOOL=ON` to `cmake` command and build the whole project, you will get `mergepic` in `bin` folder
