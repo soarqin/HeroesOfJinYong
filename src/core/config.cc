@@ -42,6 +42,7 @@ bool Config::load(const std::string &filename) {
     }
     auto main = tbl["main"];
     if (main) {
+        prePath_=main["pre_path"].value_or(std::move(prePath_));
         auto dpath = main["data_path"];
         if (dpath.is_string()) {
             dataPath_.resize(1);
@@ -51,9 +52,10 @@ bool Config::load(const std::string &filename) {
                 dataPath_.emplace_back(p.value_or<std::string>("."));
             }
         }
-        musicPath_ = main["music_path"].value_or(std::move(musicPath_));
-        soundPath_ = main["sound_path"].value_or(std::move(soundPath_));
-        savePath_ = main["save_path"].value_or(std::move(savePath_));
+        dataPath_[0]=prePath_+dataPath_[0];
+        musicPath_ = prePath_+main["music_path"].value_or(std::move(musicPath_));
+        soundPath_ = prePath_+main["sound_path"].value_or(std::move(soundPath_));
+        savePath_ = prePath_+main["save_path"].value_or(std::move(savePath_));
         auto fonts = main["fonts"];
         if (fonts.is_string()) {
             fonts_ = {fonts.value_or<std::string>("")};
@@ -62,6 +64,7 @@ bool Config::load(const std::string &filename) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }
         }
+        fonts_[0]=prePath_+fonts_[0];
         shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(std::forward<bool>(shipLogicEnabled_));
     }
     auto window = tbl["window"];
