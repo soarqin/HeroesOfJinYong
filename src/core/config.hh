@@ -74,7 +74,7 @@ public:
 
 private:
     std::vector<std::string> dataPath_, fonts_;
-    std::string musicPath_, soundPath_, savePath_;
+    std::string musicPath_, soundPath_, savePath_, prePath_;
     bool shipLogicEnabled_ = true;
     int windowWidth_ = 640, windowHeight_ = 480;
     bool simplifiedChinese_ = false;
@@ -97,4 +97,4 @@ private:
 
 extern Config config;
 
-}
+}// namespace hojy::core
