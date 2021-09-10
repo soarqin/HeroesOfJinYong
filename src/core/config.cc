@@ -19,13 +19,13 @@
 
 #include "config.hh"
 
-#include "resourcemgr.hh"
 #include "mem/strings.hh"
+#include "resourcemgr.hh"
 #include "util/file.hh"
 #include "util/math.hh"
+#include <algorithm>
 #include <external/toml.hpp>
 #include <fmt/format.h>
-#include <algorithm>
 #include <fstream>
 
 namespace hojy::core {
@@ -42,29 +42,29 @@ bool Config::load(const std::string &filename) {
     }
     auto main = tbl["main"];
     if (main) {
-        prePath_=main["pre_path"].value_or(std::move(prePath_));
+        prePath_ = main["pre_path"].value_or(std::move(prePath_));
         auto dpath = main["data_path"];
         if (dpath.is_string()) {
             dataPath_.resize(1);
             dataPath_[0] = dpath.value_or<std::string>(".");
         } else if (dpath.is_array()) {
-            for (auto &p: *dpath.as_array()) {
+            for (auto &p : *dpath.as_array()) {
                 dataPath_.emplace_back(p.value_or<std::string>("."));
             }
         }
-        dataPath_[0]=prePath_+dataPath_[0];
-        musicPath_ = prePath_+main["music_path"].value_or(std::move(musicPath_));
-        soundPath_ = prePath_+main["sound_path"].value_or(std::move(soundPath_));
-        savePath_ = prePath_+main["save_path"].value_or(std::move(savePath_));
+        dataPath_[0] = prePath_ + dataPath_[0];
+        musicPath_ = prePath_ + main["music_path"].value_or(std::move(musicPath_));
+        soundPath_ = prePath_ + main["sound_path"].value_or(std::move(soundPath_));
+        savePath_ = prePath_ + main["save_path"].value_or(std::move(savePath_));
         auto fonts = main["fonts"];
         if (fonts.is_string()) {
             fonts_ = {fonts.value_or<std::string>("")};
         } else if (fonts.is_array()) {
-            for (auto &p: *fonts.as_array()) {
+            for (auto &p : *fonts.as_array()) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }
         }
-        fonts_[0]=prePath_+fonts_[0];
+        fonts_[0] = prePath_ + fonts_[0];
         shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(std::forward<bool>(shipLogicEnabled_));
     }
     auto window = tbl["window"];
@@ -106,21 +106,23 @@ bool Config::load(const std::string &filename) {
     fixPath(musicPath_);
     fixPath(soundPath_);
     fixPath(savePath_);
-    for (auto &path: dataPath_) {
+    for (auto &path : dataPath_) {
         fixPath(path);
     }
     return true;
 }
 
 bool Config::saveOptions(const std::string &filename) const {
-    auto tbl = toml::table {{
-        {"ui",
+    auto tbl = toml::table{{
+        {
+            "ui",
             toml::table{{
                 {"show_map_mini_panel", showMapMiniPanel_},
                 {"show_minimap", showMinimap_},
             }},
         },
-        {"audio",
+        {
+            "audio",
             toml::table{{
                 {"music_volume", musicVolume_},
                 {"sound_volume", soundVolume_},
@@ -143,7 +145,7 @@ bool Config::postLoad() {
     const auto &missingFiles = gResourceMgr.missingFiles();
     if (!missingFiles.empty()) {
         fmt::print(stderr, "Missing resource files:\n");
-        for (auto &fn: missingFiles) {
+        for (auto &fn : missingFiles) {
             fmt::print(stderr, "  {}\n", fn);
         }
         fflush(stderr);
@@ -185,4 +187,4 @@ std::string Config::saveFilePath(const std::string &filename) const {
     return savePath_.empty() ? dataFilePath(filename) : savePath_ + filename;
 }
 
-}
+}// namespace hojy::core
