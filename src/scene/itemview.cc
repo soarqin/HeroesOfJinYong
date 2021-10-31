@@ -212,7 +212,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         break;
     case KeyRight: {
         int sz = int(items_.size());
-//         currSel_++; // let's try to move to next item
+        currSel_++; // let's try to move to next item
         if (currSel_ + currTop_ * cols_ > sz - 1) {
             currSel_--;
 //             currSel_ = 0;
