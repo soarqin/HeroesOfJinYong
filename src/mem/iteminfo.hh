@@ -30,9 +30,9 @@ struct ItemData {
     char desc[30];
     std::int16_t skillId, throwingEffectId;
     std::int16_t user;      /* current equipped user */
-    std::int16_t equipType; /* 0Weapon 1Armor */
+    std::int16_t equipType; /* 0:Weapon 1:Armor */
     std::int16_t showDesc;
-    std::int16_t itemType;  /* 0Special 1Equip 2Skill 3Heal 4Attack */
+    std::int16_t itemType;  /* 0:Special 1:Equip 2:Skill 3:Heal 4:Attack */
     std::int16_t padding[3];
     std::int16_t addHp, addMaxHp, addPoisoned, addStamina, changeMpType, addMp, addMaxMp;
     std::int16_t addAttack, addSpeed, addDefence, addMedic, addPoison, addDepoison, addAntipoison;
