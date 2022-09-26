@@ -29,7 +29,7 @@
 #include "util/conv.hh"
 #include "util/random.hh"
 #include "util/math.hh"
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 
 namespace hojy::scene {
 

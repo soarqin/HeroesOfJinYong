@@ -21,7 +21,7 @@
 
 namespace hojy::data {
 
-enum {
+enum :int {
     /* Base Info */
     TeamMemberCount = 6,
     BagItemCount = 200,

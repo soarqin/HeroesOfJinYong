@@ -20,12 +20,11 @@
 #include "dead.hh"
 
 #include "window.hh"
-#include "menu.hh"
 #include "colorpalette.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/file.hh"
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 #include <ctime>
 
 namespace hojy::scene {

@@ -32,7 +32,7 @@
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/random.hh"
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 #include <map>
 
 namespace hojy::scene {

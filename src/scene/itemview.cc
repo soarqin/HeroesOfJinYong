@@ -24,7 +24,7 @@
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 
 namespace hojy::scene {
 

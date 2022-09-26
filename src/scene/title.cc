@@ -78,6 +78,10 @@ void Title::handleKeyInput(Node::Key key) {
                 } else {
                     mainCharName_.clear();
                     mode_ = 2;
+                    auto *ttf = renderer_->ttf();
+                    int x = width_ / 4;
+                    int y = height_ - (ttf->fontSize() + TextLineSpacing) * 4;
+                    Window::beginInput(x, y, width_ / 2, ttf->fontSize());
                 }
                 setDirty();
                 break;
@@ -104,6 +108,7 @@ void Title::handleKeyInput(Node::Key key) {
         }
         case 2:
             if (key == KeyOK) {
+                Window::endInput();
                 mode_ = 3;
                 mem::gSaveData.newGame();
                 doRandomBaseInfo();
@@ -114,8 +119,10 @@ void Title::handleKeyInput(Node::Key key) {
         break;
     case KeyCancel:
         switch (mode_) {
-        case 1:
         case 2:
+            Window::endInput();
+            /* fallthrough */
+        case 1:
             currSel_ = 0;
             mode_ = 0;
             setDirty();
