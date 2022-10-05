@@ -37,6 +37,7 @@ private:
     void makeCache() override;
     void doRandomBaseInfo();
     void drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType = -1);
+    void recalcInputRect();
 
 private:
     TextureMgr titleTextureMgr_;

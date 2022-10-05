@@ -650,10 +650,13 @@ void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::
     msgBox->popup(text, type);
 }
 
-void Window::beginInput(int x, int y, int w, int h) {
+void Window::beginInput() {
+    SDL_StartTextInput();
+}
+
+void Window::setInputRect(int x, int y, int w, int h) {
     SDL_Rect rc {x, y, w, h};
     SDL_SetTextInputRect(&rc);
-    SDL_StartTextInput();
 }
 
 void Window::endInput() {
