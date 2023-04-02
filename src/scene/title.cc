@@ -78,6 +78,8 @@ void Title::handleKeyInput(Node::Key key) {
                 } else {
                     mainCharName_.clear();
                     mode_ = 2;
+                    recalcInputRect();
+                    Window::beginInput();
                 }
                 setDirty();
                 break;
@@ -104,6 +106,7 @@ void Title::handleKeyInput(Node::Key key) {
         }
         case 2:
             if (key == KeyOK) {
+                Window::endInput();
                 mode_ = 3;
                 mem::gSaveData.newGame();
                 doRandomBaseInfo();
@@ -114,8 +117,10 @@ void Title::handleKeyInput(Node::Key key) {
         break;
     case KeyCancel:
         switch (mode_) {
-        case 1:
         case 2:
+            Window::endInput();
+            /* fallthrough */
+        case 1:
             currSel_ = 0;
             mode_ = 0;
             setDirty();
@@ -127,6 +132,7 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             if (!mainCharName_.empty()) {
                 mainCharName_.pop_back();
+                recalcInputRect();
                 setDirty();
             }
             break;
@@ -143,6 +149,7 @@ void Title::handleTextInput(const std::wstring &str) {
     for (auto &ch: str) {
         if (mainCharName_.length() < 8 && ch != L' ') {
             mainCharName_ += ch;
+            recalcInputRect();
             dirty = true;
         }
     }
@@ -303,6 +310,13 @@ void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int1
         }
     }
     ttf->render(dispString, x, y, shadow);
+}
+
+void Title::recalcInputRect() {
+    auto *ttf = renderer_->ttf();
+    int x = width_ / 4 + ttf->stringWidth(GETTEXT(41) + mainCharName_);
+    int y = height_ - ttf->fontSize() * 5 - TextLineSpacing * 4;
+    Window::setInputRect(x, y, width_ / 2, ttf->fontSize());
 }
 
 }

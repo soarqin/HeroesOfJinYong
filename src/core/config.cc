@@ -91,6 +91,10 @@ bool Config::load(const std::string &filename) {
     }
     auto audio = tbl["audio"];
     if (audio) {
+        auto emu = audio["opl_emulator"].value<std::string>();
+        if (emu) {
+            oplEmulator_ = emu.value();
+        }
         sampleRate_ = audio["sample_rate"].value_or<int>(std::forward<int>(sampleRate_));
         auto formatStr = audio["sample_format"].value<std::string>();
         if (formatStr) {

@@ -83,6 +83,10 @@ public:
     bool runShop(std::int16_t id);
     void popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type = MessageBox::Normal);
 
+    static void beginInput();
+    static void setInputRect(int x, int y, int w, int h);
+    static void endInput();
+
 private:
     int width_, height_;
     void *win_ = nullptr;

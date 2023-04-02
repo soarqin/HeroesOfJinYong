@@ -64,6 +64,7 @@ public:
     [[nodiscard]] bool showFPS() const { return showFPS_; }
     [[nodiscard]] int limitFPS() const { return limitFPS_; }
 
+    [[nodiscard]] const std::string & oplEmulator() const { return oplEmulator_; }
     [[nodiscard]] int sampleRate() const { return sampleRate_; }
     [[nodiscard]] int sampleFormat() const { return sampleFormat_; }
 
@@ -89,6 +90,7 @@ private:
     std::wstring defaultName_;
     bool showFPS_ = false;
     int limitFPS_ = 0;
+    std::string oplEmulator_ = "dosbox";
     int sampleRate_ = 0;
     int sampleFormat_ = 0;
     int musicVolume_ = 5;

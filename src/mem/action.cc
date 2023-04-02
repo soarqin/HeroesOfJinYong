@@ -466,7 +466,7 @@ bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, st
         /* add poison */
         if (c2->antipoison < 90) {
             int poison = c1->poisonAmp + level * skill->addPoison - c2->antipoison;
-            if (poison) {
+            if (poison > 0) {
                 std::int16_t oldPs = c2->poisoned;
                 c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + poison / 15, 0, data::PoisonedMax);
                 poisoned = oldPs - c2->poisoned;

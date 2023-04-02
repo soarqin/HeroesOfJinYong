@@ -19,6 +19,7 @@
 
 #include "channelmidi.hh"
 
+#include "core/config.hh"
 #include <adlmidi.h>
 #include <SDL.h>
 
@@ -94,7 +95,13 @@ void ChannelMIDI::loadFromData() {
             ok_ = false;
             return;
         }
-        adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_DOSBOX);
+        const auto &emu = core::config.oplEmulator();
+        if (emu == "nuked174")
+            adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_NUKED_174);
+        else if (emu == "nuked")
+            adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_NUKED);
+        else
+            adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_DOSBOX);
     }
     if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
         ok_ = false;

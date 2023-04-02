@@ -43,7 +43,7 @@
 #include "util/conv.hh"
 
 #include <SDL.h>
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 #include <thread>
 #include <stdexcept>
 
@@ -69,7 +69,7 @@ static void optionMenu(Node *mainMenu, int x, int y);
 
 static const char *GameWindowTitle = "Heroes of Jin Yong " HOJY_VERSION;
 
-Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFrequency() / 1000000ULL) {
+Window::Window(int w, int h) : width_(w), height_(h), freq_(SDL_GetPerformanceFrequency() / 1000000ULL) {
     if (gWindow) {
         throw std::runtime_error("Duplicate window creation");
     }
@@ -80,10 +80,16 @@ Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFre
         SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
     }
     SDL_GameControllerEventState(SDL_ENABLE);
-    auto *win = SDL_CreateWindow(GameWindowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
+    auto *win = SDL_CreateWindow(GameWindowTitle,
+                                 SDL_WINDOWPOS_CENTERED,
+                                 SDL_WINDOWPOS_CENTERED,
+                                 w,
+                                 h,
+                                 SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN);
 #ifdef _WIN32
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 #endif
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
     win_ = win;
     gWindow = this;
 
@@ -93,7 +99,7 @@ Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFre
     gNormalPalette.load("MMAP");
     gEndPalette.load("ENDCOL");
     {
-        std::array<std::uint32_t, 256> n {};
+        std::array<std::uint32_t, 256> n{};
         n.fill(0xFFFFFFFFu);
         n[0] = 0;
         gMaskPalette.create(n);
@@ -114,7 +120,7 @@ Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFre
     warfield_ = new Warfield(renderer_, 0, 0, w, h, core::config.scale());
 
     {
-        const auto *arr = reinterpret_cast<const int16_t*>(globalMap_->texData(data::ItemTexIdStart).data());
+        const auto *arr = reinterpret_cast<const int16_t *>(globalMap_->texData(data::ItemTexIdStart).data());
         itemTexW_ = arr[0];
         itemTexH_ = arr[1];
     }
@@ -127,7 +133,13 @@ Window::Window(int w, int h): width_(w), height_(h), freq_(SDL_GetPerformanceFre
     const auto *colors = gNormalPalette.colors();
     auto *pixels = itemTexture_->lock(pitch);
     for (int i = 0; i < data::BagItemCount; ++i) {
-        Texture::renderRLE(globalMap_->texData(data::ItemTexIdStart + i), colors, pixels, pitch, height, itemTexW_ * (i % itemWCount_), itemTexH_ * (i / itemWCount_));
+        Texture::renderRLE(globalMap_->texData(data::ItemTexIdStart + i),
+                           colors,
+                           pixels,
+                           pitch,
+                           height,
+                           itemTexW_ * (i % itemWCount_),
+                           itemTexH_ * (i / itemWCount_));
     }
     itemTexture_->unlock();
     SDL_ShowWindow(win);
@@ -146,7 +158,7 @@ Window::~Window() {
     delete subMap_;
     delete warfield_;
     delete renderer_;
-    SDL_DestroyWindow(static_cast<SDL_Window*>(win_));
+    SDL_DestroyWindow(static_cast<SDL_Window *>(win_));
 }
 
 const Texture *Window::smpTexture(std::int16_t id) const {
@@ -170,29 +182,29 @@ bool Window::processEvents() {
         }
     }
     static const std::map<SDL_Scancode, Node::Key> inputMap = {
-        { SDL_SCANCODE_UP, Node::KeyUp },
-        { SDL_SCANCODE_KP_8, Node::KeyUp },
-        { SDL_SCANCODE_DOWN, Node::KeyDown },
-        { SDL_SCANCODE_KP_2, Node::KeyDown },
-        { SDL_SCANCODE_LEFT, Node::KeyLeft },
-        { SDL_SCANCODE_KP_4, Node::KeyLeft },
-        { SDL_SCANCODE_RIGHT, Node::KeyRight },
-        { SDL_SCANCODE_KP_6, Node::KeyRight },
-        { SDL_SCANCODE_RETURN, Node::KeyOK },
-        { SDL_SCANCODE_KP_ENTER, Node::KeyOK },
-        { SDL_SCANCODE_ESCAPE, Node::KeyCancel },
-        { SDL_SCANCODE_DELETE, Node::KeyCancel },
-        { SDL_SCANCODE_KP_PERIOD, Node::KeyCancel },
-        { SDL_SCANCODE_SPACE, Node::KeySpace },
-        { SDL_SCANCODE_BACKSPACE, Node::KeyBackspace },
+        {SDL_SCANCODE_UP, Node::KeyUp},
+        {SDL_SCANCODE_KP_8, Node::KeyUp},
+        {SDL_SCANCODE_DOWN, Node::KeyDown},
+        {SDL_SCANCODE_KP_2, Node::KeyDown},
+        {SDL_SCANCODE_LEFT, Node::KeyLeft},
+        {SDL_SCANCODE_KP_4, Node::KeyLeft},
+        {SDL_SCANCODE_RIGHT, Node::KeyRight},
+        {SDL_SCANCODE_KP_6, Node::KeyRight},
+        {SDL_SCANCODE_RETURN, Node::KeyOK},
+        {SDL_SCANCODE_KP_ENTER, Node::KeyOK},
+        {SDL_SCANCODE_ESCAPE, Node::KeyCancel},
+        {SDL_SCANCODE_DELETE, Node::KeyCancel},
+        {SDL_SCANCODE_KP_PERIOD, Node::KeyCancel},
+        {SDL_SCANCODE_SPACE, Node::KeySpace},
+        {SDL_SCANCODE_BACKSPACE, Node::KeyBackspace},
     };
     static const std::map<SDL_GameControllerButton, Node::Key> buttonMap = {
-        { SDL_CONTROLLER_BUTTON_DPAD_UP, Node::KeyUp },
-        { SDL_CONTROLLER_BUTTON_DPAD_DOWN, Node::KeyDown },
-        { SDL_CONTROLLER_BUTTON_DPAD_LEFT, Node::KeyLeft },
-        { SDL_CONTROLLER_BUTTON_DPAD_RIGHT, Node::KeyRight },
-        { SDL_CONTROLLER_BUTTON_A, Node::KeyOK },
-        { SDL_CONTROLLER_BUTTON_B, Node::KeyCancel },
+        {SDL_CONTROLLER_BUTTON_DPAD_UP, Node::KeyUp},
+        {SDL_CONTROLLER_BUTTON_DPAD_DOWN, Node::KeyDown},
+        {SDL_CONTROLLER_BUTTON_DPAD_LEFT, Node::KeyLeft},
+        {SDL_CONTROLLER_BUTTON_DPAD_RIGHT, Node::KeyRight},
+        {SDL_CONTROLLER_BUTTON_A, Node::KeyOK},
+        {SDL_CONTROLLER_BUTTON_B, Node::KeyCancel},
     };
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -243,8 +255,7 @@ bool Window::processEvents() {
             }
             break;
         }
-        case SDL_QUIT:
-            return false;
+        case SDL_QUIT:return false;
         }
     }
     return true;
@@ -294,7 +305,12 @@ void Window::playMusic(int idx) {
     if (playingMusic_ == idx) {
         return;
     }
-    audio::gMixer.play(0, core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)), true, 16 * core::config.musicVolume(), 500, 2000);
+    audio::gMixer.play(0,
+                       core::config.musicFilePath(fmt::format("GAME{:02}.XMI", idx)),
+                       true,
+                       16 * core::config.musicVolume(),
+                       500,
+                       2000);
     playingMusic_ = idx;
 }
 
@@ -304,12 +320,14 @@ void Window::playAtkSound(int idx) {
         playEffectSound(idx - 24);
         return;
     }
-    audio::gMixer.play(1, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
+    audio::gMixer
+        .play(1, core::config.soundFilePath(fmt::format("ATK{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
 }
 
 void Window::playEffectSound(int idx) {
     (void)this;
-    audio::gMixer.play(2, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
+    audio::gMixer
+        .play(2, core::config.soundFilePath(fmt::format("E{:02}.WAV", idx)), false, 16 * core::config.soundVolume());
 }
 
 void Window::title() {
@@ -332,14 +350,14 @@ void Window::endscreen() {
 void Window::newGame() {
     mem::gStrings.saveDataLoaded();
     map_ = subMap_;
-    dynamic_cast<GlobalMap*>(globalMap_)->load();
+    dynamic_cast<GlobalMap *>(globalMap_)->load();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
-    dynamic_cast<SubMap*>(subMap_)->load(data::gFactors.initSubMapId);
+    dynamic_cast<SubMap *>(subMap_)->load(data::gFactors.initSubMapId);
     subMap_->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY, false);
-    dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
+    dynamic_cast<SubMap *>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
     map_->fadeIn([this] {
-        dynamic_cast<SubMap*>(subMap_)->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
-        dynamic_cast<SubMap*>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
+        dynamic_cast<SubMap *>(subMap_)->setPosition(data::gFactors.initSubMapX, data::gFactors.initSubMapY);
+        dynamic_cast<SubMap *>(subMap_)->forceMainCharTexture(data::gFactors.initMainCharTex / 2);
         map_->resetFrame();
     });
 }
@@ -347,7 +365,7 @@ void Window::newGame() {
 bool Window::loadGame(int slot) {
     if (!mem::gSaveData.load(slot)) { return false; }
     mem::gStrings.saveDataLoaded();
-    dynamic_cast<GlobalMap*>(globalMap_)->load();
+    dynamic_cast<GlobalMap *>(globalMap_)->load();
     globalMap_->setPosition(mem::gSaveData.baseInfo->mainX, mem::gSaveData.baseInfo->mainY);
     auto &binfo = mem::gSaveData.baseInfo;
     if (binfo->subMap > 0) {
@@ -356,7 +374,7 @@ bool Window::loadGame(int slot) {
         subMap_->setPosition(binfo->subX, binfo->subY, false);
         subMap_->setDirection(Map::Direction(binfo->direction));
         map_->fadeIn([this]() {
-            dynamic_cast<SubMap*>(subMap_)->setPosition(mem::gSaveData.baseInfo->subX, mem::gSaveData.baseInfo->subY);
+            dynamic_cast<SubMap *>(subMap_)->setPosition(mem::gSaveData.baseInfo->subX, mem::gSaveData.baseInfo->subY);
             map_->resetFrame();
         });
     } else {
@@ -372,29 +390,29 @@ bool Window::loadGame(int slot) {
 
 bool Window::saveGame(int slot) {
     auto &binfo = mem::gSaveData.baseInfo;
-    binfo->onShip = dynamic_cast<GlobalMap*>(globalMap_)->onShip();
+    binfo->onShip = dynamic_cast<GlobalMap *>(globalMap_)->onShip();
     binfo->mainX = globalMap_->currX();
     binfo->mainY = globalMap_->currY();
     binfo->subMap = map_->subMapId() + 1;
     if (binfo->subMap > 0) {
-        binfo->subX = dynamic_cast<SubMap*>(subMap_)->currX();
-        binfo->subY = dynamic_cast<SubMap*>(subMap_)->currY();
+        binfo->subX = dynamic_cast<SubMap *>(subMap_)->currX();
+        binfo->subY = dynamic_cast<SubMap *>(subMap_)->currY();
     }
-    binfo->direction = std::int16_t(dynamic_cast<MapWithEvent*>(map_)->direction());
+    binfo->direction = std::int16_t(dynamic_cast<MapWithEvent *>(map_)->direction());
     return mem::gSaveData.save(slot);
 }
 
 void Window::forceQuit() {
     (void)this;
     static SDL_QuitEvent evt = {SDL_QUIT, SDL_GetTicks()};
-    SDL_PushEvent(reinterpret_cast<SDL_Event*>(&evt));
+    SDL_PushEvent(reinterpret_cast<SDL_Event *>(&evt));
 }
 
 void Window::exitToGlobalMap(int direction) {
     map_->fadeOut([this, direction]() {
         map_ = globalMap_;
         map_->resetFrame();
-        dynamic_cast<MapWithEvent*>(map_)->setDirection(Map::Direction(direction));
+        dynamic_cast<MapWithEvent *>(map_)->setDirection(Map::Direction(direction));
         map_->fadeIn([this]() {
             map_->resetFrame();
         });
@@ -420,35 +438,35 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
             x = smi->enterX;
             y = smi->enterY;
         }
-        dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y, false);
+        dynamic_cast<MapWithEvent *>(map_)->setPosition(x, y, false);
         auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
         tips->popup({GETSUBMAPNAME(subMapId)}, MessageBox::Normal);
         map_->fadeIn([this, tips, x, y] {
             delete tips;
-            dynamic_cast<MapWithEvent*>(map_)->setPosition(x, y);
+            dynamic_cast<MapWithEvent *>(map_)->setPosition(x, y);
             map_->resetFrame();
         });
     });
 }
 
 void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
-    auto *wf = dynamic_cast<Warfield*>(warfield_);
+    auto *wf = dynamic_cast<Warfield *>(warfield_);
     wf->setGetExpOnLose(getExpOnLose);
     wf->setDeadOnLose(deadOnLose);
     wf->load(warId);
     std::set<std::int16_t> defaultChars;
     if (wf->getDefaultChars(defaultChars)) {
         auto *clm = new CharListMenu(renderer_, 0, 0, gWindow->width(), gWindow->height());
-        clm->enableCheckBox(true, [defaultChars](std::int16_t charId)->bool {
+        clm->enableCheckBox(true, [defaultChars](std::int16_t charId) -> bool {
             return defaultChars.find(charId) == defaultChars.end();
         });
         clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm](std::int16_t) {
-            dynamic_cast<Warfield*>(warfield_)->putChars(clm->getSelectedCharIds());
+            dynamic_cast<Warfield *>(warfield_)->putChars(clm->getSelectedCharIds());
             map_ = warfield_;
             auto *map = map_;
             closePopup();
             map->fadeIn();
-        }, []()->bool { return false; });
+        }, []() -> bool { return false; });
         for (size_t i = 0; i < clm->charCount(); ++i) {
             if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
                 clm->checkItem(i, true);
@@ -465,7 +483,10 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
 }
 
 void Window::endWar(bool won, bool instantDie) {
-    if (instantDie) { playerDie(); return; }
+    if (instantDie) {
+        playerDie();
+        return;
+    }
     map_ = subMap_;
     subMap_->fadeIn([this, won]() {
         subMap_->continueEvents(won);
@@ -492,12 +513,12 @@ void Window::playerDie() {
 }
 
 void Window::useQuestItem(std::int16_t itemId) {
-    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
     if (mapev) mapev->onUseItem(itemId);
 }
 
 void Window::forceEvent(std::int16_t eventId) {
-    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
     if (mapev) mapev->runEvent(eventId);
     else if (subMap_) subMap_->runEvent(eventId);
 }
@@ -516,7 +537,7 @@ void Window::endPopup(bool close, bool result) {
     if (close) {
         closePopup();
     }
-    auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
     if (mapev) mapev->continueEvents(result);
 }
 
@@ -530,29 +551,22 @@ void Window::showMainMenu(bool inSubMap) {
         auto *menu = new MenuTextList(renderer_, 4 * windowBorder, 4 * windowBorder, width_ - 80, height_ - 80);
         mainMenu_ = menu;
         menu->setHandler([this]() {
-            switch (dynamic_cast<Menu*>(mainMenu_)->currIndex()) {
-            case 0:
-                medicMenu(mainMenu_);
+            switch (dynamic_cast<Menu *>(mainMenu_)->currIndex()) {
+            case 0:medicMenu(mainMenu_);
                 break;
-            case 1:
-                depoisonMenu(mainMenu_);
+            case 1:depoisonMenu(mainMenu_);
                 break;
-            case 2:
-                showItems(mainMenu_);
+            case 2:showItems(mainMenu_);
                 break;
-            case 3:
-                statusMenu(mainMenu_);
+            case 3:statusMenu(mainMenu_);
                 break;
-            case 4:
-                leaveTeamMenu(mainMenu_);
+            case 4:leaveTeamMenu(mainMenu_);
                 break;
-            case 5:
-                systemMenu(mainMenu_);
+            case 5:systemMenu(mainMenu_);
                 break;
-            default:
-                break;
+            default:break;
             }
-        }, [this]()->bool {
+        }, [this]() -> bool {
             closePopup();
             return false;
         });
@@ -564,13 +578,14 @@ void Window::showMainMenu(bool inSubMap) {
         dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50)});
     } else {
      */
-        dynamic_cast<MenuTextList*>(mainMenu_)->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50), GETTEXT(51), GETTEXT(52)});
+    dynamic_cast<MenuTextList *>(mainMenu_)
+        ->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50), GETTEXT(51), GETTEXT(52)});
     /* } */
 }
 
 void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
     if (popup_) {
-        auto *mapev = dynamic_cast<MapWithEvent*>(map_);
+        auto *mapev = dynamic_cast<MapWithEvent *>(map_);
         if (mapev) mapev->continueEvents(false);
         return;
     }
@@ -578,7 +593,7 @@ void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t
         auto border = width_ / 12;
         talkBox_ = new TalkBox(renderer_, border, border, width_ - border * 2, height_ - border * 2);
     }
-    dynamic_cast<TalkBox*>(talkBox_)->popup(text, headId, position);
+    dynamic_cast<TalkBox *>(talkBox_)->popup(text, headId, position);
     popup_ = talkBox_;
     freeOnClose_ = false;
 }
@@ -635,6 +650,19 @@ void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::
     msgBox->popup(text, type);
 }
 
+void Window::beginInput() {
+    SDL_StartTextInput();
+}
+
+void Window::setInputRect(int x, int y, int w, int h) {
+    SDL_Rect rc {x, y, w, h};
+    SDL_SetTextInputRect(&rc);
+}
+
+void Window::endInput() {
+    SDL_StopTextInput();
+}
+
 static void medicMenu(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
@@ -642,21 +670,22 @@ static void medicMenu(Node *mainMenu) {
     menu->initWithTeamMembers({GETTEXT(53)}, {CharListMenu::MEDIC},
                               [mainMenu](std::int16_t charId) {
                                   medicTargetMenu(mainMenu, charId);
-                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
-                                  return value > 0;
-                              });
+                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value) -> bool {
+            return value > 0;
+        });
 }
 
 static void medicTargetMenu(Node *mainMenu, std::int16_t charId) {
     auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder() * 3;
-    auto y = mainMenu->y() +  + core::config.windowBorder() * 2;
+    auto y = mainMenu->y() + +core::config.windowBorder() * 2;
     auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
     menu->initWithTeamMembers({GETTEXT(54)}, {CharListMenu::HP},
                               [charId](std::int16_t toCharId) {
                                   int res = mem::actMedic(mem::gSaveData.charInfo[charId],
                                                           mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
-                                  gWindow->popupMessageBox({GETTEXT(55) + L' ' + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                                  gWindow->popupMessageBox({GETTEXT(55) + L' ' + std::to_wstring(res)},
+                                                           MessageBox::PressToCloseTop);
                               }, nullptr);
 }
 
@@ -667,9 +696,9 @@ static void depoisonMenu(Node *mainMenu) {
     menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::DEPOISON},
                               [mainMenu](std::int16_t charId) {
                                   depoisonTargetMenu(mainMenu, charId);
-                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value)->bool {
-                                  return value > 0;
-                              });
+                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value) -> bool {
+            return value > 0;
+        });
 }
 
 static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
@@ -681,7 +710,8 @@ static void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
                                   int res = mem::actDepoison(mem::gSaveData.charInfo[charId],
                                                              mem::gSaveData.charInfo[toCharId], 2);
                                   gWindow->closePopup();
-                                  gWindow->popupMessageBox({GETTEXT(58) + L' ' + std::to_wstring(res)}, MessageBox::PressToCloseTop);
+                                  gWindow->popupMessageBox({GETTEXT(58) + L' ' + std::to_wstring(res)},
+                                                           MessageBox::PressToCloseTop);
                               }, nullptr);
 }
 
@@ -689,7 +719,8 @@ static void showItems(Node *mainMenu) {
     auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
     auto y = mainMenu->y();
     auto windowBorder = core::config.windowBorder();
-    auto *iv = new ItemView(mainMenu, x, y, gWindow->width() - x - windowBorder * 4, gWindow->height() - y - windowBorder * 4);
+    auto *iv =
+        new ItemView(mainMenu, x, y, gWindow->width() - x - windowBorder * 4, gWindow->height() - y - windowBorder * 4);
     iv->show(false, [](std::int16_t itemId) {
         gWindow->useQuestItem(itemId);
     });
@@ -741,14 +772,11 @@ static void systemMenu(Node *mainMenu) {
     x += subMenu->width() + core::config.windowBorder();
     subMenu->setHandler([mainMenu, subMenu, x, y]() {
         switch (subMenu->currIndex()) {
-        case 0:
-            selectSaveSlotMenu(mainMenu, x, y, false);
+        case 0:selectSaveSlotMenu(mainMenu, x, y, false);
             break;
-        case 1:
-            selectSaveSlotMenu(mainMenu, x, y, true);
+        case 1:selectSaveSlotMenu(mainMenu, x, y, true);
             break;
-        case 2:
-            optionMenu(mainMenu, x, y);
+        case 2:optionMenu(mainMenu, x, y);
             break;
         case 3: {
             auto *yesNo = new MenuYesNo(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
@@ -757,8 +785,7 @@ static void systemMenu(Node *mainMenu) {
             yesNo->popupWithYesNo();
             break;
         }
-        default:
-            break;
+        default:break;
         }
     }, nullptr);
 }
@@ -792,8 +819,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
     subMenu->popup({GETTEXT(132), GETTEXT(137), GETTEXT(133), GETTEXT(134)}, values);
     subMenu->setHandler([subMenu](int inputType) {
         switch (inputType) {
-        case 0:
-            (void)core::config.saveOptions(core::config.saveFilePath("options.toml"));
+        case 0:(void)core::config.saveOptions(core::config.saveFilePath("options.toml"));
             break;
         case 1:
         case 2:
@@ -825,26 +851,23 @@ void optionMenu(Node *mainMenu, int x, int y) {
                 subMenu->setValue(3, fmt::format(L" {:>2}", val));
                 break;
             }
-            default:
-                break;
+            default:break;
             }
             /* fallthrough */
         case 3:
             switch (subMenu->currIndex()) {
-            case 0:
-                core::config.setShowMapMiniPanel(!core::config.showMapMiniPanel());
-                subMenu->setValue(0, fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)));
+            case 0:core::config.setShowMapMiniPanel(!core::config.showMapMiniPanel());
+                subMenu->setValue(0,
+                                  fmt::format(L" {:<2}",
+                                              core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)));
                 break;
-            case 1:
-                core::config.setShowMinimap(!core::config.showMinimap());
+            case 1:core::config.setShowMinimap(!core::config.showMinimap());
                 subMenu->setValue(1, fmt::format(L" {:<2}", core::config.showMinimap() ? GETTEXT(135) : GETTEXT(136)));
                 break;
-            default:
-                break;
+            default:break;
             }
             break;
-        default:
-            break;
+        default:break;
         }
     });
 }

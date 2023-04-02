@@ -25,7 +25,7 @@
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/math.hh"
-#include <fmt/format.h>
+#include <fmt/xchar.h>
 #include <algorithm>
 
 namespace hojy::scene {
@@ -87,7 +87,7 @@ void StatusView::makeCache() {
         ttf->render(name, (w - ttf->stringWidth(name)) / 2, y, true);
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, data::StaminaMax), x1, y, true);
+        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(data::StaminaMax)), x1, y, true);
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(25), x0, y, true);
         wchar_t c1 = L'\2', c2 = L'\3';
@@ -188,7 +188,7 @@ void StatusView::makeCache() {
     ttf->render(fmt::format(L"\2{:>3}", data_.sword), x3, y, true);
     y += lineheight;
     ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-    ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, data::StaminaMax), x1, y, true);
+    ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(data::StaminaMax)), x1, y, true);
     ttf->render(GETTEXT(17), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.blade), x3, y, true);
     y += lineheight;

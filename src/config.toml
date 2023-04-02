@@ -24,6 +24,10 @@ fade_speed = 1.0
 window_border = 8
 
 [audio]
+# dosbox - Default value, from DOSBox 0.74, well-accurate and fast, use it for low-end CPUs
+# nuked174 - Nuked OPL3 v1.7.4, very accurate but needs more CPU power
+# nuked - Nuked OPL3 v1.8, latest version
+opl_emulator = "dosbox"
 sample_rate = 48000
 # For soxr resampler: I16 = sint16, I32 = sint32, F32 = float
 # For zita resampler: this option is ignored, sample format is always F32
