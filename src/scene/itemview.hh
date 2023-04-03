@@ -47,7 +47,8 @@ protected:
 protected:
     std::vector<std::pair<std::int16_t, std::int16_t>> items_;
     bool inBattle_ = false;
-    int cols_ = 0, rows_ = 0;
+    int cols_ = 0; // how many columns in the view, based on screen width and item cell size
+    int rows_ = 0; // how many rows in the view, based on screen width and item cell size
     int scale_ = 1, cellWidth_ = 0, cellHeight_ = 0;
     int currTop_ = 0, currSel_ = 0;
     mem::CharacterData *charInfo_ = nullptr;

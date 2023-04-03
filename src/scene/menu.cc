@@ -22,6 +22,7 @@
 #include "window.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
+#include "util/consts.hh"
 
 namespace hojy::scene {
 
@@ -244,7 +245,8 @@ void MenuYesNo::handleKeyInput(Node::Key key) {
 }
 
 void MenuYesNo::popupWithYesNo() {
-    popup({GETTEXT(78), GETTEXT(79)}, -1);
+    // Default selection should always be the first option in the pop-up menu
+    popup({GETTEXT(78), GETTEXT(79)}, hojy::util::consts::DEFAULT_MENU_OPTION);
 }
 
 void MenuYesNo::onOK() {
