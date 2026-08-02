@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 
 project(HeroesOfJinYong)
 
+include(CTest)
+
 option(BUILD_SHARED_LIBS  "Build shared libraries" ON)
 option(USE_STATIC_CRT "Use static C runtime" OFF)
 option(USE_FREETYPE "Use freetype instead of stb_truetype" OFF)
@@ -54,3 +56,6 @@ endif()
 
 add_subdirectory(deps)
 add_subdirectory(src)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
