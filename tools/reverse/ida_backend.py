@@ -78,9 +78,12 @@ class IdaDatabase:
         if not ida_hexrays.init_hexrays_plugin():
             return []
         try:
-            pseudocode = str(ida_hexrays.decompile(address))
+            decompiled = ida_hexrays.decompile(address)
         except Exception:
             return []
+        if decompiled is None:
+            return []
+        pseudocode = str(decompiled)
         lines = [line.strip() for line in pseudocode.splitlines() if line.strip()]
         return lines[:max_lines]
 
