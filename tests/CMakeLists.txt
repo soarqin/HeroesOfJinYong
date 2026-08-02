@@ -12,3 +12,10 @@ add_test(
 set_tests_properties(reverse_manifest_tests PROPERTIES
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/tools/reverse")
+
+add_test(
+    NAME reverse_extract_cli_tests
+    COMMAND ${Python3_EXECUTABLE} -m unittest tests/reverse/test_extract_cli.py -v)
+set_tests_properties(reverse_extract_cli_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/tools/reverse")
