@@ -19,6 +19,9 @@ endif()
 
 set(MESSAGE_QUIET ON)
 add_subdirectory(fmt)
+if(DEPS_BUILD_SHARED)
+    set_target_properties(fmt PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
 set(MESSAGE_QUIET OFF)
 
 if(USE_SOXR)
