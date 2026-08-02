@@ -41,3 +41,6 @@
 /.pi*/
 /.opencode*/
 /.codegraph*/
+
+# Python reverse-engineering helpers
+__pycache__/
