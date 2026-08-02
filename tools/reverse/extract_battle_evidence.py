@@ -5,10 +5,22 @@ from pathlib import Path
 import sys
 
 try:
-    from manifest import BinaryRecord, Manifest, sha256_file
+    from manifest import (
+        BinaryRecord,
+        DependencyRecord,
+        EvidenceRecord,
+        Manifest,
+        sha256_file,
+    )
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from manifest import BinaryRecord, Manifest, sha256_file
+    from manifest import (
+        BinaryRecord,
+        DependencyRecord,
+        EvidenceRecord,
+        Manifest,
+        sha256_file,
+    )
 
 
 APPROVED_HASHES = {
@@ -43,9 +55,63 @@ def validate_binaries(game_dir: Path) -> list[BinaryRecord]:
 
 
 def build_validation_manifest(game_dir: Path) -> Manifest:
-    manifest = Manifest(source_root=str(game_dir))
+    manifest = Manifest(source_root=game_dir.name)
     for record in validate_binaries(game_dir):
         manifest.add_binary(record)
+    return manifest
+
+
+def extract_evidence(game_dir: Path) -> Manifest:
+    from ida_backend import IdaDatabase
+
+    manifest = build_validation_manifest(game_dir)
+    with IdaDatabase(game_dir / "Z.COM") as zcom:
+        zcom.find_exact_string("z.DAT")
+        zcom_function = zcom.containing_function(0x10195)
+        manifest.add_evidence(EvidenceRecord(
+            evidence_id="ENTRY-ZCOM-EXEC",
+            binary="Z.COM",
+            address="0x10195",
+            kind="process-exec",
+            summary="Executes Z.DAT through DOS int 21h AX=4B00h",
+            status="confirmed",
+            function_start=zcom_function["start"],
+            function_end=zcom_function["end"],
+            function_name=zcom_function["name"],
+            pseudocode_summary=tuple(zcom.decompile_summary(0x10195)),
+        ))
+
+    manifest.add_dependency(DependencyRecord("Z.COM", "Z.DAT", "process-exec", "0x10195"))
+    with IdaDatabase(game_dir / "Z.DAT") as zdat:
+        war_sta = zdat.find_exact_string("war.sta")
+        war_function = zdat.containing_function(0x31DAC)
+        manifest.add_evidence(EvidenceRecord(
+            evidence_id="DATA-WAR-LOAD",
+            binary="Z.DAT",
+            address=f"{war_function['start']}",
+            kind="function",
+            summary=f"Loads WAR.STA at string address {war_sta:#x}",
+            status="confirmed",
+            function_start=war_function["start"],
+            function_end=war_function["end"],
+            function_name=war_function["name"],
+            pseudocode_summary=tuple(zdat.decompile_summary(0x31DAC)),
+        ))
+
+        fight_string = zdat.find_exact_string("fight000.grp")
+        fight_function = zdat.containing_function(0x385F8)
+        manifest.add_evidence(EvidenceRecord(
+            evidence_id="ANIM-FIGHT-LOAD",
+            binary="Z.DAT",
+            address=f"{fight_function['start']}",
+            kind="function",
+            summary=f"Loads FIGHT animation data at string address {fight_string:#x}",
+            status="confirmed",
+            function_start=fight_function["start"],
+            function_end=fight_function["end"],
+            function_name=fight_function["name"],
+            pseudocode_summary=tuple(zdat.decompile_summary(0x385F8)),
+        ))
     return manifest
 
 
@@ -63,11 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate_only:
         return 0
 
-    print(
-        "validated original binaries; full IDA extraction is not available in this step",
-        file=sys.stderr,
-    )
-    manifest.write(args.output)
+    try:
+        extract_evidence(args.game_dir).write(args.output)
+    except (ImportError, KeyError, RuntimeError) as error:
+        print(f"IDA extraction failed: {error}", file=sys.stderr)
+        return 4
     return 0
 
 

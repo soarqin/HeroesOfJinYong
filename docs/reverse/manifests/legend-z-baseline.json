@@ -1,0 +1,87 @@
+{
+  "source_root": "LEGEND",
+  "binaries": [
+    {
+      "path": "Z.COM",
+      "size": 413,
+      "sha256": "9de4c8002f92759bd2771a4984ff02599121e6c66fed1eb0d7e905a327e2dac1"
+    },
+    {
+      "path": "Z.DAT",
+      "size": 343217,
+      "sha256": "0034f836def2b287e62b0902f08cab22b61b397f24d44d6038274f1750a007ce"
+    }
+  ],
+  "dependencies": [
+    {
+      "parent": "Z.COM",
+      "child": "Z.DAT",
+      "kind": "process-exec",
+      "address": "0x10195"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "ANIM-FIGHT-LOAD",
+      "binary": "Z.DAT",
+      "address": "0x3859e",
+      "kind": "function",
+      "summary": "Loads FIGHT animation data at string address 0x55b62",
+      "status": "confirmed",
+      "function_start": "0x3859e",
+      "function_end": "0x3884a",
+      "function_name": "sub_3859E",
+      "pseudocode_summary": [
+        "__int16 __cdecl sub_3859E(__int16 a1, __int16 a2, __int16 a3)",
+        "{",
+        "int v3; // ebx",
+        "int v4; // eax",
+        "int v5; // eax",
+        "__int16 result; // ax",
+        "__int16 i; // bx",
+        "__int16 j; // bx",
+        "__int16 v9; // di",
+        "__int16 k; // bx",
+        "__int16 v11; // [esp+0h] [ebp-1Ch]",
+        "__int16 v12; // [esp+4h] [ebp-18h]"
+      ]
+    },
+    {
+      "evidence_id": "DATA-WAR-LOAD",
+      "binary": "Z.DAT",
+      "address": "0x31da0",
+      "kind": "function",
+      "summary": "Loads WAR.STA at string address 0x58a3c",
+      "status": "confirmed",
+      "function_start": "0x31da0",
+      "function_end": "0x31eb9",
+      "function_name": "sub_31DA0",
+      "pseudocode_summary": [
+        "int __usercall sub_31DA0@<eax>(char a1@<sil>, __int16 a2)",
+        "{",
+        "int v2; // ebx",
+        "__int16 v3; // si",
+        "int v4; // eax",
+        "int v5; // ebx",
+        "int result; // eax",
+        "__int16 i; // cx",
+        "sub_3ED1E(24);",
+        "v2 = (__int16)sub_3DA66(aWarSta);",
+        "sub_3DB07(v2, 186 * a2, 0);",
+        "sub_3DABF(v2, &unk_E6A04, 186);"
+      ]
+    },
+    {
+      "evidence_id": "ENTRY-ZCOM-EXEC",
+      "binary": "Z.COM",
+      "address": "0x10195",
+      "kind": "process-exec",
+      "summary": "Executes Z.DAT through DOS int 21h AX=4B00h",
+      "status": "confirmed",
+      "function_start": "0x1015f",
+      "function_end": "0x101a7",
+      "function_name": "sub_1015F",
+      "pseudocode_summary": []
+    }
+  ]
+}
