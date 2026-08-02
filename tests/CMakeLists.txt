@@ -19,3 +19,10 @@ add_test(
 set_tests_properties(reverse_extract_cli_tests PROPERTIES
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/tools/reverse")
+
+add_test(
+    NAME reverse_ida_backend_tests
+    COMMAND ${Python3_EXECUTABLE} -m unittest tests/reverse/test_ida_backend.py -v)
+set_tests_properties(reverse_ida_backend_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/tools/reverse")
