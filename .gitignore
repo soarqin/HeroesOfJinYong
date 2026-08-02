@@ -31,10 +31,13 @@
 *.out
 *.app
 
-# CLion files
-/cmake*
-/.idea
-
 # Build directories
+/cmake-*/
 /build*/
 
+# Agent directories
+/.cluade/
+/.codex/
+/.pi*/
+/.opencode*/
+/.codegraph*/
