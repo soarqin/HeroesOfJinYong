@@ -34,9 +34,12 @@ enum :int {
 
     SkillLevelMax = 900,
     SkillLevelMaxDiv = 9,
+    /* Cap the original build applies to the stored skill level (Z.DAT:0x3839F). */
+    SkillLevelStoreMax = 999,
 
     LevelMax = 30,
-    ExpMax = 65000,
+    /* Post battle cap the original build applies (Z.DAT:0x3B548). */
+    ExpMax = 60000,
     HpMax = 999,
     MaxHpMax = 999,
     MpMax = 999,

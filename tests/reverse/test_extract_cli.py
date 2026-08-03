@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import subprocess
@@ -9,6 +10,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CLI = PROJECT_ROOT / "tools" / "reverse" / "extract_battle_evidence.py"
+
+
+_EXTRACTION_ENABLED = bool(
+    os.environ.get("HOJY_ORIGINAL_DATA_DIR") and importlib.util.find_spec("idapro")
+)
 
 
 class ExtractBattleEvidenceCliTests(unittest.TestCase):
@@ -53,7 +59,7 @@ class ExtractBattleEvidenceCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 3)
         self.assertIn("hash mismatch: Z.COM", result.stderr)
 
-    @unittest.skipUnless(os.environ.get("HOJY_ORIGINAL_DATA_DIR"), "original data not configured")
+    @unittest.skipUnless(_EXTRACTION_ENABLED, "original data or idalib Python module not configured")
     def test_full_extraction_contains_battle_evidence(self):
         game_dir = os.environ["HOJY_ORIGINAL_DATA_DIR"]
         with tempfile.TemporaryDirectory() as directory:
@@ -76,7 +82,7 @@ class ExtractBattleEvidenceCliTests(unittest.TestCase):
         self.assertEqual(evidence["ANIM-FIGHT-LOAD"]["function_start"], "0x3859e")
         self.assertNotIn("None", evidence["ENTRY-ZCOM-EXEC"]["pseudocode_summary"])
 
-    @unittest.skipUnless(os.environ.get("HOJY_ORIGINAL_DATA_DIR"), "original data not configured")
+    @unittest.skipUnless(_EXTRACTION_ENABLED, "original data or idalib Python module not configured")
     def test_approved_binaries_validate(self):
         game_dir = os.environ["HOJY_ORIGINAL_DATA_DIR"]
         with tempfile.TemporaryDirectory() as directory:

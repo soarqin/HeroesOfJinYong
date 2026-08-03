@@ -39,6 +39,7 @@ const std::wstring &propToName(PropType type);
 void addUpPropFromEquipToChar(CharacterData *info);
 std::uint16_t getExpForLevelUp(std::int16_t level);
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential);
+std::uint16_t getExpForMakeItem(std::int16_t itemId, std::int16_t potential);
 bool leaveTeam(std::int16_t id);
 bool skillFull(std::int16_t charId);
 bool equipItem(std::int16_t charId, std::int16_t itemId);
@@ -47,6 +48,12 @@ std::int16_t tryUseBagItem(CharacterData *charInfo, PropType type, std::int16_t 
 bool useNpcItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
 std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::int16_t value);
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
+/*
+ * Property gains a skill book grants when its training completes. This is a
+ * different rule set from applyItemChanges: it never touches the consumable
+ * fields and has its own mp-type and double-attack rules.
+ */
+void applyBookChanges(CharacterData *charInfo, const ItemData *itemInfo);
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo);
 std::int16_t getLeaveEventId(std::int16_t id);
 std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type);
@@ -54,15 +61,24 @@ std::int16_t calcRealAttack(const CharacterData *c, std::int16_t knowledge, cons
 std::int16_t calcRealDefense(const CharacterData *c, std::int16_t knowledge);
 std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t stamina, std::int16_t hurt, std::int16_t distance);
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp);
-bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
-               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned, bool &dead);
-void postDamage(CharacterData *c, int index, std::int16_t stamina, bool &levelup);
+std::int16_t calcSkillMpCost(const SkillData *skill, std::int16_t level);
+/*
+ * `knowledgeSelf` and `knowledgeOther` are relative to the attacker, not to a
+ * fixed side. `exp` receives the experience the attacker earned for this hit.
+ */
+bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledgeSelf, std::int16_t knowledgeOther,
+               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned,
+               std::int16_t &exp, bool &dead);
+/* Charges the skill mp cost, so it must run once per attack, not per target. */
+void postDamage(CharacterData *c, int index, int level, std::int16_t stamina, bool &levelup);
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId, std::int16_t stamina, bool &dead);
-std::int16_t actPoisonDamage(CharacterData *c);
-void actRest(CharacterData *c);
-void actLevelup(CharacterData *c);
+/* Applied to every participant at the end of a round. */
+std::int16_t actRoundEndDrain(CharacterData *c, bool inactive);
+void actRest(CharacterData *c, bool moved);
+/* Applies every level gained at once, as the original does. */
+void actLevelup(CharacterData *c, int gainedLevels);
 
 }
