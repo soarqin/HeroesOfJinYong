@@ -87,6 +87,7 @@ protected:
 
     void nextAction();
     void autoAction();
+    void runPendingAutoAction();
     void recalcKnowledge();
     void playerMenu();
     void maskSelectableArea(int steps, int ranges, bool zoecheck = false);
@@ -95,8 +96,9 @@ protected:
     bool tryUseSkill(int index);
     void startActAction();
     void makeDamage(CharInfo *ch, int x, int y, int distance);
-    void doRest();
-    void endTurn();
+    void doRest(CharInfo *expectedActor = nullptr);
+    void endTurn(CharInfo *expectedActor = nullptr);
+    bool checkWarEnd();
     void endWar();
     void popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index);
 
@@ -108,7 +110,10 @@ private:
     std::set<std::int16_t> warMapLoaded_;
 
     std::vector<CharInfo> chars_;
+    std::vector<CharInfo*> turnOrder_;
     std::vector<CharInfo*> charQueue_;
+    CharInfo *currentActor_ = nullptr;
+    std::uint32_t round_ = 0;
     Stage stage_ = Idle;
     int lastMenuIndex_ = 0;
     std::uint16_t knowledge_[2] = {0, 0};

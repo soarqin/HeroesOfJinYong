@@ -28,6 +28,7 @@
 #include "effect.hh"
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
+#include "battle/turn_order.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
@@ -35,6 +36,7 @@
 #include <fmt/xchar.h>
 #include <map>
 #include <algorithm>
+#include <utility>
 
 namespace hojy::scene {
 
@@ -54,13 +56,22 @@ Warfield::~Warfield() {
 }
 
 void Warfield::cleanup() {
-    chars_.clear();
+    removeAllChildren();
+    fadeNode_ = nullptr;
+    fadePostAction_ = nullptr;
+    runFadePostAction_ = false;
+    pendingAutoAction_ = nullptr;
+    currentActor_ = nullptr;
     charQueue_.clear();
+    turnOrder_.clear();
+    chars_.clear();
+    round_ = 0;
     stage_ = Idle;
     knowledge_[0] = knowledge_[1] = 0;
     cursorX_ = 0;
     cursorY_ = 0;
     autoControl_ = false;
+    won_ = false;
     skillLevelup_ = false;
     selCells_.clear();
     movingPath_.clear();
@@ -203,6 +214,10 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
         cell.charInfo = &ci;
         ++ite;
     }
+    turnOrder_.reserve(chars_.size());
+    for (auto &ci: chars_) {
+        turnOrder_.emplace_back(&ci);
+    }
     recalcKnowledge();
     frameUpdate();
     if (info->music >= 0) {
@@ -234,92 +249,94 @@ void Warfield::render() {
         cx = curX - cx; cy = curY - cy;
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
         bool movingOrActing = acting || stage_ == Moving;
-        auto *ch = charQueue_.back();
-        if (acting && effectTexIdx_ >= 0) {
+        auto *ch = currentActor_;
+        if (acting && ch && effectTexIdx_ >= 0) {
             const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
             const auto &effTexData = gEffect[effectId_];
-            const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
-            auto mw = mapWidth_;
-            if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
-                auto sx = cursorX_, sy = cursorY_;
-                cellInfo_[sy * mw + sx].effectData = tex;
-            } else {
-                switch (skillInfo->attackAreaType) {
-                case 1: {
-                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        switch (charQueue_.back()->direction) {
-                        case Map::DirUp:
+            if (!effTexData.empty()) {
+                const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
+                auto mw = mapWidth_;
+                if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
+                    auto sx = cursorX_, sy = cursorY_;
+                    cellInfo_[sy * mw + sx].effectData = tex;
+                } else {
+                    switch (skillInfo->attackAreaType) {
+                    case 1: {
+                        auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                        int r = skillInfo->selRange[actLevel_];
+                        for (int i = r; i; --i) {
+                            switch (ch->direction) {
+                            case Map::DirUp:
+                                if (sy >= i) {
+                                    auto &ci = cellInfo_[st - i * mw + sx];
+                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
+                                }
+                                break;
+                            case Map::DirRight:
+                                if (sx + i < mapWidth_) {
+                                    auto &ci = cellInfo_[st + sx + i];
+                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
+                                }
+                                break;
+                            case Map::DirLeft:
+                                if (sx >= i) {
+                                    auto &ci = cellInfo_[st + sx - i];
+                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
+                                }
+                                break;
+                            case Map::DirDown:
+                                if (sy + i < mapHeight_) {
+                                    auto &ci = cellInfo_[st + i * mw + sx];
+                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
+                                }
+                                break;
+                            default:
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    case 2: {
+                        auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                        int r = skillInfo->selRange[actLevel_];
+                        for (int i = r; i; --i) {
                             if (sy >= i) {
                                 auto &ci = cellInfo_[st - i * mw + sx];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
-                            break;
-                        case Map::DirRight:
                             if (sx + i < mapWidth_) {
                                 auto &ci = cellInfo_[st + sx + i];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
-                            break;
-                        case Map::DirLeft:
                             if (sx >= i) {
                                 auto &ci = cellInfo_[st + sx - i];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
-                            break;
-                        case Map::DirDown:
                             if (sy + i < mapHeight_) {
                                 auto &ci = cellInfo_[st + i * mw + sx];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
-                            break;
-                        default:
-                            break;
                         }
+                        break;
                     }
-                    break;
-                }
-                case 2: {
-                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        if (sy >= i) {
-                            auto &ci = cellInfo_[st - i * mw + sx];
-                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                    case 3: {
+                        auto sx = cursorX_, sy = cursorY_;
+                        int r = skillInfo->selRange[actLevel_];
+                        for (int j = -r; j <= r; ++j) {
+                            auto ry = sy + j;
+                            if (ry < 0 || ry >= mapHeight_) { continue; }
+                            for (int i = -r; i <= r; ++i) {
+                                auto rx = sx + i;
+                                if (rx < 0 || rx >= mapWidth_) { continue; }
+                                auto &ci = cellInfo_[ry * mw + rx];
+                                if (ci.buildingId <= 0) { ci.effectData = tex; }
+                            }
                         }
-                        if (sx + i < mapWidth_) {
-                            auto &ci = cellInfo_[st + sx + i];
-                            if (ci.buildingId <= 0) { ci.effectData = tex; }
-                        }
-                        if (sx >= i) {
-                            auto &ci = cellInfo_[st + sx - i];
-                            if (ci.buildingId <= 0) { ci.effectData = tex; }
-                        }
-                        if (sy + i < mapHeight_) {
-                            auto &ci = cellInfo_[st + i * mw + sx];
-                            if (ci.buildingId <= 0) { ci.effectData = tex; }
-                        }
+                        break;
                     }
-                    break;
-                }
-                case 3: {
-                    auto sx = cursorX_, sy = cursorY_;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int j = -r; j <= r; ++j) {
-                        auto ry = sy + j;
-                        if (ry < 0 || ry >= mapHeight_) { continue; }
-                        for (int i = -r; i <= r; ++i) {
-                            auto rx = sx + i;
-                            if (rx < 0 || rx >= mapWidth_) { continue; }
-                            auto &ci = cellInfo_[ry * mw + rx];
-                            if (ci.buildingId <= 0) { ci.effectData = tex; }
-                        }
+                    default:
+                        break;
                     }
-                    break;
-                }
-                default:
-                    break;
                 }
             }
         }
@@ -408,9 +425,13 @@ void Warfield::render() {
 }
 
 void Warfield::handleKeyInput(Node::Key key) {
+    if ((stage_ == MoveSelecting || stage_ == AttackSelecting) && !currentActor_) {
+        stage_ = Idle;
+        return;
+    }
     if (stage_ != MoveSelecting && stage_ != AttackSelecting) {
         if (key == KeyCancel) {
-            if (charQueue_.back()->side == 0) {
+            if (currentActor_ && currentActor_->side == 0) {
                 pendingAutoAction_ = nullptr;
             }
             autoControl_ = false;
@@ -499,7 +520,7 @@ void Warfield::frameUpdate() {
         nextAction();
         break;
     case Moving: {
-        if (movingPath_.empty()) { stage_ = Idle; break; }
+        if (movingPath_.empty() || !currentActor_) { stage_ = Idle; break; }
         int x, y;
         std::tie(x, y) = movingPath_.back();
         if (x == cameraX_ && y == cameraY_) {
@@ -530,6 +551,7 @@ void Warfield::frameUpdate() {
         break;
     }
     case Acting: {
+        if (!currentActor_) { stage_ = Idle; break; }
         fightTexIdx_ = std::min(fightTexIdx_ + 1, fightTexCount_ - 1);
         if (fightFrame_ == 0) {
             const mem::SkillData *skillInfo;
@@ -543,12 +565,13 @@ void Warfield::frameUpdate() {
         }
         ++fightFrame_;
         if (++effectTexIdx_ >= int(gEffect[effectId_].size()) + 3) {
-            auto postFunc = [this]() {
+            auto *actor = currentActor_;
+            auto postFunc = [this, actor]() {
+                if (currentActor_ != actor) { return; }
                 if (--attackTimesLeft_ > 0) {
-                    auto *ch = charQueue_.back();
                     const auto *skill = mem::gSaveData.skillInfo[actId_];
                     if (skill) {
-                        actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp);
+                        actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, actor->info.mp);
                     }
                     if (actLevel_ >= 0) {
                         startActAction();
@@ -568,17 +591,16 @@ void Warfield::frameUpdate() {
                     fightFrame_ = 0;
                     attackTimesLeft_ = 0;
                     fightTex_ = nullptr;
-                    endTurn();
+                    endTurn(actor);
                 }
             };
-            if (skillLevelup_) {
+            if (skillLevelup_ && actor) {
                 skillLevelup_ = false;
                 stage_ = PoppingUp;
                 const auto *skill = mem::gSaveData.skillInfo[actId_];
-                auto *ch = charQueue_.back();
                 auto *msgBox = new MessageBox(this, 0, height_ / 3, width_, 60);
                 msgBox->popup({fmt::format(GETTEXT(81), GETSKILLNAME(actId_),
-                                           ch->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
+                                           actor->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
                 msgBox->setCloseHandler([this, postFunc]() {
                     stage_ = Acting;
                     postFunc();
@@ -596,19 +618,30 @@ void Warfield::frameUpdate() {
 }
 
 void Warfield::nextAction() {
-    CharInfo *ch;
+    currentActor_ = nullptr;
+    CharInfo *ch = nullptr;
     for (;;) {
         if (charQueue_.empty()) {
-            charQueue_.reserve(chars_.size());
-            for (auto &c: chars_) {
-                if (c.info.hp > 0) {
-                    charQueue_.emplace_back(&c);
-                    c.steps = c.info.speed / 15;
-                }
+            ++round_;
+            charQueue_ = battle::buildRoundQueue(turnOrder_,
+                [](const CharInfo *actor) { return actor->info.speed; },
+                [](const CharInfo *actor) { return actor->info.hp > 0; });
+            for (auto *actor: charQueue_) {
+                actor->steps = battle::calculateMovementSteps(actor->info.speed, actor->info.hurt);
             }
-            std::stable_sort(charQueue_.begin(), charQueue_.end(), [](const CharInfo *c0, const CharInfo *c1) {
-                return c0->info.speed < c1->info.speed;
-            });
+#ifndef NDEBUG
+            fmt::print(stdout, "Battle round {} order:", round_);
+            for (auto ite = charQueue_.rbegin(); ite != charQueue_.rend(); ++ite) {
+                fmt::print(stdout, " {}(speed={},hurt={},steps={})",
+                           (*ite)->id, (*ite)->info.speed, (*ite)->info.hurt, (*ite)->steps);
+            }
+            fmt::print(stdout, "\n");
+            fflush(stdout);
+#endif
+            if (charQueue_.empty()) {
+                checkWarEnd();
+                return;
+            }
         }
         ch = charQueue_.back();
         if (ch->info.hp <= 0) {
@@ -617,6 +650,7 @@ void Warfield::nextAction() {
         }
         break;
     }
+    currentActor_ = ch;
     mem::actPoisonDamage(&ch->info);
     cameraX_ = ch->x;
     cameraY_ = ch->y;
@@ -634,13 +668,18 @@ void Warfield::nextAction() {
     }
 }
 
+void Warfield::runPendingAutoAction() {
+    auto action = std::move(pendingAutoAction_);
+    if (action) { action(); }
+}
+
 void Warfield::autoAction() {
     if (pendingAutoAction_) {
-        pendingAutoAction_();
-        pendingAutoAction_ = nullptr;
+        runPendingAutoAction();
         return;
     }
-    auto *ch = charQueue_.back();
+    auto *ch = currentActor_;
+    if (!ch) { stage_ = Idle; return; }
     if (ch->info.stamina < 10) {
         pendingAutoAction_ = [this, ch]() {
             std::map<mem::PropType, std::int16_t> changes;
@@ -654,13 +693,12 @@ void Warfield::autoAction() {
                 if (!mem::useItem(&ch->info, itemId, changes)) { itemId = -1; }
             }
             if (itemId < 0) {
-                doRest();
+                doRest(ch);
             } else {
                 stage_ = PoppingUp;
                 auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                msgBox->setCloseHandler([this] {
-                    charQueue_.pop_back();
-                    stage_ = Idle;
+                msgBox->setCloseHandler([this, ch] {
+                    endTurn(ch);
                 });
             }
         };
@@ -684,13 +722,12 @@ void Warfield::autoAction() {
                     }
                 }
                 if (!usedItem) {
-                    doRest();
+                    doRest(ch);
                 } else {
                     stage_ = PoppingUp;
                     auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                    msgBox->setCloseHandler([this] {
-                        charQueue_.pop_back();
-                        stage_ = Idle;
+                    msgBox->setCloseHandler([this, ch] {
+                        endTurn(ch);
                     });
                 }
             };
@@ -715,13 +752,12 @@ void Warfield::autoAction() {
                     }
                 }
                 if (!usedItem) {
-                    doRest();
+                    doRest(ch);
                 } else {
                     stage_ = PoppingUp;
                     auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                    msgBox->setCloseHandler([this] {
-                        charQueue_.pop_back();
-                        stage_ = Idle;
+                    msgBox->setCloseHandler([this, ch] {
+                        endTurn(ch);
                     });
                 }
             };
@@ -766,13 +802,12 @@ void Warfield::autoAction() {
                     if (!mem::useItem(&ch->info, itemId, changes)) { itemId = -1; }
                 }
                 if (itemId < 0) {
-                    doRest();
+                    doRest(ch);
                 } else {
                     stage_ = PoppingUp;
                     auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-                    msgBox->setCloseHandler([this] {
-                        charQueue_.pop_back();
-                        stage_ = Idle;
+                    msgBox->setCloseHandler([this, ch] {
+                        endTurn(ch);
                     });
                 }
             };
@@ -812,8 +847,7 @@ void Warfield::autoAction() {
                 sc = sc->moveParent;
             }
         } else {
-            pendingAutoAction_();
-            pendingAutoAction_ = nullptr;
+            runPendingAutoAction();
         }
         return;
     }
@@ -960,8 +994,8 @@ void Warfield::autoAction() {
         fmt::print(stdout, "({},{})->({},{})\n", ch->x, ch->y, mx, my);
         fflush(stdout);
 #endif
-        pendingAutoAction_ = [this]() {
-            doRest();
+        pendingAutoAction_ = [this, ch]() {
+            doRest(ch);
         };
         if (mx != ch->x || my != ch->y) {
             stage_ = Moving;
@@ -972,8 +1006,7 @@ void Warfield::autoAction() {
                 sc = sc->moveParent;
             }
         } else {
-            pendingAutoAction_();
-            pendingAutoAction_ = nullptr;
+            runPendingAutoAction();
         }
     } else {
         std::sort(scores.begin(), scores.end(), [](const PredictScore &v0, const PredictScore &v1) {
@@ -1013,8 +1046,7 @@ void Warfield::autoAction() {
             const auto *skill = mem::gSaveData.skillInfo[actId_];
             if (!skill || (actLevel_ = mem::calcRealSkillLevel(skill->reqMp, actLevel_, ch->info.mp)) < 0) {
                 /* impossible to run these codes if no logic bug */
-                charQueue_.pop_back();
-                stage_ = Idle;
+                endTurn(ch);
                 return;
             }
             if (s.ty < 0) {
@@ -1034,8 +1066,7 @@ void Warfield::autoAction() {
                 sc = sc->moveParent;
             }
         } else {
-            pendingAutoAction_();
-            pendingAutoAction_ = nullptr;
+            runPendingAutoAction();
         }
     }
 }
@@ -1052,7 +1083,8 @@ void Warfield::recalcKnowledge() {
 void Warfield::playerMenu() {
     stage_ = PlayerMenu;
     auto windowBorder = core::config.windowBorder();
-    auto *ch = charQueue_.back();
+    auto *ch = currentActor_;
+    if (!ch) { stage_ = Idle; return; }
     auto *menu = new MenuTextList(this, windowBorder * 4, windowBorder * 4, width_ - windowBorder * 8, height_ - windowBorder * 8);
     std::vector<std::wstring> n;
     std::vector<int> menuIndices;
@@ -1157,11 +1189,11 @@ void Warfield::playerMenu() {
             auto windowBorder = core::config.windowBorder();
             auto *iv = new ItemView(this, windowBorder * 4, windowBorder * 4, gWindow->width() - windowBorder * 4, gWindow->height() - windowBorder * 4);
             iv->setCharInfo(&ch->info);
-            iv->show(true, [this](std::int16_t itemId) {
+            iv->show(true, [this, ch](std::int16_t itemId) {
+                if (currentActor_ != ch) { return; }
                 if (itemId < 0) {
-                    endTurn();
+                    endTurn(ch);
                 } else {
-                    auto *ch = charQueue_.back();
                     actIndex_ = itemId;
                     actId_ = -4;
                     actLevel_ = 0;
@@ -1175,11 +1207,17 @@ void Warfield::playerMenu() {
             delete menu;
             return;
         }
-        case 6:
-            charQueue_.pop_back();
-            charQueue_.insert(charQueue_.begin(), ch);
+        case 6: {
+            auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
+            if (ite != charQueue_.end()) {
+                charQueue_.erase(ite);
+                charQueue_.insert(charQueue_.begin(), ch);
+            }
+            currentActor_ = nullptr;
+            pendingAutoAction_ = nullptr;
             stage_ = Idle;
             break;
+        }
         case 7: {
             std::vector<std::int16_t> idlist;
             for (auto &c: chars_) {
@@ -1206,7 +1244,7 @@ void Warfield::playerMenu() {
             return;
         }
         case 8:
-            doRest();
+            doRest(ch);
             break;
         case 9:
             autoControl_ = true;
@@ -1222,7 +1260,8 @@ void Warfield::playerMenu() {
 }
 
 void Warfield::maskSelectableArea(int steps, int ranges, bool zoecheck) {
-    auto *ch = charQueue_.back();
+    auto *ch = currentActor_;
+    if (!ch) { stage_ = Idle; return; }
     getSelectableArea(ch, selCells_, steps, ranges, zoecheck);
     int w = mapWidth_;
     for (auto &c: selCells_) {
@@ -1436,7 +1475,8 @@ private:
 };
 
 bool Warfield::tryUseSkill(int index) {
-    auto *ch = charQueue_.back();
+    auto *ch = currentActor_;
+    if (!ch) { return false; }
     if (index < 0) {
         actIndex_ = -1;
         actId_ = index;
@@ -1497,13 +1537,14 @@ bool Warfield::tryUseSkill(int index) {
 
 void Warfield::startActAction() {
     popupNumbers_.clear();
+    auto *ch = currentActor_;
+    if (!ch) { stage_ = Idle; return; }
     if (actId_ < 0) {
         auto *target = cellInfo_[cursorY_ * mapWidth_ + cursorX_].charInfo;
         if (!target) {
             playerMenu();
             return;
         }
-        auto *ch = charQueue_.back();
         std::int16_t result;
         std::uint8_t r, g, b;
         auto *ttf = renderer_->ttf();
@@ -1569,7 +1610,6 @@ void Warfield::startActAction() {
         effectId_ = skillInfo->effectId;
         auto skillType = skillInfo->skillType;
         stage_ = Acting;
-        auto *ch = charQueue_.back();
         if ((skillInfo->attackAreaType == 0 || skillInfo->attackAreaType == 3)
             && (cameraX_ != cursorX_ || cameraY_ != cursorY_)) {
             ch->direction = calcDirection(cameraX_, cameraY_, cursorX_, cursorY_);
@@ -1647,7 +1687,7 @@ void Warfield::startActAction() {
             actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[actIndex_] / 100, 0, 9);
         }
     } else {
-        endTurn();
+        endTurn(ch);
     }
 }
 
@@ -1677,39 +1717,61 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
     }
 }
 
-void Warfield::doRest() {
-    auto *ch = charQueue_.back();
+void Warfield::doRest(CharInfo *expectedActor) {
+    auto *ch = currentActor_;
+    if (!ch || (expectedActor && expectedActor != ch)) { return; }
     mem::actRest(&ch->info);
-    endTurn();
+    endTurn(ch);
 }
 
-void Warfield::endTurn() {
-    charQueue_.pop_back();
-    int aliveCount[2] = {0, 0};
+void Warfield::endTurn(CharInfo *expectedActor) {
+    auto *ch = currentActor_;
+    if (!ch || (expectedActor && expectedActor != ch)) { return; }
+    auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
+    if (ite != charQueue_.end()) {
+        charQueue_.erase(ite);
+    }
+    currentActor_ = nullptr;
+    pendingAutoAction_ = nullptr;
     for (auto &ci: chars_) {
-        if (ci.info.hp > 0) {
-            ++aliveCount[ci.side];
-        } else if (ci.x > 0) {
-            cellInfo_[ci.x + ci.y * mapWidth_].charInfo = nullptr;
+        if (ci.info.hp <= 0 && ci.x >= 0 && ci.y >= 0) {
+            if (ci.x < mapWidth_ && ci.y < mapHeight_) {
+                auto &cell = cellInfo_[ci.x + ci.y * mapWidth_];
+                if (cell.charInfo == &ci) { cell.charInfo = nullptr; }
+            }
             ci.x = ci.y = -1;
             drawDirty_ = true;
         }
     }
+    if (checkWarEnd()) { return; }
+    stage_ = Idle;
+}
+
+bool Warfield::checkWarEnd() {
+    int aliveCount[2] = {0, 0};
+    for (const auto &ci: chars_) {
+        if (ci.info.hp > 0) { ++aliveCount[ci.side]; }
+    }
     if (aliveCount[1] == 0) {
         won_ = true;
         endWar();
-        return;
+        return true;
     }
     if (aliveCount[0] == 0) {
         won_ = false;
         endWar();
-        return;
+        return true;
     }
-    stage_ = Idle;
+    return false;
 }
 
 void Warfield::endWar() {
+    currentActor_ = nullptr;
+    pendingAutoAction_ = nullptr;
     removeAllChildren();
+    fadeNode_ = nullptr;
+    fadePostAction_ = nullptr;
+    runFadePostAction_ = false;
     std::vector<CharInfo*> alives;
     for (auto &ci: chars_) {
         if (ci.side != 0) { continue; }
@@ -1870,8 +1932,10 @@ void Warfield::popupFinishMessages(std::vector<std::pair<int, std::wstring>> mes
         if (index < messages.size()) {
             popupFinishMessages(messages, index);
         } else {
+            const bool won = won_;
+            const bool instantDie = !won && deadOnLose_;
             cleanup();
-            gWindow->endWar(won_, !won_ && deadOnLose_);
+            gWindow->endWar(won, instantDie);
         }
     });
 }
