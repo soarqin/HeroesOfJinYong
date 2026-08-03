@@ -20,7 +20,10 @@
 #pragma once
 
 #include "map.hh"
+#include "battle/ai.hh"
+#include "mem/action.hh"
 #include "mem/character.hh"
+#include <functional>
 #include <vector>
 #include <map>
 #include <set>
@@ -50,7 +53,10 @@ class Warfield: public Map {
         mem::CharacterData info;
         std::uint16_t exp;
         std::int16_t steps;
+        std::int16_t initialSteps;
         std::int16_t attack, defence;
+        /* Set when the character could not help itself and waits for an ally. */
+        battle::AiRequest request = battle::AiRequest::None;
     };
     struct CellInfo {
         std::int16_t earthId = 0, buildingId = 0;
@@ -88,6 +94,18 @@ protected:
     void nextAction();
     void autoAction();
     void runPendingAutoAction();
+    battle::AiContext buildAiContext(CharInfo *ch) const;
+    void autoUseItem(CharInfo *ch, std::int16_t itemId);
+    std::vector<std::int16_t> rangeGrid(int fromX, int fromY) const;
+    void startMovingTo(std::map<std::pair<int, int>, SelectableCell> &cells, int x, int y);
+    bool moveAwayFromEnemies(CharInfo *ch);
+    bool moveTowards(CharInfo *ch, const CharInfo *target);
+    bool approachAndAct(CharInfo *ch, const CharInfo *target, int range, bool aligned,
+                        std::function<void()> act);
+    void aimAndAct(CharInfo *ch, int x, int y);
+    bool autoSupport(CharInfo *ch, CharInfo *target, std::int16_t actId);
+    bool autoThrow(CharInfo *ch, CharInfo *target, std::int16_t itemId);
+    bool autoAttack(CharInfo *ch, CharInfo *preferred);
     void recalcKnowledge();
     void playerMenu();
     void maskSelectableArea(int steps, int ranges, bool zoecheck = false);

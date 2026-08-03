@@ -21,12 +21,24 @@
 
 #include "savedata.hh"
 #include "strings.hh"
+#include "battle/formulas.hh"
+#include "battle/game_random.hh"
 #include "data/factors.hh"
 #include "util/random.hh"
 #include <algorithm>
 #include <cstring>
 
 namespace hojy::mem {
+
+namespace {
+
+/* Shared adapter so the pure battle rules use the game random source. */
+battle::RandomSource &battleRandom() {
+    static battle::GameRandom random;
+    return random;
+}
+
+}
 
 const std::wstring &propToName(PropType type) {
     return GETTEXT(std::int16_t(type) + 1);
@@ -63,10 +75,27 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
 }
 
 std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential) {
-    if (level >= 9) {
-        return 0;
+    const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+    if (!itemInfo) { return 0; }
+    /*
+     * `WAR-TRAIN` Z.DAT:0x3BAB9. The multiplier is the potential tier, which is
+     * not clamped, and a book that teaches no skill costs twice the base instead
+     * of scaling with a level.
+     */
+    const int tier = battle::potentialTier(potential);
+    if (itemInfo->skillId < 0) {
+        return std::uint16_t(std::clamp<int>(itemInfo->reqExp * tier * 2, 0, 65535));
     }
-    return mem::gSaveData.itemInfo[itemId]->reqExp * (level <= 0 ? 1 : level) * std::clamp<std::int16_t>(7 - potential / 15, 1, 5);
+    if (level >= data::SkillLevelMaxDiv) { return 0; }
+    return std::uint16_t(std::clamp<int>(itemInfo->reqExp * (level + 1) * tier, 0, 65535));
+}
+
+std::uint16_t getExpForMakeItem(std::int16_t itemId, std::int16_t potential) {
+    const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+    if (!itemInfo || itemInfo->reqExpForMakeItem <= 0) { return 0; }
+    /* `WAR-CRAFT` Z.DAT:0x3C2E1: the same potential tier scales the requirement. */
+    const int tier = battle::potentialTier(potential);
+    return std::uint16_t(std::clamp<int>(itemInfo->reqExpForMakeItem * tier, 0, 65535));
 }
 
 bool leaveTeam(std::int16_t id) {
@@ -321,6 +350,43 @@ bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::ma
     return !changes.empty();
 }
 
+void applyBookChanges(CharacterData *charInfo, const ItemData *itemInfo) {
+    if (!charInfo || !itemInfo) { return; }
+    /*
+     * `WAR-TRAIN` Z.DAT:0x3BC6C. A completed skill book grants a fixed set of
+     * nineteen properties, in this order. It deliberately leaves the consumable
+     * fields alone: hp, mp, poisoned and stamina are never touched here.
+     */
+    charInfo->maxHp = std::int16_t(charInfo->maxHp + itemInfo->addMaxHp);
+    if (charInfo->maxHp > data::MaxHpMax) { charInfo->maxHp = data::MaxHpMax; }
+    /* Only the switch to the third mp type is honoured (Z.DAT:0x3BC94). */
+    if (itemInfo->changeMpType == 2) { charInfo->mpType = 2; }
+    charInfo->maxMp = std::int16_t(charInfo->maxMp + itemInfo->addMaxMp);
+    if (charInfo->maxMp > data::MaxMpMax) { charInfo->maxMp = data::MaxMpMax; }
+#define BookStat(N, M) \
+    charInfo->N = std::int16_t(battle::applyBookStat(charInfo->N, itemInfo->add##M, data::M##Max))
+    BookStat(attack, Attack);
+    BookStat(speed, Speed);
+    BookStat(defence, Defence);
+    BookStat(medic, Medic);
+    BookStat(poison, Poison);
+    BookStat(depoison, Depoison);
+    BookStat(antipoison, Antipoison);
+    BookStat(fist, Fist);
+    BookStat(sword, Sword);
+    BookStat(blade, Blade);
+    BookStat(special, Special);
+    BookStat(throwing, Throwing);
+    BookStat(knowledge, Knowledge);
+    BookStat(integrity, Integrity);
+#undef BookStat
+    /* Assigned, not added, and only while the character has none (Z.DAT:0x3C0B5). */
+    if (charInfo->doubleAttack == 0) { charInfo->doubleAttack = itemInfo->addDoubleAttack; }
+    charInfo->poisonAmp = std::int16_t(battle::applyBookStat(charInfo->poisonAmp,
+                                                            itemInfo->addPoisonAmp,
+                                                            data::PoisonAmpMax));
+}
+
 bool canUseItem(const CharacterData *charInfo, const ItemData *itemInfo) {
     if (itemInfo->itemType == 1 || itemInfo->itemType == 2) {
         if (itemInfo->charOnly >= 0 && itemInfo->charOnly != charInfo->id) { return false; }
@@ -394,145 +460,141 @@ std::int16_t calcRealDefense(const CharacterData *c, std::int16_t knowledge) {
 }
 
 std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t stamina, std::int16_t hurt, std::int16_t distance) {
-    int dmg = (atk - def * 3) * 2 / 3;
-    if (dmg < 0) {
-        dmg = atk / 10;
-    }
-    if (dmg > 0) {
-        dmg += stamina / 15 + hurt / 20;
-        if (distance > 1) {
-            if (distance <= 10) {
-                dmg = dmg * (100 - (distance - 1) * 3) / 100;
-            } else {
-                dmg = dmg * 2 / 3;
-            }
-        }
-    } else {
-        dmg = 1;
-    }
-    return dmg;
+    return std::int16_t(battle::predictDamage(battle::DamageInput{atk, def, stamina, hurt, distance}));
 }
 
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp) {
-    if (reqMp <= 0) { return level; }
-    auto mpUse = reqMp * (level / 2 + 1);
-    if (mpUse > currMp) {
-        if (currMp < reqMp) { return -1; }
-        return currMp / reqMp * 2;
-    }
-    return level;
+    return std::int16_t(battle::resolveSkillLevel(reqMp, level, currMp));
 }
 
-bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledge1, std::int16_t knowledge2,
-               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned, bool &dead) {
+std::int16_t calcSkillMpCost(const SkillData *skill, std::int16_t level) {
+    if (!skill) { return 0; }
+    return std::int16_t(battle::skillMpCost(skill->reqMp, level));
+}
+
+bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledgeSelf, std::int16_t knowledgeOther,
+               int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned,
+               std::int16_t &exp, bool &dead) {
     if (!c1 || !c2) { return false; }
-    index = std::clamp(index, 0, 9);
+    index = std::clamp(index, 0, data::LearnSkillCount - 1);
     auto skillId = c1->skillId[index];
     const auto *skill = mem::gSaveData.skillInfo[skillId];
     if (!skill) { return false; }
+    exp = 0;
+    poisoned = 0;
     if (skill->damageType > 0) {
-        std::int16_t drainMp = skill->drainMp[level] + util::gRandom(5) - util::gRandom(5);
-        std::int16_t oldMp = c2->mp;
-        c2->mp = std::clamp<std::int16_t>(c2->mp - drainMp, 0, c2->maxMp);
-        drainMp = oldMp - c2->mp;
-        c1->mp = std::clamp<std::int16_t>(c1->mp + drainMp, 0, c1->maxMp);
-        damage = -drainMp;
+        /*
+         * `NUM-DRAIN-MP` Z.DAT:0x395EC. The attacker gains `addMp` and grows
+         * `maxMp` independently of what the target actually loses; the raw
+         * stored skill level is used instead of the mp-limited one.
+         */
+        auto rawLevel = std::clamp<std::int16_t>(c1->skillLevel[index] / 100, 0, data::SkillLevelMaxDiv);
+        auto addMp = skill->addMp[rawLevel];
+        std::int16_t selfDelta = std::int16_t(battle::originalRandom(battleRandom(), 3)
+                                              - battle::originalRandom(battleRandom(), 3));
+        c1->mp = std::int16_t(c1->mp + addMp);
+        c1->maxMp = std::clamp<std::int16_t>(c1->maxMp + battle::originalRandom(battleRandom(), addMp / 2),
+                                             0, data::MaxMpMax);
+        c1->mp = std::int16_t(c1->mp + selfDelta);
+        if (c1->mp > c1->maxMp) { c1->mp = c1->maxMp; }
+        std::int16_t targetDelta = std::int16_t(battle::originalRandom(battleRandom(), 3)
+                                                - battle::originalRandom(battleRandom(), 3));
+        auto oldMp = c2->mp;
+        c2->mp = std::int16_t(c2->mp - skill->drainMp[rawLevel] - targetDelta);
+        if (c2->mp <= 0) { c2->mp = 0; }
+        damage = std::int16_t(oldMp - c2->mp);
+        dead = c2->hp <= 0;
         return true;
     }
-    if (c1->mp < skill->reqMp) { return false; }
-    c1->mp = std::max(0, c1->mp - skill->reqMp);
-    int atk = calcRealAttack(c1, knowledge1, skill, level);
-    int def = calcRealDefense(c2, knowledge2);
-    int dmg = (atk - def * 3) * 2 / 3 + int(util::gRandom(21) - util::gRandom(21));
-    if (dmg < 0) {
-        dmg = atk / 10 + int(util::gRandom(5) - util::gRandom(5));
+    int atk = calcRealAttack(c1, knowledgeSelf, skill, level);
+    int def = calcRealDefense(c2, knowledgeOther);
+    int dmg = battle::calcDamage(battle::DamageInput{atk, def, c1->stamina, c2->hurt, distance},
+                                 battleRandom());
+    damage = std::int16_t(dmg);
+    /* `NUM-EXP-HIT` Z.DAT:0x39493 */
+    exp = std::int16_t(dmg / 5);
+    auto newHp = std::int16_t(c2->hp - dmg);
+    if (newHp < 0) {
+        newHp = 0;
+        /* `NUM-EXP-KILL` Z.DAT:0x394DF: only granted on strict overkill. */
+        exp = std::int16_t(exp + c2->level * 10);
     }
-    if (dmg > 0) {
-        dmg += c1->stamina / 15 + c2->hurt / 20;
-        if (distance > 1) {
-            if (distance <= 10) {
-                dmg = dmg * (100 - (distance - 1) * 3) / 100;
-            } else {
-                dmg = dmg * 2 / 3;
-            }
-        }
-    } else {
-        dmg = 1;
+    c2->hp = newHp;
+    /* `NUM-HURT-ONHIT` Z.DAT:0x394EE */
+    c2->hurt = std::int16_t(c2->hurt + dmg / 10);
+    if (c2->hurt > data::HurtMax) { c2->hurt = data::HurtMax; }
+    auto poisonAdd = battle::poisonOnHit(c1->poisonAmp, c1->skillLevel[index], skill->addPoison,
+                                         c2->antipoison);
+    if (poisonAdd > 0) {
+        auto oldPs = c2->poisoned;
+        c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + poisonAdd, 0, data::PoisonedMax);
+        poisoned = std::int16_t(c2->poisoned - oldPs);
     }
-    damage = dmg;
-    c2->hp = std::max(0, c2->hp - dmg);
-    poisoned = 0;
-    if (c2->hp > 0) {
-        /* add poison */
-        if (c2->antipoison < 90) {
-            int poison = c1->poisonAmp + level * skill->addPoison - c2->antipoison;
-            if (poison > 0) {
-                std::int16_t oldPs = c2->poisoned;
-                c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + poison / 15, 0, data::PoisonedMax);
-                poisoned = oldPs - c2->poisoned;
-            }
-        }
-        dead = false;
-    } else {
-        dead = true;
-    }
+    dead = c2->hp <= 0;
     return true;
 }
 
-void postDamage(CharacterData *c, int index, std::int16_t stamina, bool &levelup) {
-    if (c->skillLevel[index] < data::SkillLevelMax) {
-        int oldlevel = c->skillLevel[index] / 100;
-        c->skillLevel[index] = std::clamp<std::int16_t>(c->skillLevel[index] + util::gRandom(1, 2),
-                                                        0, data::SkillLevelMax);
-        levelup = c->skillLevel[index] / 100 != oldlevel;
-        if (levelup) {
-            c->skillLevel[index] = c->skillLevel[index] / 100 * 100;
-        }
+void postDamage(CharacterData *c, int index, int level, std::int16_t stamina, bool &levelup) {
+    index = std::clamp(index, 0, data::LearnSkillCount - 1);
+    /*
+     * `NUM-SKILL-GROWTH` Z.DAT:0x38380. The original caps the stored value at
+     * 999 and keeps the progress inside the new level instead of rounding it
+     * down to a multiple of 100.
+     */
+    int oldlevel = c->skillLevel[index] / 100;
+    c->skillLevel[index] = std::int16_t(c->skillLevel[index] + util::gRandom(1, 2));
+    if (c->skillLevel[index] > data::SkillLevelStoreMax) {
+        c->skillLevel[index] = data::SkillLevelStoreMax;
     }
-    c->stamina = std::clamp<std::int16_t>(c->stamina - stamina, 0, data::StaminaMax);
+    levelup = c->skillLevel[index] / 100 != oldlevel;
+    /* `NUM-SKILL-MPCOST` Z.DAT:0x384ED: charged once per attack, not per target. */
+    const auto *skill = mem::gSaveData.skillInfo[c->skillId[index]];
+    if (skill) {
+        c->mp = std::int16_t(c->mp - battle::skillMpCost(skill->reqMp, level));
+        if (c->mp < 0) { c->mp = 0; }
+    }
+    if (stamina) {
+        c->stamina = std::int16_t(c->stamina - stamina);
+        if (c->stamina < 0) { c->stamina = 0; }
+    }
 }
 
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina) {
     if (!c1 || !c2) { return 0; }
-    if (c1->poison <= c2->antipoison) { return 0; }
+    auto amount = std::int16_t(battle::poisonAmount(c1->poison, c2->antipoison));
     auto oldPs = c2->poisoned;
-    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + (c1->poison - c2->antipoison) / 4, 0, data::PoisonedMax);
+    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + amount, 0, data::PoisonedMax);
     if (stamina) {
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
-    return oldPs - c2->poisoned;
+    /* The original reports the poison actually added as a positive value. */
+    return std::int16_t(c2->poisoned - oldPs);
 }
 
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina) {
     if (!c1 || !c2) { return 0; }
+    auto heal = std::int16_t(battle::medicHeal(c1->medic, c2->hurt, battleRandom()));
+    auto hurtCut = std::int16_t(std::max<std::int16_t>(0, c1->medic));
+    /* The random draw above happens before this rejection in the original. */
+    if (c2->hurt > c1->medic + 20) { heal = 0; hurtCut = 0; }
     auto oldHp = c2->hp;
-    int heal;
-    if (c2->hurt > c1->medic + 20) { return 0; }
-    if (c2->hurt <= 25) {
-        heal = c1->medic * 4 / 5;
-    } else if (c2->hurt <= 50) {
-        heal = c1->medic * 3 / 4;
-    } else if (c2->hurt <= 75) {
-        heal = c1->medic * 2 / 3;
-    } else {
-        heal = c1->medic / 2;
-    }
-    c2->hp = std::clamp<std::int16_t>(c2->hp + heal + util::gRandom(6), 0, c2->maxHp);
-    c2->hurt = std::clamp<std::int16_t>(c2->hurt - c1->medic, 0, data::HurtMax);
+    c2->hp = std::clamp<std::int16_t>(c2->hp + heal, 0, c2->maxHp);
+    c2->hurt = std::clamp<std::int16_t>(c2->hurt - hurtCut, 0, data::HurtMax);
     if (stamina) {
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
-    return c2->hp - oldHp;
+    return std::int16_t(c2->hp - oldHp);
 }
 
 std::int16_t actDepoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina) {
     if (!c1 || !c2) { return 0; }
+    auto amount = std::int16_t(battle::depoisonAmount(c1->depoison, c2->poisoned, battleRandom()));
     auto oldPs = c2->poisoned;
-    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned - c1->depoison / 3 + util::gRandom(6) - util::gRandom(6), 0, data::PoisonedMax);
+    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned - amount, 0, data::PoisonedMax);
     if (stamina) {
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
-    return oldPs - c2->poisoned;
+    return std::int16_t(oldPs - c2->poisoned);
 }
 
 std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId, std::int16_t stamina, bool &dead) {
@@ -540,77 +602,91 @@ std::int16_t actThrow(CharacterData *c1, CharacterData *c2, std::int16_t itemId,
     const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
     if (!itemInfo) { return 0; }
 
-    int div;
-    if (c2->hurt == 0) {
-        div = 4;
-    } else if (c2->hurt <= 33) {
-        div = 3;
-    } else if (c2->hurt <= 66) {
-        div = 2;
-    } else {
-        div = 1;
-    }
     auto oldHp = c2->hp;
-    c2->hp = std::clamp<std::int16_t>(c2->hp - std::max<std::int16_t>(1, (-itemInfo->addHp / div + util::gRandom(6) + c1->throwing * 2) / 3), 0, c2->maxHp);
-    if (c2->antipoison < 100) {
-        auto ps = itemInfo->addPoisoned <= 0 ? (itemInfo->addPoisoned / 2 + util::gRandom(6) - util::gRandom(6))
-            : ((itemInfo->addPoisoned - c2->throwing) / 2 - c2->antipoison) / 2;
-        if (ps > 0) {
-            c2->poisoned = std::clamp<std::int16_t>(c2->poisoned - ps, 0, data::PoisonedMax);
-        }
-    }
+    /* Negative for damaging items, matching the raw item value. */
+    auto delta = battle::throwDamage(itemInfo->addHp, c2->hurt, c1->throwing, battleRandom());
+    c2->hurt = std::int16_t(c2->hurt - delta / 4);
+    if (c2->hurt > data::HurtMax) { c2->hurt = data::HurtMax; }
+    if (c2->hurt < 0) { c2->hurt = 0; }
+    c2->hp = std::int16_t(c2->hp + delta);
+    if (c2->hp > c2->maxHp) { c2->hp = c2->maxHp; }
+    if (c2->hp < 0) { c2->hp = 0; }
+    auto poisonDelta = battle::throwPoison(itemInfo->addPoisoned, c1->throwing, c2->antipoison,
+                                           battleRandom());
+    c2->poisoned = std::clamp<std::int16_t>(c2->poisoned + poisonDelta, 0, data::PoisonedMax);
     if (stamina) {
         c1->stamina = std::clamp<std::int16_t>(c1->stamina - stamina, 0, data::StaminaMax);
     }
     dead = c2->hp <= 0;
-    return c2->hp - oldHp;
+    return std::int16_t(c2->hp - oldHp);
 }
 
-std::int16_t actPoisonDamage(CharacterData *c) {
-    if (!c->poisoned) { return 0; }
+std::int16_t actRoundEndDrain(CharacterData *c, bool inactive) {
+    if (!c) { return 0; }
+    /*
+     * `NUM-ROUND-DRAIN` Z.DAT:0x3C563. A non-zero hurt value bypasses every
+     * other guard in the original, including the inactive and hp checks; the
+     * final `hp < 0 -> hp = 1` clamp then revives already dead characters that
+     * carry a hurt value. That resurrection is a control-flow defect, so this
+     * implementation keeps the dead out of the drain entirely.
+     */
+    if (c->hp <= 0) { return 0; }
+    if (c->hurt <= 0) {
+        if (c->poisoned <= 0 || c->stamina <= 0 || inactive) { return 0; }
+    }
     auto oldHp = c->hp;
-    c->hp = std::clamp<std::int16_t>(c->hp - c->poisoned / 10, 1, c->maxHp);
-    return c->hp - oldHp;
+    c->hp = std::int16_t(c->hp - battle::roundEndDrain(c->hurt, c->poisoned));
+    if (c->stamina < 0) { c->stamina = 1; }
+    if (c->hp < 0) { c->hp = 1; }
+    return std::int16_t(c->hp - oldHp);
 }
 
-void actRest(CharacterData *c) {
-    c->stamina = std::clamp<std::int16_t>(c->stamina + 3, 0, data::StaminaMax);
-    /* TODO: fix following formulas? */
-    if (c->hp < c->maxHp) {
-        std::int16_t n = c->maxHp / 100 + util::gRandom(3) - util::gRandom(3);
-        if (n > 0) {
-            c->hp = std::clamp<std::int16_t>(c->hp + n, 0, c->maxHp);
-        }
+void actRest(CharacterData *c, bool moved) {
+    auto gain = battle::restGain(c->stamina, moved, battleRandom());
+    c->stamina = std::clamp<std::int16_t>(c->stamina + gain.stamina, 0, data::StaminaMax);
+    if (gain.hp) {
+        c->hp = std::int16_t(c->hp + gain.hp);
+        if (c->hp > c->maxHp) { c->hp = c->maxHp; }
     }
-    if (c->mp < c->maxMp) {
-        std::int16_t n = c->maxMp / 100 + util::gRandom(3) - util::gRandom(3);
-        if (n > 0) {
-            c->mp = std::clamp<std::int16_t>(c->mp + n, 0, c->maxMp);
-        }
+    if (gain.mp) {
+        c->mp = std::int16_t(c->mp + gain.mp);
+        if (c->mp > c->maxMp) { c->mp = c->maxMp; }
     }
 }
 
-void actLevelup(CharacterData *c) {
-    auto factor = util::gRandom(1, std::max(c->potential / 15, 3));
-    ++c->level;
-    c->attack = std::clamp<std::int16_t>(c->attack + factor, 0, data::AttackMax);
-    c->defence = std::clamp<std::int16_t>(c->defence + factor, 0, data::DefenceMax);
-    c->speed = std::clamp<std::int16_t>(c->speed + factor, 0, data::SpeedMax);
-    c->maxHp = std::clamp<std::int16_t>(c->maxHp + c->hpAddOnLevelUp * 3 + util::gRandom(7), 0, data::HpMax);
-    c->maxMp = std::clamp<std::int16_t>(c->maxMp + 3 * (9 - factor), 0, data::MpMax);
+void actLevelup(CharacterData *c, int gainedLevels) {
+    if (!c || gainedLevels <= 0) { return; }
+    /*
+     * `NUM-LEVELUP` Z.DAT:0x3B6BE. Every level gained is applied in one step and
+     * scales the growth, so the caller must not loop. Only proficiencies above 20
+     * improve, except throwing which always does, and `special` never grows.
+     */
+    auto factor = battle::levelUpFactor(c->potential, battleRandom());
+    auto gain = battle::levelUpGain(gainedLevels, c->hpAddOnLevelUp, factor, battleRandom());
+    c->level = std::clamp<std::int16_t>(c->level + gainedLevels, 0, data::LevelMax);
+    c->maxHp = std::clamp<std::int16_t>(c->maxHp + gain.maxHp, 0, data::MaxHpMax);
     c->hp = c->maxHp;
-    c->mp = c->maxMp;
-    c->stamina = data::StaminaMax;
-    c->poisoned = 0;
     c->hurt = 0;
-    if (c->medic) { c->medic = std::clamp<std::int16_t>(c->medic + util::gRandom(3), 0, data::MedicMax); }
-    if (c->poison) { c->poison = std::clamp<std::int16_t>(c->poison + util::gRandom(3), 0, data::PoisonMax); }
-    if (c->depoison) { c->depoison = std::clamp<std::int16_t>(c->depoison + util::gRandom(3), 0, data::DepoisonMax); }
-    if (c->fist) { c->fist = std::clamp<std::int16_t>(c->fist + util::gRandom(3), 0, data::FistMax); }
-    if (c->sword) { c->sword = std::clamp<std::int16_t>(c->sword + util::gRandom(3), 0, data::SwordMax); }
-    if (c->blade) { c->blade = std::clamp<std::int16_t>(c->blade + util::gRandom(3), 0, data::BladeMax); }
-    if (c->special) { c->special = std::clamp<std::int16_t>(c->special + util::gRandom(3), 0, data::SpecialMax); }
-    if (c->throwing) { c->throwing = std::clamp<std::int16_t>(c->throwing + util::gRandom(3), 0, data::ThrowingMax); }
+    c->poisoned = 0;
+    c->stamina = data::StaminaMax;
+    c->maxMp = std::clamp<std::int16_t>(c->maxMp + gain.maxMp, 0, data::MaxMpMax);
+    c->mp = c->maxMp;
+    c->attack = std::clamp<std::int16_t>(c->attack + gain.stat, 0, data::AttackMax);
+    c->speed = std::clamp<std::int16_t>(c->speed + gain.stat, 0, data::SpeedMax);
+    c->defence = std::clamp<std::int16_t>(c->defence + gain.stat, 0, data::DefenceMax);
+#define GrowProficiency(N, M) \
+    if (c->N > 20) { \
+        c->N = std::clamp<std::int16_t>(c->N + battle::originalRandom(battleRandom(), 3), 0, data::M); \
+    }
+    GrowProficiency(medic, MedicMax)
+    GrowProficiency(poison, PoisonMax)
+    GrowProficiency(depoison, DepoisonMax)
+    GrowProficiency(fist, FistMax)
+    GrowProficiency(sword, SwordMax)
+    GrowProficiency(blade, BladeMax)
+#undef GrowProficiency
+    c->throwing = std::clamp<std::int16_t>(c->throwing + battle::originalRandom(battleRandom(), 3),
+                                          0, data::ThrowingMax);
 }
 
 }
