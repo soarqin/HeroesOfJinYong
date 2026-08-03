@@ -5,6 +5,13 @@ target_include_directories(battle_random_tests PRIVATE
 target_link_libraries(battle_random_tests PRIVATE hojy_battle)
 add_test(NAME battle_random_tests COMMAND battle_random_tests)
 
+add_executable(battle_turn_order_tests battle/turn_order_tests.cc)
+target_include_directories(battle_turn_order_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(battle_turn_order_tests PRIVATE hojy_battle)
+add_test(NAME battle_turn_order_tests COMMAND battle_turn_order_tests)
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(
     NAME reverse_manifest_tests
