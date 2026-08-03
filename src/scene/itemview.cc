@@ -173,16 +173,16 @@ void ItemView::handleKeyInput(Node::Key key) {
     case KeyUp:
         if (currSel_ < cols_) {
             if (currTop_ == 0) {
-                int sz = int(items_.size());
-                int totalRows = (sz + cols_ - 1) / cols_;
-                if (totalRows <= rows_) {
-                    currSel_ = currSel_ + (totalRows - 1) * cols_;
-                    if (currSel_ >= sz) currSel_ -= cols_;
-                } else {
-                    currTop_ = totalRows - rows_;
-                    currSel_ = currSel_ + (rows_ - 1) * cols_;
-                    if (currSel_ + currTop_ * cols_ >= sz) currSel_ -= cols_;
-                }
+//                 int sz = int(items_.size());
+//                 int totalRows = (sz + cols_ - 1) / cols_;
+//                 if (totalRows <= rows_) {
+//                     currSel_ = currSel_ + (totalRows - 1) * cols_;
+//                     if (currSel_ >= sz) currSel_ -= cols_;
+//                 } else {
+//                     currTop_ = totalRows - rows_;
+//                     currSel_ = currSel_ + (rows_ - 1) * cols_;
+//                     if (currSel_ + currTop_ * cols_ >= sz) currSel_ -= cols_;
+//                 }
             } else {
                 --currTop_;
             }
@@ -193,16 +193,17 @@ void ItemView::handleKeyInput(Node::Key key) {
         break;
     case KeyLeft:
         if (currSel_ == 0) {
+            // Do nothing here to stop from overflow to last item in the bag
             if (currTop_ == 0) {
-                int sz = int(items_.size());
-                int totalRows = (sz + cols_ - 1) / cols_;
-                if (totalRows > rows_) {
-                    currTop_ = totalRows - rows_;
-                }
-                currSel_ = sz - 1 - currTop_ * cols_;
+//                 int sz = int(items_.size());
+//                 int totalRows = (sz + cols_ - 1) / cols_;
+//                 if (totalRows > rows_) {
+//                     currTop_ = totalRows - rows_;
+//                 }
+//                 currSel_ = sz - 1 - currTop_ * cols_;
             } else {
-                --currTop_;
-                currSel_ = cols_ - 1;
+                --currTop_; // scroll one row upward
+                currSel_ = cols_ - 1; // then set to the last column for the upward row
             }
         } else {
             --currSel_;
@@ -211,9 +212,11 @@ void ItemView::handleKeyInput(Node::Key key) {
         break;
     case KeyRight: {
         int sz = int(items_.size());
-        if (++currSel_ + currTop_ * cols_ >= sz) {
-            currSel_ = 0;
-            currTop_ = 0;
+        currSel_++; // let's try to move to next item
+        if (currSel_ + currTop_ * cols_ > sz - 1) {
+            currSel_--;
+//             currSel_ = 0;
+//             currTop_ = 0;
         } else {
             if (currSel_ >= rows_ * cols_) {
                 ++currTop_;
@@ -227,8 +230,9 @@ void ItemView::handleKeyInput(Node::Key key) {
         currSel_ += cols_;
         int sz = int(items_.size());
         if (currSel_ + currTop_ * cols_ >= sz) {
-            currSel_ %= cols_;
-            currTop_ = 0;
+            currSel_ -= cols_; // Simulate we can't move down anymore, revert the `curSSel_ +=cols_`
+//             currSel_ %= cols_;
+//             currTop_ = 0;
         } else {
             if (currSel_ >= rows_ * cols_) {
                 ++currTop_;

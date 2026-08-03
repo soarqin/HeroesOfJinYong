@@ -835,7 +835,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
                 }
                 core::config.setMusicVolume(val);
                 audio::gMixer.setVolume(0, 16 * val);
-                subMenu->setValue(1, fmt::format(L" {:>2}", val));
+                subMenu->setValue(2, fmt::format(L" {:>2}", val));
                 break;
             }
             case 3: {
@@ -848,7 +848,7 @@ void optionMenu(Node *mainMenu, int x, int y) {
                     ++val;
                 }
                 core::config.setSoundVolume(val);
-                subMenu->setValue(2, fmt::format(L" {:>2}", val));
+                subMenu->setValue(3, fmt::format(L" {:>2}", val));
                 break;
             }
             default:break;
