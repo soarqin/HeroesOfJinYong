@@ -33,9 +33,19 @@ namespace hojy::core {
 Config config;
 
 bool Config::load(const std::string &filename) {
+    auto file = util::File::open(filename);
+    if (!file) {
+        fmt::print(stderr, "Unable to open config file: {}\n", filename);
+        return false;
+    }
+    std::string content(static_cast<size_t>(file.size()), '\0');
+    if (!content.empty() && file.read(content.data(), content.size()) != content.size()) {
+        fmt::print(stderr, "Unable to read config file: {}\n", filename);
+        return false;
+    }
     toml::table tbl;
     try {
-        tbl = toml::parse(util::File::getFileContent(filename));
+        tbl = toml::parse(content);
     } catch (const toml::parse_error &err) {
         fmt::print("Parsing failed: {}\n", err.description());
         return false;
@@ -48,11 +58,14 @@ bool Config::load(const std::string &filename) {
             dataPath_.resize(1);
             dataPath_[0] = dpath.value_or<std::string>(".");
         } else if (dpath.is_array()) {
+            dataPath_.clear();
             for (auto &p : *dpath.as_array()) {
                 dataPath_.emplace_back(p.value_or<std::string>("."));
             }
         }
-        dataPath_[0] = prePath_ + dataPath_[0];
+        if (!dataPath_.empty()) {
+            dataPath_[0] = prePath_ + dataPath_[0];
+        }
         musicPath_ = prePath_ + main["music_path"].value_or(std::move(musicPath_));
         soundPath_ = prePath_ + main["sound_path"].value_or(std::move(soundPath_));
         savePath_ = prePath_ + main["save_path"].value_or(std::move(savePath_));
@@ -60,11 +73,14 @@ bool Config::load(const std::string &filename) {
         if (fonts.is_string()) {
             fonts_ = {fonts.value_or<std::string>("")};
         } else if (fonts.is_array()) {
+            fonts_.clear();
             for (auto &p : *fonts.as_array()) {
                 fonts_.emplace_back(p.value_or<std::string>(""));
             }
         }
-        fonts_[0] = prePath_ + fonts_[0];
+        if (!fonts_.empty()) {
+            fonts_[0] = prePath_ + fonts_[0];
+        }
         shipLogicEnabled_ = main["ship_logic_enabled"].value_or<bool>(std::forward<bool>(shipLogicEnabled_));
     }
     auto window = tbl["window"];
@@ -141,6 +157,10 @@ bool Config::saveOptions(const std::string &filename) const {
 }
 
 bool Config::postLoad() {
+    if (dataPath_.empty() || fonts_.empty()) {
+        fmt::print(stderr, "Config must define non-empty main.data_path and main.fonts values.\n");
+        return false;
+    }
     if (limitFPS_ == 0) { limitFPS_ = 60; }
     musicVolume_ = std::clamp(musicVolume_, 0, 8);
     soundVolume_ = std::clamp(soundVolume_, 0, 8);

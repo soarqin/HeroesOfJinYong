@@ -59,7 +59,7 @@ size_t Channel::readData(void *data, size_t size) {
     const void *pcmdata;
     auto res = readPCMData(&pcmdata, size, true);
     if (res) {
-        memcpy(data, pcmdata, size);
+        memcpy(data, pcmdata, res);
     }
     return res;
 }

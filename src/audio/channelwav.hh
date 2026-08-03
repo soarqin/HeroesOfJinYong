@@ -36,6 +36,7 @@ protected:
     size_t readPCMData(const void **data, size_t size, bool convType) override;
 
 private:
+    void clearBuffer();
     void loadFromData();
 
 private:

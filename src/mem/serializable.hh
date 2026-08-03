@@ -29,9 +29,12 @@ class Serializable {
 public:
     virtual ~Serializable() = default;
     void serialize(std::string&);
-    void deserialize(const std::string&);
+    [[nodiscard]] bool deserialize(const std::string&);
     virtual Serializable &operator>>(std::ostream &ostm) { return *this; }
     virtual Serializable &operator<<(std::istream &istm) { return *this; }
+
+protected:
+    [[nodiscard]] virtual bool validSerializedSize(size_t size) const { return true; }
 };
 
 template<typename T>
@@ -50,7 +53,10 @@ public:
     }
 
 private:
-    T data_;
+    [[nodiscard]] bool validSerializedSize(size_t size) const override { return size == sizeof(T); }
+
+private:
+    T data_{};
 };
 
 template<typename T>
@@ -70,7 +76,7 @@ public:
     Serializable &operator<<(std::istream &istm) override {
         data_.clear();
         while (!istm.eof()) {
-            T data;
+            T data{};
             istm.read(reinterpret_cast<char *>(&data), sizeof(data));
             if (!istm.fail()) {
                 data_.emplace_back(data);
@@ -78,6 +84,9 @@ public:
         }
         return *this;
     }
+
+private:
+    [[nodiscard]] bool validSerializedSize(size_t size) const override { return size % sizeof(T) == 0; }
 
 private:
     std::vector<T> data_;

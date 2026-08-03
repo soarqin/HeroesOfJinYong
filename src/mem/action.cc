@@ -192,23 +192,6 @@ bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, st
     return true;
 }
 
-bool consumeNpcItem(CharacterData *charInfo, std::int16_t itemId) {
-    if (!charInfo) { return false; }
-    for (int i = 0; i < data::CarryItemCount; ++i) {
-        if (charInfo->item[i] != itemId || charInfo->itemCount[i] <= 0) { continue; }
-        if (--charInfo->itemCount[i] == 0) {
-            for (int j = i; j + 1 < data::CarryItemCount; ++j) {
-                charInfo->item[j] = charInfo->item[j + 1];
-                charInfo->itemCount[j] = charInfo->itemCount[j + 1];
-            }
-            charInfo->item[data::CarryItemCount - 1] = -1;
-            charInfo->itemCount[data::CarryItemCount - 1] = 0;
-        }
-        return true;
-    }
-    return false;
-}
-
 std::int16_t tryUseBagItem(CharacterData *charInfo, PropType type, std::int16_t value) {
     if (!charInfo) { return -1; }
     std::multimap<std::int16_t, std::int16_t> optionalItems;
@@ -259,19 +242,9 @@ bool useNpcItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType,
     if (!itemInfo) { return false; }
     if (!canUseItem(charInfo, itemInfo)) { return false; }
     for (int i = 0; i < data::CarryItemCount; ++i) {
-        if (charInfo->item[i] != itemId) { continue; }
+        if (charInfo->item[i] != itemId || charInfo->itemCount[i] <= 0) { continue; }
         if (!applyItemChanges(charInfo, itemInfo, changes)) { return false; }
-        if (--charInfo->itemCount[i] <= 0) {
-            if (i + 1 < data::CarryItemCount) {
-                memmove(charInfo->item + i, charInfo->item + i + 1,
-                        sizeof(std::int16_t) * data::CarryItemCount - i - 1);
-                memmove(charInfo->itemCount + i, charInfo->itemCount + i + 1,
-                        sizeof(std::int16_t) * data::CarryItemCount - i - 1);
-            }
-            charInfo->item[data::CarryItemCount - 1] = -1;
-            charInfo->itemCount[data::CarryItemCount - 1] = 0;
-        }
-        return true;
+        return consumeNpcItem(charInfo, itemId);
     }
     return false;
 }

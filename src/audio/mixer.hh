@@ -55,7 +55,7 @@ public:
     };
 
     ~Mixer();
-    void init(int channels);
+    [[nodiscard]] bool init(int channels);
 
     void play(size_t channelId, Channel *ch, int volume = VolumeMax, std::uint32_t fadeOutMs = 0, std::uint32_t fadeInMs = 0);
     void play(size_t channelId, const std::string &filename, bool repeat, int volume = VolumeMax, std::uint32_t fadeOutMs = 0, std::uint32_t fadeInMs = 0);

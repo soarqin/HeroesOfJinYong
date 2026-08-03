@@ -21,6 +21,8 @@
 
 #include "data/grpdata.hh"
 
+#include <utility>
+
 namespace hojy::mem {
 
 SaveData gSaveData;
@@ -51,39 +53,45 @@ bool SaveData::load(int num) {
     if (rangerData.size() < 6) {
         return false;
     }
-    baseInfo.deserialize(rangerData[0]);
-    charInfo.deserialize(rangerData[1]);
-    itemInfo.deserialize(rangerData[2]);
-    subMapInfo.deserialize(rangerData[3]);
-    skillInfo.deserialize(rangerData[4]);
-    shopInfo.deserialize(rangerData[5]);
     if (!data::GrpData::loadData(sinFile, sinData, num > 0)) {
         return false;
-    }
-    size_t sz = sinData.size();
-    if (sz < subMapInfo.size()) {
-        return false;
-    }
-    subMapLayerInfo.resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        subMapLayerInfo[i].deserialize(sinData[i]);
     }
     if (!data::GrpData::loadData(defFile, defData, num > 0)) {
         return false;
     }
-    sz = defData.size();
-    if (sz < subMapInfo.size()) {
+
+    SaveData loaded;
+    if (!loaded.baseInfo.deserialize(rangerData[0])
+        || !loaded.charInfo.deserialize(rangerData[1])
+        || !loaded.itemInfo.deserialize(rangerData[2])
+        || !loaded.subMapInfo.deserialize(rangerData[3])
+        || !loaded.skillInfo.deserialize(rangerData[4])
+        || !loaded.shopInfo.deserialize(rangerData[5])) {
         return false;
     }
-    subMapEventInfo.resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        subMapEventInfo[i].deserialize(defData[i]);
+    const auto subMapCount = loaded.subMapInfo.size();
+    if (sinData.size() != subMapCount || defData.size() != subMapCount) {
+        return false;
     }
+    loaded.subMapLayerInfo.resize(subMapCount);
+    loaded.subMapEventInfo.resize(subMapCount);
+    for (size_t i = 0; i < subMapCount; ++i) {
+        if (!loaded.subMapLayerInfo[i].deserialize(sinData[i])
+            || !loaded.subMapEventInfo[i].deserialize(defData[i])) {
+            return false;
+        }
+    }
+
+    *this = std::move(loaded);
     gBag.syncFromSave();
     return true;
 }
 
 bool SaveData::save(int num) {
+    if (subMapLayerInfo.size() != subMapInfo.size()
+        || subMapEventInfo.size() != subMapInfo.size()) {
+        return false;
+    }
     gBag.syncToSave();
     std::string rangerFile, sinFile, defFile;
     buildSaveFilename(num, rangerFile, sinFile, defFile);
@@ -106,7 +114,7 @@ bool SaveData::save(int num) {
     if (!data::GrpData::saveData(sinFile, data, true)) {
         return false;
     }
-    sz = subMapLayerInfo.size();
+    sz = subMapEventInfo.size();
     data.resize(sz);
     for (size_t i = 0; i < sz; ++i) {
         subMapEventInfo[i].serialize(data[i]);

@@ -26,49 +26,41 @@ namespace hojy::data {
 
 Factors gFactors;
 
-void Factors::load(const std::string &filename) {
+bool Factors::load(const std::string &filename) {
     auto file = util::File::open(core::config.dataFilePath(filename));
-    if (!file) { return; }
+    if (!file) { return false; }
+    Factors loaded{};
+    auto readAt = [&file](std::uint64_t offset, void *data, size_t size) {
+        return file.seek(offset) == offset && file.read(data, size) == size;
+    };
     if (file.size() == 0x5F000) {
         /* Z.DAT from swimmingfish's FishEdit 0.72 */
-        file.seek(0x20ce5);
-        file.read(leaveTeamChars.data(), sizeof(std::int16_t) * leaveTeamChars.size());
-        file.seek(0x25cc6);
-        file.read(&leaveTeamStartEvents, sizeof(std::int16_t));
-        file.seek(0x26d6e);
-        file.read(&initSubMapId, sizeof(std::int16_t));
-        file.seek(0x26db7);
-        file.read(&initSubMapX, sizeof(std::int16_t));
-        file.seek(0x26dc0);
-        file.read(&initSubMapY, sizeof(std::int16_t));
-        file.seek(0x26e2e);
-        file.read(&initMainCharTex, sizeof(std::int16_t));
-        file.seek(0x5b43a);
-        file.read(expForLevelUp.data(), sizeof(std::uint16_t) * expForLevelUp.size());
-        file.seek(0x5b36c);
-        file.read(effectFrames.data(), sizeof(std::int16_t) * effectFrames.size());
-        file.seek(0x5b110);
-        file.read(skillWeaponsBindings.data(), sizeof(std::int16_t) * skillWeaponsBindings.size());
+        if (!readAt(0x20ce5, loaded.leaveTeamChars.data(), sizeof(std::int16_t) * loaded.leaveTeamChars.size())
+            || !readAt(0x25cc6, &loaded.leaveTeamStartEvents, sizeof(std::int16_t))
+            || !readAt(0x26d6e, &loaded.initSubMapId, sizeof(std::int16_t))
+            || !readAt(0x26db7, &loaded.initSubMapX, sizeof(std::int16_t))
+            || !readAt(0x26dc0, &loaded.initSubMapY, sizeof(std::int16_t))
+            || !readAt(0x26e2e, &loaded.initMainCharTex, sizeof(std::int16_t))
+            || !readAt(0x5b43a, loaded.expForLevelUp.data(), sizeof(std::uint16_t) * loaded.expForLevelUp.size())
+            || !readAt(0x5b36c, loaded.effectFrames.data(), sizeof(std::int16_t) * loaded.effectFrames.size())
+            || !readAt(0x5b110, loaded.skillWeaponsBindings.data(), sizeof(std::int16_t) * loaded.skillWeaponsBindings.size())) {
+            return false;
+        }
     } else {
-        file.seek(0x1a6e5);
-        file.read(leaveTeamChars.data(), sizeof(std::int16_t) * leaveTeamChars.size());
-        file.seek(0x1f6c6);
-        file.read(&leaveTeamStartEvents, sizeof(std::int16_t));
-        file.seek(0x2076e);
-        file.read(&initSubMapId, sizeof(std::int16_t));
-        file.seek(0x207b7);
-        file.read(&initSubMapX, sizeof(std::int16_t));
-        file.seek(0x207c0);
-        file.read(&initSubMapY, sizeof(std::int16_t));
-        file.seek(0x2082e);
-        file.read(&initMainCharTex, sizeof(std::int16_t));
-        file.seek(0x4df90);
-        file.read(expForLevelUp.data(), sizeof(std::uint16_t) * expForLevelUp.size());
-        file.seek(0x4f4ce);
-        file.read(effectFrames.data(), sizeof(std::int16_t) * effectFrames.size());
-        file.seek(0x4f538);
-        file.read(skillWeaponsBindings.data(), sizeof(std::int16_t) * skillWeaponsBindings.size());
+        if (!readAt(0x1a6e5, loaded.leaveTeamChars.data(), sizeof(std::int16_t) * loaded.leaveTeamChars.size())
+            || !readAt(0x1f6c6, &loaded.leaveTeamStartEvents, sizeof(std::int16_t))
+            || !readAt(0x2076e, &loaded.initSubMapId, sizeof(std::int16_t))
+            || !readAt(0x207b7, &loaded.initSubMapX, sizeof(std::int16_t))
+            || !readAt(0x207c0, &loaded.initSubMapY, sizeof(std::int16_t))
+            || !readAt(0x2082e, &loaded.initMainCharTex, sizeof(std::int16_t))
+            || !readAt(0x4df90, loaded.expForLevelUp.data(), sizeof(std::uint16_t) * loaded.expForLevelUp.size())
+            || !readAt(0x4f4ce, loaded.effectFrames.data(), sizeof(std::int16_t) * loaded.effectFrames.size())
+            || !readAt(0x4f538, loaded.skillWeaponsBindings.data(), sizeof(std::int16_t) * loaded.skillWeaponsBindings.size())) {
+            return false;
+        }
     }
+    *this = loaded;
+    return true;
 }
 
 }

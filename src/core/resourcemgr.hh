@@ -43,7 +43,7 @@ class ResourceMgr {
 public:
     void init();
     [[nodiscard]] const std::set<std::string> &missingFiles() const { return missingFiles_; }
-    [[nodiscard]] const std::set<std::string> &missingFilesOpt() const { return missingFiles_; }
+    [[nodiscard]] const std::set<std::string> &missingFilesOpt() const { return missingFilesOpt_; }
     [[nodiscard]] const std::string &getFilePath(const std::string &file) const;
 
 private:

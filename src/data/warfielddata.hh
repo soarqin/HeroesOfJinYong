@@ -42,7 +42,7 @@ struct WarfieldLayers {
 
 class WarfieldData {
 public:
-    void load(const std::string &warsta, const std::string &warfld);
+    [[nodiscard]] bool load(const std::string &warsta, const std::string &warfld);
     [[nodiscard]] size_t size() const { return info_.size(); }
     [[nodiscard]] const WarfieldInfo *info(std::int16_t id) const;
     [[nodiscard]] const WarfieldLayers *layers(std::int16_t id) const;

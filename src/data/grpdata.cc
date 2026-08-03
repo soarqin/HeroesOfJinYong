@@ -22,6 +22,9 @@
 #include "core/config.hh"
 #include "util/file.hh"
 
+#include <limits>
+#include <utility>
+
 namespace hojy::data {
 
 bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::DataSet &dset, bool isSave) {
@@ -36,23 +39,37 @@ bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::
     if (!ifs || !ifs2) {
         return false;
     }
-    size_t count = ifs.size() / sizeof(std::uint32_t);
-    size_t fileSize = ifs2.size();
-    dset.resize(count);
+    const auto idxSize = ifs.size();
+    const auto fileSize = ifs2.size();
+    if (idxSize % sizeof(std::uint32_t) != 0
+        || fileSize > std::numeric_limits<std::uint32_t>::max()) {
+        return false;
+    }
+    const auto count = static_cast<size_t>(idxSize / sizeof(std::uint32_t));
+    DataSet loaded(count);
     std::uint32_t offset = 0;
     for (size_t i = 0; i < count; ++i) {
-        std::uint32_t endoffset;
-        ifs.read(&endoffset, sizeof(endoffset));
+        std::uint32_t endoffset = 0;
+        if (ifs.read(&endoffset, sizeof(endoffset)) != sizeof(endoffset)) {
+            return false;
+        }
         if (endoffset == 0) {
-            endoffset = fileSize;
+            if (i + 1 != count) { return false; }
+            endoffset = static_cast<std::uint32_t>(fileSize);
         }
-        if (endoffset > offset) {
-            dset[i].resize(endoffset - offset);
-            ifs2.seek(offset);
-            ifs2.read(dset[i].data(), endoffset - offset);
-            offset = endoffset;
+        if (endoffset < offset || endoffset > fileSize) {
+            return false;
         }
+        const auto size = static_cast<size_t>(endoffset - offset);
+        loaded[i].resize(size);
+        if (size > 0
+            && (ifs2.seek(offset) != offset || ifs2.read(loaded[i].data(), size) != size)) {
+            return false;
+        }
+        offset = endoffset;
     }
+    if (offset != fileSize) { return false; }
+    dset = std::move(loaded);
     return true;
 }
 
@@ -61,6 +78,18 @@ bool GrpData::loadData(const std::string &name, GrpData::DataSet &dset, bool isS
 }
 
 bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset, bool isSave) {
+    std::uint64_t totalSize = 0;
+    for (size_t i = 0; i < dset.size(); ++i) {
+        const auto &data = dset[i];
+        totalSize += data.size();
+        if (totalSize > std::numeric_limits<std::uint32_t>::max()) {
+            return false;
+        }
+        if (totalSize == 0 && i + 1 != dset.size()) {
+            return false;
+        }
+    }
+
     util::File ifs, ifs2;
     if (isSave) {
         ifs = util::File::create(core::config.saveFilePath(name + ".IDX"));
@@ -74,9 +103,11 @@ bool GrpData::saveData(const std::string &name, const GrpData::DataSet &dset, bo
     }
     std::uint32_t offset = 0;
     for (auto &d: dset) {
-        offset += d.size();
-        ifs2.write(d.data(), d.size());
-        ifs.write(&offset, sizeof(std::uint32_t));
+        offset += static_cast<std::uint32_t>(d.size());
+        if ((d.size() > 0 && ifs2.write(d.data(), d.size()) != d.size())
+            || ifs.write(&offset, sizeof(std::uint32_t)) != sizeof(std::uint32_t)) {
+            return false;
+        }
     }
     return true;
 }

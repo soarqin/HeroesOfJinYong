@@ -26,31 +26,43 @@
 #include "util/file.hh"
 #include <external/toml.hpp>
 
+#include <utility>
+
 namespace hojy::mem {
+
+namespace {
+
+constexpr size_t RequiredTextCount = 138;
+
+}
 
 Strings gStrings;
 
-void Strings::load(const std::string &filename) {
+bool Strings::load(const std::string &filename) {
     toml::table tbl;
     try {
         tbl = toml::parse(util::File::getFileContent(core::config.dataFilePath(filename)));
     } catch (const toml::parse_error &err) {
         std::cerr << "Parsing failed: " << err << std::endl;
-        return;
+        return false;
     }
     auto arr = tbl["strings"].as_array();
-    strings_[Text].reserve(arr->size());
+    if (!arr || arr->size() < RequiredTextCount) { return false; }
+    std::vector<std::wstring> strings;
+    strings.reserve(arr->size());
     for (auto &n: *arr) {
-        strings_[Text].emplace_back(util::Utf8Conv::toUnicode(n.value_or<std::string>("")));
+        strings.emplace_back(util::Utf8Conv::toUnicode(n.value_or<std::string>("")));
     }
     if (core::config.simplifiedChinese()) {
-        auto backupCharName = strings_[Text][0];
-        for (auto &n: strings_[Text]) {
+        auto backupCharName = strings[0];
+        for (auto &n: strings) {
             n = util::trad2SimpConv.convert(n);
         }
         /* allow traditional chinese chars in default user name */
-        strings_[Text][0] = backupCharName;
+        strings[0] = backupCharName;
     }
+    strings_[Text] = std::move(strings);
+    return true;
 }
 
 void Strings::saveDataLoaded() {

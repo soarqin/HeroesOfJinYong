@@ -40,7 +40,7 @@ public:
         StringsMax,
     };
 
-    void load(const std::string &filename);
+    [[nodiscard]] bool load(const std::string &filename);
     void saveDataLoaded();
     const std::wstring &operator()(Type type, std::int16_t index) {
         static const std::wstring empty;

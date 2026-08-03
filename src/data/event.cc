@@ -23,38 +23,48 @@
 #include "core/config.hh"
 #include "util/conv.hh"
 #include <cstring>
+#include <utility>
 
 namespace hojy::data {
 
 Event gEvent;
 
-void Event::loadEvent(const std::string &name) {
+bool Event::loadEvent(const std::string &name) {
     GrpData::DataSet dset;
-    if (!GrpData::loadData(name, dset)) { return; }
+    if (!GrpData::loadData(name, dset)) { return false; }
     auto sz = dset.size();
-    events_.resize(sz);
+    std::vector<std::vector<std::int16_t>> events(sz);
     for (size_t i = 0; i < sz; ++i) {
-        events_[i].resize(dset[i].size() / sizeof(std::int16_t));
-        memcpy(events_[i].data(), dset[i].data(), dset[i].size());
+        if (dset[i].size() % sizeof(std::int16_t) != 0) { return false; }
+        events[i].resize(dset[i].size() / sizeof(std::int16_t));
+        if (!dset[i].empty()) {
+            memcpy(events[i].data(), dset[i].data(), dset[i].size());
+        }
     }
+    events_ = std::move(events);
+    return true;
 }
 
-void Event::loadTalk(const std::string &name) {
-    if (!GrpData::loadData(name, origTalks_)) { return; }
-    auto sz = origTalks_.size();
-    talks_.resize(sz);
+bool Event::loadTalk(const std::string &name) {
+    GrpData::DataSet origTalks;
+    if (!GrpData::loadData(name, origTalks)) { return false; }
+    auto sz = origTalks.size();
+    std::vector<std::wstring> talks(sz);
     for (size_t i = 0; i < sz; ++i) {
-        auto &t = origTalks_[i];
+        auto &t = origTalks[i];
         for (auto &c: t) {
             if (c) { c = ~c; }
         }
-        talks_[i] = util::big5Conv.toUnicode(t.c_str());
+        talks[i] = util::big5Conv.toUnicode(t.c_str());
     }
     if (core::config.simplifiedChinese()) {
-        for (auto &t: talks_) {
+        for (auto &t: talks) {
             t = util::trad2SimpConv.convert(t);
         }
     }
+    origTalks_ = std::move(origTalks);
+    talks_ = std::move(talks);
+    return true;
 }
 
 const std::vector<std::int16_t> &Event::event(size_t index) const {

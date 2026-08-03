@@ -28,15 +28,22 @@
 #include "mem/strings.hh"
 #include "scene/window.hh"
 
+#include <cstdlib>
+#include <filesystem>
+
 using namespace hojy;
 
 int main(int argc, char *argv[]) {
-    core::config.load("config.toml");
-    core::config.load(core::config.saveFilePath("options.toml"));
-    core::config.postLoad();
-    mem::gStrings.load("strings.toml");
+    if (!core::config.load("config.toml")) { return EXIT_FAILURE; }
+    const auto optionsFile = core::config.saveFilePath("options.toml");
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(optionsFile, ec)) {
+        core::config.load(optionsFile);
+    }
+    if (!core::config.postLoad()) { return EXIT_FAILURE; }
+    if (!mem::gStrings.load("strings.toml")) { return EXIT_FAILURE; }
     core::config.fixOnTextLoaded();
-    data::loadData();
+    if (!data::loadData()) { return EXIT_FAILURE; }
     scene::Window win(core::config.windowWidth(), core::config.windowHeight());
     for (;;) {
         win.update();
@@ -54,6 +61,6 @@ eventStart:
 
 #ifdef _MSC_VER
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
-    main(__argc, __argv);
+    return main(__argc, __argv);
 }
 #endif

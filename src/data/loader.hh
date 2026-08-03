@@ -21,6 +21,6 @@
 
 namespace hojy::data {
 
-void loadData();
+[[nodiscard]] bool loadData();
 
 }
