@@ -1563,7 +1563,11 @@ void Warfield::startActAction() {
             bool dead = false;
             result = popup ? mem::actThrow(&ch->info, &target->info, actIndex_, 0, dead) : 0;
             if (popup) {
-                mem::gBag.remove(actIndex_, 1);
+                if (ch->side == 1) {
+                    mem::consumeNpcItem(&ch->info, actIndex_);
+                } else {
+                    mem::gBag.remove(actIndex_, 1);
+                }
             }
             popup = popup && result != 0;
             if (dead) {

@@ -45,6 +45,8 @@ bool skillFull(std::int16_t charId);
 bool equipItem(std::int16_t charId, std::int16_t itemId);
 bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
 std::int16_t tryUseBagItem(CharacterData *charInfo, PropType type, std::int16_t value);
+/* Removes one carried item without applying its consumable effects. */
+bool consumeNpcItem(CharacterData *charInfo, std::int16_t itemId);
 bool useNpcItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
 std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::int16_t value);
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
