@@ -38,6 +38,10 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
    2. `mergepic WDX WMP`
 3. Once done, you can remove all `SDX???`, `SMP???`, `SDX???`, `WMP???` files from resource folder
 
+# Documentation
+* [Battle logic — mathematical specification](docs/battle-math.md): pure-mathematics description of the battle formulas and AI decision logic (no code/address details)
+* [Battle logic — implementation reference](docs/battle-logic.md): battle rules with code locations, memory addresses and modification guide
+
 # License
 * This software is licensed under GPLv3, Check [LICENSE](LICENSE) for details.
 * External/3rd-party libraries are following their own license, see CREDITS below.
