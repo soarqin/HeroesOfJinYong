@@ -115,10 +115,15 @@ void grpDataValidatesOffsets() {
     HOJY_CHECK_EQ(GrpData::loadData("ZERO_END", loaded), true);
     HOJY_CHECK_EQ(loaded, GrpData::DataSet{"abc"});
 
+    writeOffsets("ZERO_PADDING.IDX", {3, 0, 0});
+    writeBytes("ZERO_PADDING.GRP", "abc");
+    HOJY_CHECK_EQ(GrpData::loadData("ZERO_PADDING", loaded), true);
+    HOJY_CHECK_EQ(loaded, (GrpData::DataSet{"abc", "", ""}));
+
     writeOffsets("ZERO_MIDDLE.IDX", {0, 3});
     writeBytes("ZERO_MIDDLE.GRP", "abc");
     HOJY_CHECK_EQ(GrpData::loadData("ZERO_MIDDLE", loaded), false);
-    HOJY_CHECK_EQ(loaded, GrpData::DataSet{"abc"});
+    HOJY_CHECK_EQ(loaded, (GrpData::DataSet{"abc", "", ""}));
     HOJY_CHECK_EQ(GrpData::saveData("LEADING_EMPTY", {"", "abc"}), false);
     HOJY_CHECK_EQ(std::filesystem::exists("LEADING_EMPTY.IDX"), false);
 }
