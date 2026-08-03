@@ -48,14 +48,17 @@ bool GrpData::loadData(const std::string &idx, const std::string &grp, GrpData::
     const auto count = static_cast<size_t>(idxSize / sizeof(std::uint32_t));
     DataSet loaded(count);
     std::uint32_t offset = 0;
+    bool reachedEnd = false;
     for (size_t i = 0; i < count; ++i) {
         std::uint32_t endoffset = 0;
         if (ifs.read(&endoffset, sizeof(endoffset)) != sizeof(endoffset)) {
             return false;
         }
         if (endoffset == 0) {
-            if (i + 1 != count) { return false; }
+            reachedEnd = true;
             endoffset = static_cast<std::uint32_t>(fileSize);
+        } else if (reachedEnd) {
+            return false;
         }
         if (endoffset < offset || endoffset > fileSize) {
             return false;
