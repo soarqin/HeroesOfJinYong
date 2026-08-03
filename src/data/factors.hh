@@ -27,7 +27,7 @@
 namespace hojy::data {
 
 struct Factors {
-    void load(const std::string &filename);
+    [[nodiscard]] bool load(const std::string &filename);
 
     std::array<std::int16_t, 25> leaveTeamChars;
     std::int16_t leaveTeamStartEvents;

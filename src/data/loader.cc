@@ -25,11 +25,11 @@
 
 namespace hojy::data {
 
-void loadData() {
-    gFactors.load("Z.DAT");
-    gEvent.loadEvent("KDEF");
-    gEvent.loadTalk("TALK");
-    gWarfieldData.load("WAR.STA", "WARFLD");
+bool loadData() {
+    return gFactors.load("Z.DAT")
+        && gEvent.loadEvent("KDEF")
+        && gEvent.loadTalk("TALK")
+        && gWarfieldData.load("WAR.STA", "WARFLD");
 }
 
 }

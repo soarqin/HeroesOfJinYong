@@ -143,8 +143,9 @@ Window::Window(int w, int h) : width_(w), height_(h), freq_(SDL_GetPerformanceFr
     }
     itemTexture_->unlock();
     SDL_ShowWindow(win);
-    audio::gMixer.init(3);
-    audio::gMixer.pause(false);
+    if (audio::gMixer.init(3)) {
+        audio::gMixer.pause(false);
+    }
     title();
 }
 

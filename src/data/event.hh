@@ -27,8 +27,8 @@ namespace hojy::data {
 
 class Event {
 public:
-    void loadEvent(const std::string &name);
-    void loadTalk(const std::string &name);
+    [[nodiscard]] bool loadEvent(const std::string &name);
+    [[nodiscard]] bool loadTalk(const std::string &name);
 
     [[nodiscard]] const std::vector<std::int16_t> &event(size_t index) const;
     [[nodiscard]] const std::string &origTalk(size_t index) const;

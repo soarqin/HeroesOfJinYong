@@ -23,21 +23,38 @@
 #include "core/config.hh"
 #include "util/file.hh"
 #include <cstring>
+#include <utility>
 
 namespace hojy::data {
 
 WarfieldData gWarfieldData;
 
-void WarfieldData::load(const std::string &warsta, const std::string &warfld) {
-    util::File::getFileContent(core::config.dataFilePath(warsta), info_);
+bool WarfieldData::load(const std::string &warsta, const std::string &warfld) {
+    auto file = util::File::open(core::config.dataFilePath(warsta));
+    if (!file || file.size() == 0 || file.size() % sizeof(WarfieldInfo) != 0) { return false; }
+    std::vector<WarfieldInfo> info(static_cast<size_t>(file.size() / sizeof(WarfieldInfo)));
+    if (file.read(info.data(), info.size() * sizeof(WarfieldInfo)) != info.size() * sizeof(WarfieldInfo)) {
+        return false;
+    }
     GrpData::DataSet dset;
-    if (GrpData::loadData(warfld, dset)) {
-        layers_.resize(dset.size());
-        for (size_t i = 0; i < dset.size(); ++i) {
-            auto sz = std::min(sizeof(layers_[i].layers), dset[i].size());
-            memcpy(layers_[i].layers, dset[i].data(), sz);
+    if (!GrpData::loadData(warfld, dset)) { return false; }
+    std::vector<WarfieldLayers> layers(dset.size());
+    constexpr size_t layerSize = sizeof(std::int16_t) * data::WarFieldWidth * data::WarFieldHeight;
+    for (size_t i = 0; i < dset.size(); ++i) {
+        if (dset[i].size() > sizeof(layers[i].layers) || dset[i].size() % layerSize != 0) { return false; }
+        if (!dset[i].empty()) {
+            memcpy(layers[i].layers, dset[i].data(), dset[i].size());
         }
     }
+    for (const auto &warfield: info) {
+        if (warfield.warFieldId < 0 || static_cast<size_t>(warfield.warFieldId) >= layers.size()) {
+            return false;
+        }
+        if (dset[warfield.warFieldId].empty()) { return false; }
+    }
+    info_ = std::move(info);
+    layers_ = std::move(layers);
+    return true;
 }
 
 const WarfieldInfo *WarfieldData::info(std::int16_t id) const {

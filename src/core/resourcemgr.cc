@@ -28,6 +28,10 @@ namespace hojy::core {
 ResourceMgr gResourceMgr;
 
 void ResourceMgr::init() {
+    files_.clear();
+    missingFiles_.clear();
+    missingFilesOpt_.clear();
+
     const std::set<std::string, StringCaseInsensitiveLess> dataFiles = {
         /* strings.toml */
         "strings.toml",
@@ -101,26 +105,35 @@ void ResourceMgr::init() {
     auto fn = [this](const std::string &path,
                      const std::set<std::string, StringCaseInsensitiveLess> &sset,
                      const std::set<std::string, StringCaseInsensitiveLess> &sset2) {
-        for (auto &p: std::filesystem::directory_iterator(path)) {
-            if (!p.is_regular_file()) { continue; }
+        std::error_code ec;
+        std::filesystem::directory_iterator ite(path, ec), end;
+        while (!ec && ite != end) {
+            const auto &p = *ite;
+            if (!p.is_regular_file(ec)) {
+                ec.clear();
+                ite.increment(ec);
+                continue;
+            }
             auto filename = p.path().filename().string();
             if (files_.find(filename) != files_.end()) {
+                ite.increment(ec);
                 continue;
             }
             {
-                auto ite = sset.find(filename);
-                if (ite != sset.end()) {
-                    files_[*ite] = p.path().string();
+                auto file = sset.find(filename);
+                if (file != sset.end()) {
+                    files_[*file] = p.path().string();
+                    ite.increment(ec);
                     continue;
                 }
             }
             if (!sset2.empty()) {
-                auto ite = sset2.find(filename);
-                if (ite != sset2.end()) {
-                    files_[*ite] = p.path().string();
-                    continue;
+                auto file = sset2.find(filename);
+                if (file != sset2.end()) {
+                    files_[*file] = p.path().string();
                 }
             }
+            ite.increment(ec);
         }
     };
     for (auto &path: config.dataPath()) {

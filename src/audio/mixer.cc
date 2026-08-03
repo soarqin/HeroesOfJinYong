@@ -35,13 +35,25 @@ void Mixer::ChannelInfo::reset() {
 }
 
 Mixer::~Mixer() {
-    SDL_CloseAudioDevice(audioDevice_);
+    if (audioDevice_ != 0) {
+        SDL_CloseAudioDevice(audioDevice_);
+    }
 }
 
-void Mixer::init(int channels) {
-    if (!SDL_WasInit(SDL_INIT_AUDIO)) {
-        SDL_InitSubSystem(SDL_INIT_AUDIO);
+bool Mixer::init(int channels) {
+    if (channels <= 0) { return false; }
+    if (!SDL_WasInit(SDL_INIT_AUDIO) && SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+        SDL_Log("Unable to initialize audio: %s", SDL_GetError());
+        return false;
     }
+    if (audioDevice_ != 0) {
+        SDL_CloseAudioDevice(audioDevice_);
+        audioDevice_ = 0;
+    }
+    sampleRate_ = 0;
+    format_ = 0;
+    channels_.clear();
+    cache_.clear();
     SDL_AudioFormat format;
 #if defined(USE_SOXR)
     switch (core::config.sampleFormat()) {
@@ -58,25 +70,33 @@ void Mixer::init(int channels) {
 #else
     format = AUDIO_F32;
 #endif
-    SDL_AudioSpec desired = {
-        core::config.sampleRate(),
-        format,
-        2,
-        0,
-        2048,
-        0,
-        0,
-        callback,
-        this,
-    };
-    SDL_AudioSpec obtained;
-    if (!(audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_CHANNELS_CHANGE))) {
-        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE);
+    SDL_AudioSpec desired{};
+    desired.freq = core::config.sampleRate();
+    desired.format = format;
+    desired.channels = 2;
+    desired.samples = 2048;
+    desired.callback = callback;
+    desired.userdata = this;
+    SDL_AudioSpec obtained{};
+    audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (audioDevice_ == 0) {
+        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+    }
+    if (audioDevice_ == 0) {
+        SDL_Log("Unable to open audio device: %s", SDL_GetError());
+        return false;
+    }
+    if (obtained.channels != 2 || convertDataType(obtained.format) == InvalidType) {
+        SDL_Log("Unsupported audio format returned by device");
+        SDL_CloseAudioDevice(audioDevice_);
+        audioDevice_ = 0;
+        return false;
     }
     sampleRate_ = obtained.freq;
     format_ = obtained.format;
     channels_.resize(channels);
     cache_.resize(obtained.size);
+    return true;
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, std::uint32_t fadeOutMs, std::uint32_t fadeInMs) {
@@ -196,10 +216,13 @@ void Mixer::play(size_t channelId, const std::string &filename, bool repeat, int
 }
 
 void Mixer::pause(bool on) const {
-    SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
+    if (audioDevice_ != 0) {
+        SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
+    }
 }
 
 void Mixer::setVolume(size_t channelId, int volume) {
+    std::scoped_lock lk(playMutex_);
     if (channelId >= channels_.size()) { return; }
     auto &chi = channels_[channelId];
     if (!chi.ch) { return; }
@@ -250,7 +273,6 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     std::scoped_lock lk(mixer->playMutex_);
     auto &cache = mixer->cache_;
     auto &channels = mixer->channels_;
-    auto &chi0 = channels[0];
     memset(stream, 0, len);
     for (auto &chi: channels) {
         if (!chi.ch) { continue; }

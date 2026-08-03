@@ -17,33 +17,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "serializable.hh"
+#include "action.hh"
 
-#include <streambuf>
-#include <sstream>
+#include <algorithm>
 
 namespace hojy::mem {
 
-struct MemBuf: std::streambuf {
-    MemBuf(const char *p, size_t size) {
-        auto *ptr = const_cast<char*>(p);
-        setg(ptr, ptr, ptr + size);
+bool consumeNpcItem(CharacterData *charInfo, std::int16_t itemId) {
+    if (!charInfo) { return false; }
+    for (int i = 0; i < data::CarryItemCount; ++i) {
+        if (charInfo->item[i] != itemId || charInfo->itemCount[i] <= 0) { continue; }
+        if (--charInfo->itemCount[i] == 0) {
+            std::move(charInfo->item + i + 1,
+                      charInfo->item + data::CarryItemCount,
+                      charInfo->item + i);
+            std::move(charInfo->itemCount + i + 1,
+                      charInfo->itemCount + data::CarryItemCount,
+                      charInfo->itemCount + i);
+            charInfo->item[data::CarryItemCount - 1] = -1;
+            charInfo->itemCount[data::CarryItemCount - 1] = 0;
+        }
+        return true;
     }
-};
-
-
-void Serializable::serialize(std::string &data) {
-    std::ostringstream stm;
-    *this >> stm;
-    data = std::move(stm.str());
-}
-
-bool Serializable::deserialize(const std::string &data) {
-    if (!validSerializedSize(data.size())) { return false; }
-    MemBuf buf(data.data(), data.size());
-    std::istream istm(&buf);
-    *this << istm;
-    return !istm.bad();
+    return false;
 }
 
 }
