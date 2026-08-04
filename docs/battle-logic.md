@@ -2,10 +2,12 @@
 
 本页是战斗系统的实现参考，按「基础设施 → 流程 → 数值 → 范围 → AI → 战后结算」的顺序记录全部规则，便于修改与排查。
 
-三份文档的分工：
+相关文档的分工：
 
 - 本页：规则本身、对应代码位置，以及修改时的连带影响。
+- `docs/battle-math.md`：只保留数学规则与 AI 决策，不包含代码位置和逆向工程过程。
 - `docs/reverse/battle-evidence.md`：原版二进制的加载方式、数据结构偏移、函数锚点与逐指令结论。
+- `docs/reverse/battle-function-map.md`：原版函数地址与当前 C++ 实现的职责映射。
 - `docs/reverse/battle-behavior-matrix.md`：每项行为的证据状态、已修复差异、有意偏离与未复刻项。
 
 规则后面括号内的十六进制地址，是原版 `Z.DAT` 加载映像中的位置，仅对 `battle-evidence.md` 登记的 SHA-256 有效。
@@ -15,14 +17,16 @@
 | 层次 | 文件 | 职责 |
 | --- | --- | --- |
 | 纯数值规则 | `src/battle/formulas.hh` / `.cc` | 伤害、中毒、医疗、解毒、暗器、休息、回合末结算、武功等级与内力消耗、升级成长 |
-| 纯 AI 规则 | `src/battle/ai.hh` / `.cc` | 八级决策级联、目标选择、用毒目标选择 |
+| AI 规则 | `src/battle/ai_policy.*`、`ai_strategy.*`、`ai.*` | 资源决策、后续行动、目标与武功槽选择；`ai.*` 仅提供兼容门面 |
+| 移动与范围 | `src/battle/movement.*`、`attack_area.*` | 地形距离、占位感知移动、施术站位和攻击格遍历 |
+| 资源槽序 | `src/battle/resource_items.*`、`src/mem/item_slots.*` | NPC 携带槽、玩家背包保存槽和耗尽压缩 |
 | 回合顺序 | `src/battle/turn_order.hh` / `.cc` | 行动速度、移动步数、回合队列排序 |
 | 随机源 | `src/battle/random.hh` / `.cc`、`game_random.hh` / `.cc` | 随机接口、固定序列实现、游戏随机源适配 |
 | 角色状态变更 | `src/mem/action.cc` | 把纯规则套用到 `mem::CharacterData`，负责钳制与状态写入 |
 | 战场适配 | `src/scene/warfield.cc` | 回合调度、范围枚举、目标枚举、AI 快照与执行、战后结算 |
 | 常量 | `src/data/consts.hh` | 各属性上限、学习槽位数、经验上限 |
 
-测试：`tests/battle/formula_tests.cc`、`tests/battle/ai_tests.cc`、`tests/battle/turn_order_tests.cc`、`tests/battle/random_tests.cc`。每条断言的注释标注对应地址。
+测试：`tests/battle/formula_tests.cc`、`combat_rules_tests.cc`、`ai_tests.cc`、`ai_policy_tests.cc`、`ai_strategy_tests.cc`、`movement_tests.cc`、`attack_area_tests.cc`、`resource_items_tests.cc`、`turn_order_tests.cc`，以及 `tests/battle/random_tests.cc`。每条断言的注释标注对应地址或控制流契约。
 
 修改任一数值规则时的最小动作：改 `src/battle/formulas.cc`，同步 `formulas.hh` 的注释与地址，补或改 `formula_tests.cc` 的对应用例，然后在 `battle-behavior-matrix.md` 记录状态变化。
 
@@ -44,7 +48,13 @@ rnd(n) = 0                 当 n <= 1 或 n > 30000，且不推进随机数
 rnd(n) = rand() % n        其余情况，取值 0..n-1
 ```
 
-「不推进随机数」的意思是：随机调用的次数随参数取值而变化。`battle::originalRandom(random, bound)` 复现这一行为，所有战斗规则必须经它取随机数，否则随机序列会与原版错位。
+「不推进随机数」的意思是：随机调用的次数随参数取值而变化。随机接口分为三层：
+
+- `RandomSource::next(upperExclusive)` 复刻原版上界独占契约；上界不在 2..30000 时返回 0，且不消费随机值。
+- `battle::originalRandom(random, bound)` 是数值公式使用的包装层，统一委托给上述原版契约。
+- `RandomSource::next(minimum, maximum)` 是独立的闭区间契约，取值包含两端；`minimum > maximum` 时抛出异常，不套用原版无消费边界。
+
+所有原版战斗公式必须通过 `battle::originalRandom` 取随机数，否则随机序列会与原版错位。
 
 **未复刻**：本实现不复刻 LCG 本身，`util::gRandom` 使用 `mt19937_64`。随机调用的次数、顺序与取值范围与原版一致，但同一存档不会得到相同的随机序列。
 
@@ -70,7 +80,7 @@ rnd(n) = rand() % n        其余情况，取值 0..n-1
 
 `skillLevel[i]` 是 0..999 的原始值，`skillLevel[i] / 100` 才是 0..9 的等级。要注意区分「原始等级」与「内力降级后的等级」，两者在不同规则中各有使用。
 
-`scene::Warfield::CharInfo` 是战场内的角色副本，额外持有 `side`、`x`、`y`、`steps`、`initialSteps`、`exp`、`request`。战斗期间只改副本，战斗结束才回写存档。
+`scene::Warfield::CharInfo` 是战场内的角色副本，额外持有 `side`、`x`、`y`、`steps`、`initialSteps`、`exp`、`actionCode`。其中 `actionCode == 8/9` 是战斗副本内持久的医疗/解毒请求标记，不是仅用于界面的瞬时行动码；纯 AI 门面仍使用 `AiRequest`，由场景适配层映射为行动码。战斗期间只改副本，战斗结束才回写存档。
 
 ## 3. 战斗流程
 
@@ -116,12 +126,12 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
   hp -= hurt / 20
   hp -= poisoned / 10
   stamina < 0 → 1
-  hp < 0      → 1
+  hp < 1      → 1（当前修正版）
 ```
 
 `battle::roundEndDrain(hurt, poisoned)` 只算扣血量，`mem::actRoundEndDrain` 负责守卫与写入。
 
-**有意偏离**：原版在 `hurt > 0` 时跳过退场与生命检查，末尾的 `hp < 0 → 1` 会把已阵亡且带受伤值的角色复活；本实现直接把已阵亡者排除在结算之外。
+**有意偏离**：原版在 `hurt > 0` 时跳过退场与生命检查，且只在 `hp < 0` 时改为 1；结果恰为 0 时仍保留 0，已阵亡且带受伤值的角色也可能被改回 1。本实现先排除已阵亡者，并统一执行 `hp < 1 → 1`。
 
 ### 3.6 胜负判定（`0x3B238`）
 
@@ -155,11 +165,11 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
 ### 5.1 武功等级与内力消耗
 
 ```text
-内力消耗（0x384ED）：cost(level) = reqMp * ((level + 1) / 2)          level 为 0 起
+内力消耗（0x3850E）：cost(level) = reqMp * ((level + 1) / 2)          level 为 0 起
 可用等级（0x39217）：从 skillLevel / 100 递减，取第一个满足 mp >= cost(level) 的等级
 ```
 
-`level = 0` 的消耗为 0，因此内力耗尽时武功仍可在最低等级施放。
+`level = 0` 的消耗为 0，但玩家首次打开武功菜单并选择武功时仍要求 `mp >= reqMp`。0 级只用于武功已经选定后的双击续击，以及 AI 请求者接近等强制续行动路径；这些路径不会因第一击耗尽内力而取消后续攻击。
 
 `battle::skillMpCost` 与 `battle::resolveSkillLevel` 实现这两式。`resolveSkillLevel` 在 `reqMp > 0 且 mp < reqMp` 时返回 -1，用于菜单过滤；这一层是本实现的界面契约，原版靠菜单门实现同样效果。
 
@@ -209,7 +219,7 @@ dmg = max(dmg, 1)
 - `dmg == 0` 会继续执行体力、受伤与距离衰减，只有 `dmg < 0` 才跳过后续加成。
 - 下限钳制在**衰减之后**，因此 1 点伤害经远距离衰减后仍是 1，不会变成 0。
 
-`battle::calcDamage` 实现该式，`battle::predictDamage` 是去掉两组随机项的同构版本，供 AI 与界面预估使用。
+`battle::calcDamage` 实现该式。`battle::predictDamage` 是去掉两组随机项的兼容门面，仅供测试和旧调用能力保留；生产 AI 与界面流程均不调用它。
 
 ### 5.4 距离衰减（`0x3944C`）
 
@@ -320,7 +330,7 @@ stamina += rnd(3) + (本回合已移动 ? 2 : 3)      上限 100
 
 `rnd` 的参数可能退化到 0 或 1，此时不消耗随机数且返回 0，恢复量固定为 3。
 
-**有意偏离**：原版用剩余步数与 `speed / 10` 比较来判断是否移动过（`0x3A8CF`），而回合发放的步数是 `speed / 15 - hurt / 40`，两者几乎不可能相等，「未移动」奖励因此永远拿不到。本实现改为与本回合实际发放的 `initialSteps` 比较。
+**有意偏离**：原版用剩余步数与 `speed / 10` 比较来判断是否移动过（`0x3A8CF`），而回合发放的步数是 `speed / 15 - hurt / 40`，两者几乎不可能相等，「未移动」奖励因此永远拿不到。本实现按 `remainingSteps != initialSteps` 判断；只要消耗过任意一步，就视为本回合已经移动。
 
 `battle::restGain` 返回三项增量，`mem::actRest` 负责写入与钳制。
 
@@ -354,9 +364,9 @@ special：不成长
 
 ### 6.1 距离网格（`0x36E7F`）
 
-攻击范围与目标选择共用一张洪泛距离图：自身格为 0，向四邻逐格扩散，绕开阻挡格（建筑与不可通行地形），**不受角色占位影响**。各步代价相同，因此距离对称，从目标格扩散一次即可得到任意候选格的距离。
+目标选择与施术范围使用地形距离图：自身格为 0，向四邻逐格扩散，绕开阻挡格（建筑与不可通行地形），**不受角色占位影响**。`battle::terrainPathDistance` 与 `battle::getCastRangeArea` 实现该规则；范围候选格最终仍排除其他角色占位。
 
-`Warfield::rangeGrid(x, y)` 是这张图的实现。移动可达格另用 `Warfield::getSelectableArea`，那条路径会被角色占位阻挡。
+实际移动使用 `battle::getSelectableArea` 和占位感知的 `battle::shortestPathDistance`。目标敌人的占位格可以作为终点进入，其他角色占位格不能作为中途路径。目标评分、施术范围和移动可达性因此使用三套明确分开的判断。
 
 目标选择的距离上限**包含等号**：`距离 <= 范围` 即可选中。
 
@@ -382,33 +392,34 @@ special：不成长
 
 ### 6.3 辅助行动的范围
 
-用毒、解毒、医疗、暗器的可选距离都是 `对应熟练度 / 15 + 1`。实现分散在 `Warfield::tryUseSkill`（玩家）与 `Warfield::autoSupport` / `autoThrow`（AI）。
+用毒、解毒、医疗、暗器的可选距离都是 `对应熟练度 / 15 + 1`。玩家行动由 `Warfield::tryUseSkill` 适配，自动行动统一经过 `Warfield::autoAction` 的施术规划。
 
 ## 7. AI
 
-AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决定打谁**（纯规则，同文件）、**怎么走过去并执行**（`src/scene/warfield.cc`）。
+AI 分三段：**决定做什么**（`src/battle/ai_policy.*` 与 `ai_strategy.*`）、**决定打谁**（`ai_strategy.*`）、**怎么走过去并执行**（`src/scene/warfield.cc`）。`src/battle/ai.*` 只把旧的 `AiContext` 接口映射到拆分模块，不复制规则。
 
 ### 7.1 快照
 
-`Warfield::buildAiContext` 把战场状态整理成 `battle::AiContext`：
+`Warfield::autoAction` 在每名角色决策开始时建立纯数据快照：
 
 | 字段 | 内容 |
 | --- | --- |
-| `participants[].stats` | 决策用到的角色属性，含 `minSkillReqMp`（已学武功中最小的 `reqMp`，无武功时为 -1） |
-| `participants[].side` | 阵营 |
-| `participants[].active` | 是否仍在场（`hp > 0` 且坐标有效） |
-| `participants[].request` | 求助标记，见 7.3 |
-| `participants[].distance` | 从行动者出发的洪泛距离，不可达为负 |
-| `items` | 可用物品。己方取共享行囊，敌方取角色自带的 4 格；排除装备与武功书 |
-| `self` | 行动者在 `participants` 中的下标 |
+| `AiResourceState` | 生命、受伤、中毒、体力、内力和医疗/解毒能力 |
+| `AiAllyState` | 阵营、存活状态、行动码（`8/9` 为请求标记）和攻击，用于资源请求与支援回退 |
+| `AiStrategyActor` | 行动者的生命、攻击、体力、内力、能力、integrity 和 potential，用于后续行动与目标策略 |
+| `AiStrategyCharacter` | 候选角色的坐标、生命、能力、攻击和毒值；离场槽标记为 inactive |
+| 物品快照 | 敌方按 4 个携带槽，玩家按背包保存槽顺序扫描 |
+| 武功快照 | 保留原始槽位与熟练度；站位按存储熟练等级规划，执行时再按当前 MP 降级 |
+
+AI 属性快照在 `putChars()` 中于 `mem::addUpPropFromEquipToChar()` 之前建立。装备加成仍保留在 `CharInfo::info`，供实际伤害、速度、防御和施术执行使用；AI 规划从运行时基础字段中扣除入场装备增量。若战斗内直接改写这些运行时字段，下一次决策会保留该改写，不会重新从持久存档读取。
 
 ### 7.2 决策级联（`0x33599`）
 
-八级按顺序执行，任一级产生行动即停止。级联的随机消耗顺序必须与下表一致。
+八级按顺序执行。除第 1 级只记录休息回退外，其余级别一旦产生可执行行动即停止。级联的随机消耗顺序必须与下表一致。
 
 | 级 | 触发条件 | 结果 |
 | ---: | --- | --- |
-| 1 | `stamina < 10` | 休息 |
+| 1 | `stamina < 10` | 先把行动码设为 `7`（休息回退）；生命恢复流程若被触发，其返回值会覆盖该回退 |
 | 2 | `hp < 20` 或 `hurt > 50` 或 `hp < maxHp/2 且 rnd(10) < 3` 或 `hp < maxHp/3 且 rnd(10) < 5` 或 `hp < maxHp/4 且 rnd(10) < 7` 或 `hp < maxHp/5 且 rnd(10) < 9` | 走补血流程（7.3） |
 | 3 | `rnd(10) < poisoned / 10`（无条件抽取） | 走解毒流程（7.3） |
 | 4 | `mp < maxMp/2 且 rnd(10) < 2` 或 `mp < maxMp/3 且 rnd(10) < 4` 或 `mp < maxMp/4 且 rnd(10) < 6` 或 `mp < maxMp/5 且 rnd(10) < 8` | 找 `addMp > 0` 的物品 |
@@ -419,6 +430,8 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 
 第 1 级不消耗随机数。第 2 级与第 7 级的条件按顺序逐个判断，前面条件成立时，后面的随机数不再抽取。
 
+低体力只会先记录 `Rest` 候选，不会立即结束级联。若第 2 级生命恢复条件命中，`0x33C4D` 的返回值会覆盖该候选；自身医疗、物品和队友请求都无法执行时，返回 0 会清除休息候选，并继续解毒、补内力和支援判断。
+
 ### 7.3 自救与求助（`0x33C4D`、`0x33E93`、`0x340D9`）
 
 补血流程分三级：
@@ -426,16 +439,16 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 ```text
 1. medic >= 20 且 stamina >= 50 且 medic > hurt - 30      → 对自己医疗
 2. 物品中存在 addHp > 0                                   → 使用该物品
-3. 存在同阵营在场友方，medic > 20 且 medic > 我的 hurt - 30 → 登记求医标记，本回合照常攻击
+3. 存在同阵营在场友方，medic > 20 且 medic > 我的 hurt - 30 → 在自身 `actionCode` 写入 `8`，本回合照常攻击
 ```
 
-解毒流程结构相同，判据换成 `depoison` 与 `poisoned`，物品判据是 `addPoisoned < 0`。补内力只有一步：找 `addMp > 0` 的物品。
+解毒流程依次尝试自身解毒、物品和队友请求。自身解毒严格要求 `depoison > 20`、`stamina > 50` 且 `depoison > poisoned - 30`；物品判据是 `addPoisoned < 0`。补内力只有一步：找 `addMp > 0` 的物品。
 
-求助标记（`AiRequest`）记在行动者自己身上，之后行动的友方若具备对应熟练度，看到标记会跳过全部概率门直接施救。
+场景适配把纯 AI 门面的 `AiRequest::Medic` / `AiRequest::Depoison` 写成行动者自己的 `actionCode == 8/9`。之后行动的友方若具备对应熟练度，看到该标记会跳过全部概率门直接施救。
 
 **有意偏离**：原版己方分支筛的是 `addPoison < 0`（用毒熟练度修正）而不是 `addPoisoned`，导致己方自动战斗永远找不到解毒药；敌方分支用的是正确字段。本实现两侧统一使用 `addPoisoned`。
 
-求助标记在角色自己下次行动开始时清零（`0x329D0`），因此可以跨回合保留到该角色再次行动之前。
+请求行动码在角色自己下次行动开始时清零（`0x329D0`），因此可以跨回合保留到该角色再次行动之前。
 
 ### 7.4 为友方医疗与解毒（`0x341F6`、`0x343DA`）
 
@@ -443,7 +456,7 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 
 ```text
 医疗：前置 我的 medic > 对方 hurt - 30
-      条件 对方已登记求医标记
+      条件 对方 `actionCode == 8`
         或 hp < 20
         或 hurt > 40
         或 hp < maxHp/2 且 rnd(10) < 7
@@ -452,7 +465,7 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
         或 hp < maxHp/5
 
 解毒：前置 我的 depoison > 对方 poisoned - 30
-      条件 对方已登记求解标记
+      条件 对方 `actionCode == 9`
         或 poisoned > 10 且 rnd(10) < 4
         或 poisoned > 20 且 rnd(10) < 6
         或 poisoned > 30 且 rnd(10) < 8
@@ -483,7 +496,7 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 
 ### 7.6 目标选择（`0x3505B`）
 
-按人物性格分流，各有 70% 触发率，依次尝试：
+按人物性格分流，各有 70% 触发率，依次尝试；某个分支触发但没有合格候选时继续检查后续分支：
 
 | 条件 | 选择 |
 | --- | --- |
@@ -494,16 +507,19 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 
 用毒目标另有一套（`0x355FF`），只考虑 `poisoned < 95` 且 `antipoison < 我方 poison` 的在场敌人：`potential > 60` 且 `rnd(10) < 7` 时取攻击最高者，否则取距离最近者。
 
-**有意偏离**（两处）：
+高资质能力分支保留原版的标志缺陷：己方存在 `poison > 20` 角色且先找到敌方解毒者时，若后续医疗扫描没有设置成功标志，仍回退到「攻击最低」目标。
 
-- 原版高资质分支找到敌方解毒者后仍会落到「攻击最低」分支并覆盖已选目标，使解毒者分支成为死代码（`0x352EC`）；本实现选中后直接采用。
+**有意偏离与兼容边界**（三处）：
+
+- 原版 `sub_3505B` 的高、低性格辅助函数在没有候选时可能保留上一行动的 `word_DC742`；本实现把空结果视为该分支失败，继续检查后续策略，最后才使用最近目标，避免复用过期目标。
+- 原版最近目标扫描 `sub_35372` 以 `1000` 为初始距离，并只接受严格更小的结果；本实现保持该上限，距离 `>= 1000` 的敌人不参与最近目标选择。
 - 原版用毒目标的距离比较读的是上一次记录的目标而非当前候选（`0x357AB`），所有候选拿到同一距离，实际总取第一个；本实现按候选自身距离比较。
 
 ### 7.7 攻击执行（`0x34C47`）
 
 ```text
 1. 在 skillId > 0 的槽位中随机选一门（不做伤害评估）
-2. 取等级、射程 selRange[level]、attackAreaType
+2. 以存储熟练度计算规划等级和射程 `selRange[level]`；执行时再以当前 MP 确定实际等级
 3. 用 7.6 取目标
 4. 判定能否命中：
      attackAreaType 0 或 3：距离 <= 射程
@@ -514,11 +530,13 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
    仍不能命中 → 休息
 ```
 
-`Warfield::autoAttack` 实现该流程，第 4 与第 5 步由 `approachAndAct` 承担。
+`Warfield::autoAction` 实现该流程。首个目标最多安排一次移动；移动完成后重新检查首个目标，失败时只在当前位置检查最近目标，不能为备用目标再次安排移动。若当前距离不在范围内且本回合仍有步数但无法抵达范围，先移动到可达 frontier，再在移动结束后复查；没有前进格时不把原地格当作有效移动。
 
 ### 7.8 移动（`0x3650E`、`0x34AEC`）
 
-进攻站位：从射程上限向下枚举期望距离 `r`，在本回合走得到的格子中找洪泛距离恰好为 `r` 的格子（直线与十字还要求与目标同排同列），取离当前位置曼哈顿距离最小的一格；以第一个找到候选格的 `r` 为准。效果是「尽量保持武功允许的最大距离，且少走路」。
+进攻站位：从射程上限向下枚举期望距离 `r`，在本回合走得到的格子中找地形距离恰好为 `r` 的格子（直线与十字还要求与目标同排同列），取离当前位置曼哈顿距离最小的一格；以第一个找到候选格的 `r` 为准。普通接近使用 `CastMovementMode::Approach`，直线/十字使用 `Aligned`。用毒在有剩余步数时使用 `CastMovementMode::Reposition`，优先保持最大允许站距；无步数时只复查当前位置，不安排第二次移动。
+
+如果本回合不能进入施术范围，仍先移动到可达 frontier；移动后只复查一次，失败即进入回退。没有任何前进格时不把原地格视为移动成功。用毒在有剩余步数时使用 `CastMovementMode::Reposition`，从最大允许站距向下寻找；已在最大站距时允许原地施毒。
 
 撤退站位（逃跑与用物品前）：只在**恰好用尽全部移动力**的格子中挑选，取与敌方各角色曼哈顿距离之和最大的一格。逃跑后休息，用物品前的撤退不休息。
 
@@ -531,15 +549,15 @@ AI 分三段：**决定做什么**（纯规则，`src/battle/ai.cc`）、**决�
 | `AiAction` | 原版码 | 执行入口 |
 | --- | ---: | --- |
 | `Rest` | 0、7 | `Warfield::doRest` |
-| `Attack` | 1、2、8、9 | `Warfield::autoAttack` |
-| `Poison` | 3 | `Warfield::autoSupport(-3)` |
-| `Depoison` | 4 | `Warfield::autoSupport(-2)` |
-| `Medic` | 5 | `Warfield::autoSupport(-1)` |
+| `Attack` | 1、2、8、9 | `Warfield::autoAction` 的普通武功路径 |
+| `Poison` | 3 | `Warfield::autoAction` 的用毒路径 |
+| `Depoison` | 4 | `Warfield::autoAction` 的解毒路径 |
+| `Medic` | 5 | `Warfield::autoAction` 的医疗路径 |
 | `UseItem` | 6 | 撤退后 `Warfield::autoUseItem` |
 | `Throw` | 10 | `Warfield::autoThrow` |
 | `Flee` | 11 | 撤退后休息 |
 
-辅助行动无法送达时（目标不可达），按原版 `0x36366` 的规则回退：`attack * 2 > 己方战力总和 * 2 / 人数` 时改为攻击，否则休息。
+辅助行动无法送达时（目标不可达），按原版 `0x36366` 的规则回退：`attack * 2 > 己方战力总和 * 2 / 人数` 时改为普通武功，否则休息。直接支援的行动码 `4/5` 保留；请求者的 `8/9` 只有在确实安排接近移动后才保留续行动标记。`pendingAutoAction_` 执行前先移出回调，回调内部新建的待执行动作不会被外层清除。
 
 ## 8. 战后结算
 
@@ -661,12 +679,12 @@ expForMakeItem = 0
 | 某条数值公式 | `src/battle/formulas.cc`（含 `.hh` 注释与地址） | `formula_tests.cc` 的对应用例、随机消耗次数断言 |
 | 随机消耗次数 | 相关规则函数 | 所有用 `SequenceRandom` 的测试都会因序列错位而失败，属预期 |
 | 属性上限 | `src/data/consts.hh` | `mem/action.cc` 中所有 `std::clamp` 调用点 |
-| AI 判据或阈值 | `src/battle/ai.cc` | `ai_tests.cc`；注意级联条件的判断顺序决定随机消耗 |
-| AI 执行方式（移动、出手） | `src/scene/warfield.cc` | 无纯逻辑测试覆盖，需实际战斗验证 |
-| 作用范围形状或遍历顺序 | `Warfield::startActAction` | 渲染侧 `Warfield::render` 中的同型分支 |
+| AI 判据或阈值 | `src/battle/ai_policy.cc`、`ai_strategy.cc` | `ai_tests.cc`、`ai_policy_tests.cc`、`ai_strategy_tests.cc`；注意级联条件的判断顺序决定随机消耗 |
+| AI 执行方式（移动、出手） | `src/scene/warfield.cc`、`src/battle/movement.cc` | `movement_tests.cc`；场景回调仍需实际战斗验证 |
+| 作用范围形状或遍历顺序 | `src/battle/attack_area.cc`、`Warfield::startActAction` | `attack_area_tests.cc` 与战场表现分支 |
 | 回合流程 | `Warfield::nextAction`、`src/battle/turn_order.hh` | `turn_order_tests.cc` |
 | 战后结算 | `Warfield::endWar`、`mem::actLevelup` | 无纯逻辑测试覆盖，需实际战斗验证 |
 | 练功或制药的需求量 | `mem::getExpForSkillLearn`、`mem::getExpForMakeItem`、`battle::potentialTier` | `formula_tests.cc` 的 `potentialTiers` 用例 |
 | 书本属性套用 | `mem::applyBookChanges`、`battle::applyBookStat` | `formula_tests.cc` 的 `bookStats` 用例；不要顺手改 `applyItemChanges`，那条路径用于消耗品 |
 
-新增一条规则时的约定：纯计算放进 `src/battle/`，状态写入放进 `src/mem/action.cc`，场景交互放进 `src/scene/warfield.cc`；函数注释首行给出证据 ID 与地址；随机数一律经 `battle::originalRandom` 取用。
+新增一条规则时的约定：纯计算放进 `src/battle/`，状态写入放进 `src/mem/action.cc`，场景交互放进 `src/scene/warfield.cc`；函数注释首行给出证据 ID 与地址。数值公式的一参原版随机经 `battle::originalRandom` 取用；AI 与策略层可直接调用一参 `RandomSource::next`；两参闭区间接口仅按独立契约使用。

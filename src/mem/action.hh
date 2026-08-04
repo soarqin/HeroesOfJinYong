@@ -47,6 +47,9 @@ bool useItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, st
 std::int16_t tryUseBagItem(CharacterData *charInfo, PropType type, std::int16_t value);
 /* Removes one carried item without applying its consumable effects. */
 bool consumeNpcItem(CharacterData *charInfo, std::int16_t itemId);
+/* Removes one item from an explicitly selected carry slot. */
+bool consumeNpcItemAt(CharacterData *charInfo, int slot,
+                      std::int16_t expectedItemId = -1);
 bool useNpcItem(CharacterData *charInfo, std::int16_t itemId, std::map<PropType, std::int16_t> &changes);
 std::int16_t tryUseNpcItem(CharacterData *charInfo, PropType type, std::int16_t value);
 bool applyItemChanges(CharacterData *charInfo, const ItemData *itemInfo, std::map<PropType, std::int16_t> &changes);
@@ -65,13 +68,13 @@ std::int16_t calcPredictDamage(std::int16_t atk, std::int16_t def, std::int16_t 
 std::int16_t calcRealSkillLevel(std::int16_t reqMp, std::int16_t level, std::int16_t currMp);
 std::int16_t calcSkillMpCost(const SkillData *skill, std::int16_t level);
 /*
- * `knowledgeSelf` and `knowledgeOther` are relative to the attacker, not to a
- * fixed side. `exp` receives the experience the attacker earned for this hit.
+ * knowledgeSelf and knowledgeOther are relative to the attacker, not to a
+ * fixed side. exp receives the experience earned for this hit.
  */
 bool actDamage(CharacterData *c1, CharacterData *c2, std::int16_t knowledgeSelf, std::int16_t knowledgeOther,
                int distance, int index, int level, std::int16_t &damage, std::int16_t &poisoned,
                std::int16_t &exp, bool &dead);
-/* Charges the skill mp cost, so it must run once per attack, not per target. */
+/* Charges the skill MP cost once per attack, not once per target. */
 void postDamage(CharacterData *c, int index, int level, std::int16_t stamina, bool &levelup);
 std::int16_t actPoison(CharacterData *c1, CharacterData *c2, std::int16_t stamina);
 std::int16_t actMedic(CharacterData *c1, CharacterData *c2, std::int16_t stamina);

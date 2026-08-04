@@ -12,8 +12,8 @@ SequenceRandom::SequenceRandom(std::vector<int> values): values_(std::move(value
 }
 
 int SequenceRandom::next(int upperExclusive) {
-    if (upperExclusive <= 0) {
-        throw std::invalid_argument("upperExclusive must be positive");
+    if (upperExclusive <= 1 || upperExclusive > OriginalRandomBoundMax) {
+        return 0;
     }
     return consume(0, upperExclusive - 1);
 }

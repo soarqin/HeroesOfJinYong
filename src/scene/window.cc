@@ -450,11 +450,14 @@ void Window::enterSubMap(std::int16_t subMapId, int direction) {
     });
 }
 
-void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
+bool Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
     auto *wf = dynamic_cast<Warfield *>(warfield_);
+    if (!wf) { return false; }
+    if (!wf->load(warId)) {
+        return false;
+    }
     wf->setGetExpOnLose(getExpOnLose);
     wf->setDeadOnLose(deadOnLose);
-    wf->load(warId);
     std::set<std::int16_t> defaultChars;
     if (wf->getDefaultChars(defaultChars)) {
         auto *clm = new CharListMenu(renderer_, 0, 0, gWindow->width(), gWindow->height());
@@ -462,11 +465,15 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
             return defaultChars.find(charId) == defaultChars.end();
         });
         clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm](std::int16_t) {
-            dynamic_cast<Warfield *>(warfield_)->putChars(clm->getSelectedCharIds());
-            map_ = warfield_;
-            auto *map = map_;
+            const auto selectedChars = clm->getSelectedCharIds();
             closePopup();
-            map->fadeIn();
+            auto *wf = dynamic_cast<Warfield *>(warfield_);
+            if (!wf) { return; }
+            map_ = warfield_;
+            wf->putChars(selectedChars);
+            if (map_ == warfield_) {
+                map_->fadeIn();
+            }
         }, []() -> bool { return false; });
         for (size_t i = 0; i < clm->charCount(); ++i) {
             if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
@@ -477,10 +484,13 @@ void Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
         popup_ = clm;
         freeOnClose_ = true;
     } else {
-        wf->putChars({});
         map_ = warfield_;
-        map_->fadeIn();
+        wf->putChars({});
+        if (map_ == warfield_) {
+            map_->fadeIn();
+        }
     }
+    return true;
 }
 
 void Window::endWar(bool won, bool instantDie) {

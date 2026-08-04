@@ -20,8 +20,12 @@
 #include "channelmidi.hh"
 
 #include "core/config.hh"
+#include "sample_bounds.hh"
 #include <adlmidi.h>
 #include <SDL.h>
+
+#include <algorithm>
+#include <limits>
 
 namespace hojy::audio {
 
@@ -37,9 +41,11 @@ ChannelMIDI::~ChannelMIDI() {
 }
 
 void ChannelMIDI::load(const std::string &filename) {
+    if (midiplayer_) {
+        adl_reset(static_cast<ADL_MIDIPlayer*>(midiplayer_));
+    }
     Channel::load(filename);
     if (!ok_) { return; }
-    adl_reset(static_cast<ADL_MIDIPlayer*>(midiplayer_));
     loadFromData();
 }
 
@@ -57,10 +63,17 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size, bool convType) {
     int count;
     if (needConv) {
         size_t outSize = Mixer::dataTypeToSize(typeOut_);
-        count = int(size / outSize / 2) * 2;
-        size = count * sizeof(short);
+        if (outSize == 0 || size / outSize / 2 >
+            static_cast<size_t>(std::numeric_limits<int>::max() / 2)) {
+            return 0;
+        }
+        count = static_cast<int>(size / outSize / 2) * 2;
+        size = static_cast<size_t>(count) * sizeof(short);
     } else {
-        count = int(size / sizeof(short));
+        if (size / sizeof(short) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+            return 0;
+        }
+        count = static_cast<int>(size / sizeof(short));
     }
     if (cache_.size() < size) {
         cache_.resize(size);
@@ -69,23 +82,37 @@ size_t ChannelMIDI::readPCMData(const void **data, size_t size, bool convType) {
     if (res < 0) {
         return 0;
     }
+    size_t sampleBytes = 0;
+    if (!detail::checkedMidiSampleBytes(res, sampleBytes)) { return 0; }
     if (!needConv) {
         *data = cache_.data();
-        return res * sizeof(short);
+        return sampleBytes;
     }
-    SDL_AudioCVT cvt;
-    SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
-                      Mixer::convertType(typeOut_), 2, int(sampleRateIn_));
-    int isize = int(res * sizeof(short));
-    int osize = isize * cvt.len_mult;
-    if (cache_.size() < osize) {
-        cache_.resize(osize);
+    SDL_AudioCVT cvt{};
+    const auto built = SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2,
+                                         int(sampleRateIn_), Mixer::convertType(typeOut_),
+                                         2, int(sampleRateIn_));
+    if (built < 0) { return 0; }
+    if (built == 0) {
+        *data = cache_.data();
+        return static_cast<size_t>(res * sizeof(short));
+    }
+    int isize = 0;
+    if (!detail::checkedAudioCvtLength(sampleBytes, isize)
+        || cvt.len_mult <= 0
+        || sampleBytes > std::numeric_limits<size_t>::max()
+            / static_cast<size_t>(cvt.len_mult)) {
+        return 0;
+    }
+    const auto osize = sampleBytes * static_cast<size_t>(cvt.len_mult);
+    if (cache_.size() < std::max(sampleBytes, osize)) {
+        cache_.resize(std::max(sampleBytes, osize));
     }
     cvt.len = isize;
     cvt.buf = cache_.data();
-    SDL_ConvertAudio(&cvt);
+    if (SDL_ConvertAudio(&cvt) < 0 || cvt.len_cvt < 0) { return 0; }
     *data = cache_.data();
-    return cvt.len_cvt;
+    return static_cast<size_t>(cvt.len_cvt);
 }
 
 void ChannelMIDI::loadFromData() {
@@ -103,7 +130,10 @@ void ChannelMIDI::loadFromData() {
         else
             adl_switchEmulator(static_cast<ADL_MIDIPlayer *>(midiplayer_), ADLMIDI_EMU_DOSBOX);
     }
-    if (adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_), data_.data(), data_.size()) < 0) {
+    unsigned long dataSize = 0;
+    if (!detail::checkedAdlDataSize(data_.size(), dataSize)
+        || adl_openData(static_cast<ADL_MIDIPlayer*>(midiplayer_),
+                        data_.data(), dataSize) < 0) {
         ok_ = false;
         return;
     }

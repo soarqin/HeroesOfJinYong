@@ -19,39 +19,34 @@
 
 #include "warfield.hh"
 
+#include "battle/ai_policy.hh"
+#include "battle/ai_strategy.hh"
+#include "battle/attack_area.hh"
+#include "battle/combat_rules.hh"
+#include "battle/game_random.hh"
+#include "battle/turn_order.hh"
 #include "colorpalette.hh"
 #include "menu.hh"
 #include "charlistmenu.hh"
 #include "statusview.hh"
+#include "node_helpers.hh"
+#include "warfield_load.hh"
 #include "itemview.hh"
 #include "window.hh"
 #include "effect.hh"
 #include "data/grpdata.hh"
 #include "data/warfielddata.hh"
-#include "battle/ai.hh"
-#include "battle/game_random.hh"
-#include "battle/turn_order.hh"
 #include "mem/savedata.hh"
 #include "mem/strings.hh"
 #include "core/config.hh"
 #include "util/random.hh"
 #include <fmt/xchar.h>
-#include <map>
 #include <algorithm>
-#include <climits>
-#include <utility>
+#include <limits>
+#include <map>
+#include <memory>
 
 namespace hojy::scene {
-
-namespace {
-
-/* Shared adapter so the pure battle ai uses the game random source. */
-battle::RandomSource &aiRandom() {
-    static battle::GameRandom random;
-    return random;
-}
-
-}
 
 Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale):
     Map(renderer, x, y, width, height, scale),
@@ -68,15 +63,39 @@ Warfield::~Warfield() {
     delete statusPanel_;
 }
 
+void Warfield::clearActionState(bool clearPopupNumbers) {
+    actIndex_ = -1;
+    actId_ = -1;
+    actLevel_ = 0;
+    actItemSlot_ = -1;
+    skillLevelup_ = false;
+    effectId_ = -1;
+    effectTexIdx_ = -1;
+    fightTexIdx_ = -1;
+    fightTexCount_ = 0;
+    fightFrame_ = 0;
+    attackTimesLeft_ = 0;
+    fightTex_ = nullptr;
+    if (clearPopupNumbers) {
+        popupNumbers_.clear();
+    }
+}
+
 void Warfield::cleanup() {
     removeAllChildren();
     fadeNode_ = nullptr;
     fadePostAction_ = nullptr;
     runFadePostAction_ = false;
     pendingAutoAction_ = nullptr;
+    resumeAutoAttack_ = false;
     currentActor_ = nullptr;
-    charQueue_.clear();
+    for (auto &cell: cellInfo_) {
+        cell.charInfo = nullptr;
+        cell.effectData = nullptr;
+        cell.insideMovingArea = 0;
+    }
     turnOrder_.clear();
+    charQueue_.clear();
     chars_.clear();
     round_ = 0;
     stage_ = Idle;
@@ -85,63 +104,58 @@ void Warfield::cleanup() {
     cursorY_ = 0;
     autoControl_ = false;
     won_ = false;
-    skillLevelup_ = false;
     selCells_.clear();
     movingPath_.clear();
-    actIndex_ = -1;
-    actId_ = -1;
-    actLevel_ = 0;
-    effectId_ = -1;
-    effectTexIdx_ = -1;
-    fightTexIdx_ = -1;
-    fightTexCount_ = 0;
-    fightFrame_ = 0;
-    attackTimesLeft_ = 0;
-    fightTex_ = nullptr;
-    popupNumbers_.clear();
+    drawDirty_ = true;
+    clearActionState(true);
 }
 
 bool Warfield::load(std::int16_t warId) {
-    cleanup();
-
-    warId_ = warId;
     const auto *info = data::gWarfieldData.info(warId);
-    auto warMapId = info->warFieldId;
-    const auto &layers = data::gWarfieldData.layers(warMapId)->layers;
-    if (warMapLoaded_.find(warMapId) == warMapLoaded_.end()) {
-        mapWidth_ = data::WarFieldWidth;
-        mapHeight_ = data::WarFieldHeight;
-        if (data::GrpData::loadData("WDX", "WMP", texData_)) {
-            for (std::int16_t i = 0; i < 1000; ++i) {
-                warMapLoaded_.insert(i);
-            }
-        } else {
-            if (!data::GrpData::loadData(fmt::format("WDX{:03}", warMapId), fmt::format("WMP{:03}", warMapId), texData_)) {
-                return false;
-            }
-            warMapLoaded_.insert(warMapId);
+    if (!info) { return false; }
+    const auto warMapId = info->warFieldId;
+    const auto *warfieldLayers = data::gWarfieldData.layers(warMapId);
+    if (!warfieldLayers) { return false; }
+    const auto &layers = warfieldLayers->layers;
+    const bool mapCached = warMapLoaded_.find(warMapId) != warMapLoaded_.end();
+    detail::WarfieldTextureLoad loadedTextures;
+    if (mapCached) {
+        if (!detail::readWarfieldTextureHeader(texData_, loadedTextures)) {
+            return false;
+        }
+    } else {
+        if (!detail::loadWarfieldTextures(
+                fmt::format("WDX{:03}", warMapId),
+                fmt::format("WMP{:03}", warMapId),
+                [](const std::string &idx, const std::string &grp,
+                   data::GrpData::DataSet &textures) {
+                    return data::GrpData::loadData(idx, grp, textures);
+                },
+                loadedTextures)) {
+            return false;
         }
     }
-    {
-        const auto *arr = reinterpret_cast<const uint16_t*>(texData_[0].data());
-        cellWidth_ = arr[0];
-        cellHeight_ = arr[1];
-        offsetX_ = arr[2];
-        offsetY_ = arr[3];
-    }
-    int cellDiffX = cellWidth_ / 2;
-    int cellDiffY = cellHeight_ / 2;
-    auto size = mapWidth_ * mapHeight_;
-    cellInfo_.clear();
-    cellInfo_.resize(size);
 
-    int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
-    int y = offsetY_;
+    const int mapWidth = data::WarFieldWidth;
+    const int mapHeight = data::WarFieldHeight;
+    const int cellDiffX = loadedTextures.cellWidth / 2;
+    const int cellDiffY = loadedTextures.cellHeight / 2;
+    const auto size = mapWidth * mapHeight;
+    const auto &textureData = mapCached ? texData_ : loadedTextures.textures;
+    if (!detail::validateWarfieldTextureIds(
+            layers[0], layers[1], static_cast<std::size_t>(size),
+            textureData.size())) {
+        return false;
+    }
+    std::vector<CellInfo> cellInfo(static_cast<size_t>(size));
+
+    int x = (mapHeight - 1) * cellDiffX + loadedTextures.offsetX;
+    int y = loadedTextures.offsetY;
     int pos = 0;
-    for (int j = mapHeight_; j; --j) {
+    for (int j = mapHeight; j; --j) {
         int tx = x, ty = y;
-        for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
-            auto &ci = cellInfo_[pos];
+        for (int i = mapWidth; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
+            auto &ci = cellInfo[static_cast<size_t>(pos)];
             auto texId = layers[0][pos] >> 1;
             ci.earthId = texId;
             ci.buildingId = layers[1][pos] >> 1;
@@ -150,16 +164,41 @@ bool Warfield::load(std::int16_t warId) {
         x -= cellDiffX; y += cellDiffY;
     }
 
+    auto nextWarMapLoaded = warMapLoaded_;
+    if (!mapCached) {
+        detail::commitWarfieldTextureCache(
+            nextWarMapLoaded, warMapId, loadedTextures.shared);
+    }
+    std::unique_ptr<StatusView> newStatusPanel;
+    if (!statusPanel_) {
+        newStatusPanel = std::make_unique<StatusView>(
+            renderer_, x_, y_, width_, height_);
+    }
+
+    cleanup();
+    warId_ = warId;
+    mapWidth_ = mapWidth;
+    mapHeight_ = mapHeight;
+    cellWidth_ = loadedTextures.cellWidth;
+    cellHeight_ = loadedTextures.cellHeight;
+    offsetX_ = loadedTextures.offsetX;
+    offsetY_ = loadedTextures.offsetY;
+    if (!mapCached) {
+        textureMgr_.clear();
+        texData_ = std::move(loadedTextures.textures);
+        warMapLoaded_ = std::move(nextWarMapLoaded);
+    }
+    cellInfo_ = std::move(cellInfo);
+
     subMapId_ = warMapId;
     resetFrame();
-    if (!statusPanel_) {
-        statusPanel_ = new StatusView(renderer_, x_, y_, width_, height_);
-    }
+    if (newStatusPanel) { statusPanel_ = newStatusPanel.release(); }
     return true;
 }
 
 bool Warfield::getDefaultChars(std::set<std::int16_t> &chars) const {
     const auto *info = data::gWarfieldData.info(warId_);
+    if (!info) { return false; }
     if (info->forceMembers[0] >= 0) { return false; }
     for (auto &id: info->defaultMembers) {
         if (id >= 0) { chars.insert(id); }
@@ -169,6 +208,7 @@ bool Warfield::getDefaultChars(std::set<std::int16_t> &chars) const {
 
 void Warfield::putChars(const std::vector<std::int16_t> &chars) {
     const auto *info = data::gWarfieldData.info(warId_);
+    if (!info || cellInfo_.empty()) { return; }
     if (info->forceMembers[0] >= 0) {
         for (size_t i = 0; i < data::TeamMemberCount; ++i) {
             auto id = info->forceMembers[i];
@@ -194,6 +234,7 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
             if (ite != charMap.end()) {
                 index = ite->second;
             } else {
+                if (indices.empty()) { continue; }
                 index = *indices.begin();
                 indices.erase(indices.begin());
             }
@@ -212,13 +253,24 @@ void Warfield::putChars(const std::vector<std::int16_t> &chars) {
     auto ite = chars_.begin();
     while (ite != chars_.end()) {
         auto &ci = *ite;
+        if (ci.x < 0 || ci.x >= mapWidth_ || ci.y < 0 || ci.y >= mapHeight_) {
+            ite = chars_.erase(ite);
+            continue;
+        }
         auto &cell = cellInfo_[ci.y * mapWidth_ + ci.x];
         /* NOTE: remove duplicate chars */
         if (cell.charInfo != nullptr) {
             ite = chars_.erase(ite);
             continue;
         }
+        ci.aiEntryStats = battle::snapshotAiStats(ci.info);
+        ci.attack = ci.aiEntryStats.attack;
+        ci.defence = ci.info.defence;
+        ci.persistentEntryMaxMp = ci.info.maxMp;
         mem::addUpPropFromEquipToChar(&ci.info);
+        ci.aiEquipmentBonusStats = battle::captureAiEquipmentBonuses(
+            ci.aiEntryStats, ci.info);
+        ci.battleEntryMaxMp = ci.info.maxMp;
         if (ci.side == 1) {
             ci.info.hp = ci.info.maxHp;
             ci.info.mp = ci.info.maxMp;
@@ -263,93 +315,93 @@ void Warfield::render() {
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
         bool movingOrActing = acting || stage_ == Moving;
         auto *ch = currentActor_;
-        if (acting && ch && effectTexIdx_ >= 0) {
+        if (acting && ch && effectTexIdx_ >= 0
+            && effectId_ >= 0
+            && !gEffect[effectId_].empty()) {
             const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
             const auto &effTexData = gEffect[effectId_];
-            if (!effTexData.empty()) {
-                const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
-                auto mw = mapWidth_;
-                if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
-                    auto sx = cursorX_, sy = cursorY_;
-                    cellInfo_[sy * mw + sx].effectData = tex;
-                } else {
-                    switch (skillInfo->attackAreaType) {
-                    case 1: {
-                        auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                        int r = skillInfo->selRange[actLevel_];
-                        for (int i = r; i; --i) {
-                            switch (ch->direction) {
-                            case Map::DirUp:
-                                if (sy >= i) {
-                                    auto &ci = cellInfo_[st - i * mw + sx];
-                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
-                                }
-                                break;
-                            case Map::DirRight:
-                                if (sx + i < mapWidth_) {
-                                    auto &ci = cellInfo_[st + sx + i];
-                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
-                                }
-                                break;
-                            case Map::DirLeft:
-                                if (sx >= i) {
-                                    auto &ci = cellInfo_[st + sx - i];
-                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
-                                }
-                                break;
-                            case Map::DirDown:
-                                if (sy + i < mapHeight_) {
-                                    auto &ci = cellInfo_[st + i * mw + sx];
-                                    if (ci.buildingId <= 0) { ci.effectData = tex; }
-                                }
-                                break;
-                            default:
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                    case 2: {
-                        auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                        int r = skillInfo->selRange[actLevel_];
-                        for (int i = r; i; --i) {
+            const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
+            auto mw = mapWidth_;
+            if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
+                auto sx = cursorX_, sy = cursorY_;
+                cellInfo_[sy * mw + sx].effectData = tex;
+            } else {
+                switch (skillInfo->attackAreaType) {
+                case 1: {
+                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int i = r; i; --i) {
+                        switch (ch->direction) {
+                        case Map::DirUp:
                             if (sy >= i) {
                                 auto &ci = cellInfo_[st - i * mw + sx];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
+                            break;
+                        case Map::DirRight:
                             if (sx + i < mapWidth_) {
                                 auto &ci = cellInfo_[st + sx + i];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
+                            break;
+                        case Map::DirLeft:
                             if (sx >= i) {
                                 auto &ci = cellInfo_[st + sx - i];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
+                            break;
+                        case Map::DirDown:
                             if (sy + i < mapHeight_) {
                                 auto &ci = cellInfo_[st + i * mw + sx];
                                 if (ci.buildingId <= 0) { ci.effectData = tex; }
                             }
+                            break;
+                        default:
+                            break;
                         }
-                        break;
                     }
-                    case 3: {
-                        auto sx = cursorX_, sy = cursorY_;
-                        int r = skillInfo->selRange[actLevel_];
-                        for (int j = -r; j <= r; ++j) {
-                            auto ry = sy + j;
-                            if (ry < 0 || ry >= mapHeight_) { continue; }
-                            for (int i = -r; i <= r; ++i) {
-                                auto rx = sx + i;
-                                if (rx < 0 || rx >= mapWidth_) { continue; }
-                                auto &ci = cellInfo_[ry * mw + rx];
-                                if (ci.buildingId <= 0) { ci.effectData = tex; }
-                            }
+                    break;
+                }
+                case 2: {
+                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int i = r; i; --i) {
+                        if (sy >= i) {
+                            auto &ci = cellInfo_[st - i * mw + sx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
                         }
-                        break;
+                        if (sx + i < mapWidth_) {
+                            auto &ci = cellInfo_[st + sx + i];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
+                        if (sx >= i) {
+                            auto &ci = cellInfo_[st + sx - i];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
+                        if (sy + i < mapHeight_) {
+                            auto &ci = cellInfo_[st + i * mw + sx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
                     }
-                    default:
-                        break;
+                    break;
+                }
+                case 3: {
+                    auto sx = cursorX_, sy = cursorY_;
+                    int r = skillInfo->selRange[actLevel_];
+                    for (int j = -r; j <= r; ++j) {
+                        auto ry = sy + j;
+                        if (ry < 0 || ry >= mapHeight_) { continue; }
+                        for (int i = -r; i <= r; ++i) {
+                            auto rx = sx + i;
+                            if (rx < 0 || rx >= mapWidth_) { continue; }
+                            auto &ci = cellInfo_[ry * mw + rx];
+                            if (ci.buildingId <= 0) { ci.effectData = tex; }
+                        }
                     }
+                    break;
+                }
+                default:
+                    break;
                 }
             }
         }
@@ -368,29 +420,36 @@ void Warfield::render() {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
-                Texture::renderRLE(texData_[ci.earthId], colors, pixels, pitch, aheight, dx, ty);
+                Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.earthId),
+                                   colors, pixels, pitch, aheight, dx, ty);
                 if (!movingOrActing) {
                     static std::uint32_t maskColors[256] = {0};
                     if (ci.insideMovingArea == 2) {
                         maskColors[254] = 0xA0A0A0A0u;
-                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
+                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                   maskColors, pixels, pitch, aheight, dx, ty);
                     } else if (ci.charInfo) {
                         maskColors[254] = 0x80A0A0A0u;
-                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
+                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                   maskColors, pixels, pitch, aheight, dx, ty);
                     } else if (selecting && !ci.insideMovingArea) {
                         maskColors[254] = 0xD0A0A0A0u;
-                        Texture::renderRLEBlending(texData_[0], maskColors, pixels, pitch, aheight, dx, ty);
+                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                   maskColors, pixels, pitch, aheight, dx, ty);
                     }
                 }
                 if (ci.buildingId > 0) {
-                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels2, pitch2, aheight, dx, ty);
+                    Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.buildingId),
+                                       colors, pixels2, pitch2, aheight, dx, ty);
                 } else {
                     if (ci.charInfo) {
                         if (acting && ci.charInfo == ch && fightTex_ && fightTexIdx_ >= 0 && fightTexIdx_ < fightTex_->size()) {
                             Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels2, pitch2, aheight, dx, ty);
                         } else {
-                            Texture::renderRLE(texData_[2553 + 4 * ci.charInfo->texId
-                                + int(ci.charInfo->direction)], colors, pixels2, pitch2, aheight, dx, ty);
+                            const auto textureId = 2553 + 4 * ci.charInfo->texId
+                                + int(ci.charInfo->direction);
+                            Texture::renderRLE(detail::warfieldTextureAt(texData_, textureId),
+                                               colors, pixels2, pitch2, aheight, dx, ty);
                         }
                     }
                     if (ci.effectData) {
@@ -433,19 +492,19 @@ void Warfield::render() {
         }
     }
     if (stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving) {
-        statusPanel_->render();
+        detail::invokeIfPresent(
+            statusPanel_, [](Node &panel) { panel.render(); });
     }
 }
 
 void Warfield::handleKeyInput(Node::Key key) {
-    if ((stage_ == MoveSelecting || stage_ == AttackSelecting) && !currentActor_) {
-        stage_ = Idle;
-        return;
-    }
     if (stage_ != MoveSelecting && stage_ != AttackSelecting) {
         if (key == KeyCancel) {
             if (currentActor_ && currentActor_->side == 0) {
                 pendingAutoAction_ = nullptr;
+                resumeAutoAttack_ = false;
+                movingPath_.clear();
+                if (stage_ == Moving) { stage_ = Idle; }
             }
             autoControl_ = false;
         }
@@ -493,6 +552,7 @@ void Warfield::handleKeyInput(Node::Key key) {
             auto ite = selCells_.find(std::make_pair(x, y));
             if (ite != selCells_.end()) {
                 stage_ = Moving;
+                movingPath_.clear();
                 auto *sc = &ite->second;
                 while (sc) {
                     movingPath_.emplace_back(std::make_pair(sc->x, sc->y));
@@ -516,6 +576,7 @@ void Warfield::handleKeyInput(Node::Key key) {
     }
     case KeyCancel:
         unmaskArea();
+        clearActionState(false);
         drawDirty_ = true;
         playerMenu();
         return;
@@ -533,17 +594,44 @@ void Warfield::frameUpdate() {
         nextAction();
         break;
     case Moving: {
-        if (movingPath_.empty() || !currentActor_) { stage_ = Idle; break; }
+        if (movingPath_.empty() || !currentActor_) {
+            movingPath_.clear();
+            if (currentActor_ && battle::shouldContinueAfterMovement(
+                    currentActor_->side == 0 && !autoControl_,
+                    static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
+                stage_ = Idle;
+            } else if (currentActor_) {
+                endTurn(currentActor_);
+            } else {
+                stage_ = Idle;
+            }
+            break;
+        }
         int x, y;
         std::tie(x, y) = movingPath_.back();
         if (x == cameraX_ && y == cameraY_) {
             movingPath_.pop_back();
+            if (movingPath_.empty()) {
+                if (battle::shouldContinueAfterMovement(
+                        currentActor_->side == 0 && !autoControl_,
+                        static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
+                    stage_ = Idle;
+                } else {
+                    endTurn(currentActor_);
+                }
+                break;
+            }
             std::tie(x, y) = movingPath_.back();
         }
         movingPath_.pop_back();
         auto &ci = cellInfo_[cameraX_ + cameraY_ * mapWidth_];
         auto &newci = cellInfo_[x + y * mapWidth_];
         auto *charInfo = ci.charInfo;
+        if (charInfo != currentActor_ || newci.charInfo) {
+            movingPath_.clear();
+            endTurn(currentActor_);
+            break;
+        }
         if (x < cameraX_) {
             charInfo->direction = DirLeft;
         } else if (x > cameraX_) {
@@ -561,10 +649,23 @@ void Warfield::frameUpdate() {
         cameraX_ = x;
         cameraY_ = y;
         drawDirty_ = true;
+        if (movingPath_.empty()) {
+            if (battle::shouldContinueAfterMovement(
+                    currentActor_->side == 0 && !autoControl_,
+                    static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
+                stage_ = Idle;
+            } else {
+                endTurn(currentActor_);
+            }
+        }
         break;
     }
     case Acting: {
-        if (!currentActor_) { stage_ = Idle; break; }
+        if (!currentActor_) {
+            stage_ = Idle;
+            clearActionState(false);
+            break;
+        }
         fightTexIdx_ = std::min(fightTexIdx_ + 1, fightTexCount_ - 1);
         if (fightFrame_ == 0) {
             const mem::SkillData *skillInfo;
@@ -582,20 +683,34 @@ void Warfield::frameUpdate() {
             auto postFunc = [this, actor]() {
                 if (currentActor_ != actor) { return; }
                 if (--attackTimesLeft_ > 0) {
+                    auto *ch = actor;
                     const auto *skill = mem::gSaveData.skillInfo[actId_];
-                    if (skill) {
-                        /*
-                         * Z.DAT:0x38555 repeats unconditionally and the level
-                         * resolution inside the damage routine always lands on a
-                         * usable level, so a drained actor still strikes at its
-                         * cheapest level instead of losing the second hit.
-                         */
-                        actLevel_ = std::max<std::int16_t>(
-                            0, mem::calcRealSkillLevel(skill->reqMp, actLevel_, actor->info.mp));
+                    if (!skill) {
+                        actIndex_ = actId_ = -1;
+                        actLevel_ = 0;
+                        actItemSlot_ = -1;
+                        skillLevelup_ = false;
+                        effectId_ = -1;
+                        effectTexIdx_ = -1;
+                        fightTexIdx_ = -1;
+                        fightTexCount_ = 0;
+                        fightFrame_ = 0;
+                        attackTimesLeft_ = 0;
+                        fightTex_ = nullptr;
+                        endTurn(actor);
+                        return;
                     }
-                    startActAction();
+                    actLevel_ = battle::calcRepeatedSkillLevel(
+                        skill->reqMp, actLevel_, ch->info.mp);
+                    if (actLevel_ >= 0) {
+                        startActAction();
+                    } else {
+                        actIndex_ = actId_ = -1;
+                        actItemSlot_ = -1;
+                    }
                 } else {
                     actIndex_ = actId_ = -1;
+                    actItemSlot_ = -1;
                 }
                 if (actIndex_ < 0) {
                     skillLevelup_ = false;
@@ -610,14 +725,16 @@ void Warfield::frameUpdate() {
                     endTurn(actor);
                 }
             };
-            if (skillLevelup_ && actor) {
+            if (skillLevelup_) {
                 skillLevelup_ = false;
                 stage_ = PoppingUp;
                 const auto *skill = mem::gSaveData.skillInfo[actId_];
+                auto *ch = actor;
                 auto *msgBox = new MessageBox(this, 0, height_ / 3, width_, 60);
                 msgBox->popup({fmt::format(GETTEXT(81), GETSKILLNAME(actId_),
-                                           actor->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
-                msgBox->setCloseHandler([this, postFunc]() {
+                                           ch->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
+                msgBox->setCloseHandler([this, actor, postFunc]() {
+                    if (currentActor_ != actor) { return; }
                     stage_ = Acting;
                     postFunc();
                 });
@@ -639,33 +756,21 @@ void Warfield::nextAction() {
     for (;;) {
         if (charQueue_.empty()) {
             if (round_ > 0) {
-                /*
-                 * `NUM-ROUND-DRAIN` Z.DAT:0x3C563: the original drains hurt and
-                 * poison from every participant once the round is over, not at
-                 * the start of each single turn.
-                 */
                 for (auto &ci: chars_) {
                     mem::actRoundEndDrain(&ci.info, ci.x < 0 || ci.y < 0);
                 }
                 if (checkWarEnd()) { return; }
             }
             ++round_;
-            charQueue_ = battle::buildRoundQueue(turnOrder_,
+            charQueue_ = battle::buildRoundQueue(
+                turnOrder_,
                 [](const CharInfo *actor) { return actor->info.speed; },
                 [](const CharInfo *actor) { return actor->info.hp > 0; });
             for (auto *actor: charQueue_) {
-                actor->steps = battle::calculateMovementSteps(actor->info.speed, actor->info.hurt);
+                actor->steps = battle::calculateMovementSteps(
+                    actor->info.speed, actor->info.hurt);
                 actor->initialSteps = actor->steps;
             }
-#ifndef NDEBUG
-            fmt::print(stdout, "Battle round {} order:", round_);
-            for (auto ite = charQueue_.rbegin(); ite != charQueue_.rend(); ++ite) {
-                fmt::print(stdout, " {}(speed={},hurt={},steps={})",
-                           (*ite)->id, (*ite)->info.speed, (*ite)->info.hurt, (*ite)->steps);
-            }
-            fmt::print(stdout, "\n");
-            fflush(stdout);
-#endif
             if (charQueue_.empty()) {
                 checkWarEnd();
                 return;
@@ -679,14 +784,21 @@ void Warfield::nextAction() {
         break;
     }
     currentActor_ = ch;
+    battle::prepareActorActionCode(
+        ch->actionCode,
+        static_cast<bool>(pendingAutoAction_) || resumeAutoAttack_);
     cameraX_ = ch->x;
     cameraY_ = ch->y;
     drawDirty_ = true;
     auto *sv = dynamic_cast<StatusView*>(statusPanel_);
-    auto windowBorder = core::config.windowBorder();
-    sv->show(&ch->info, false, true);
-    sv->forceUpdate();
-    sv->setPosition(ch->side == 1 ? windowBorder * 4 : (width_ - windowBorder * 4 - sv->width()), height_ * 2 / 5 - sv->height() / 2);
+    if (sv) {
+        auto windowBorder = core::config.windowBorder();
+        sv->show(&ch->info, false, true);
+        sv->forceUpdate();
+        sv->setPosition(ch->side == 1 ? windowBorder * 4
+                                      : (width_ - windowBorder * 4 - sv->width()),
+                       height_ * 2 / 5 - sv->height() / 2);
+    }
     if (ch->side == 1 || autoControl_) {
         autoAction();
     } else {
@@ -695,361 +807,855 @@ void Warfield::nextAction() {
     }
 }
 
-void Warfield::runPendingAutoAction() {
-    auto action = std::move(pendingAutoAction_);
-    if (action) { action(); }
-}
-
-void Warfield::autoUseItem(CharInfo *ch, std::int16_t itemId) {
-    std::map<mem::PropType, std::int16_t> changes;
-    bool usedItem = ch->side == 1 ? mem::useNpcItem(&ch->info, itemId, changes)
-                                  : mem::useItem(&ch->info, itemId, changes);
-    if (!usedItem) {
-        doRest(ch);
-        return;
-    }
-    stage_ = PoppingUp;
-    auto *msgBox = ItemView::popupUseResult(this, itemId, changes);
-    msgBox->setCloseHandler([this, ch] {
-        endTurn(ch);
-    });
-}
-
-std::vector<std::int16_t> Warfield::rangeGrid(int fromX, int fromY) const {
-    /*
-     * `AREA-BUILD-RANGE` Z.DAT:0x36E7F: a flood fill that walks around buildings
-     * and blocked terrain but ignores who stands where. The cost is uniform, so
-     * one fill from the target also answers every candidate cell.
-     */
-    std::vector<std::int16_t> grid(std::size_t(mapWidth_) * mapHeight_, -1);
-    if (fromX < 0 || fromY < 0 || fromX >= mapWidth_ || fromY >= mapHeight_) { return grid; }
-    std::vector<std::pair<int, int>> current{{fromX, fromY}}, next;
-    grid[std::size_t(fromY) * mapWidth_ + fromX] = 0;
-    for (std::int16_t step = 1; !current.empty(); ++step) {
-        next.clear();
-        for (auto &cell: current) {
-            static const int dx[4] = {0, 1, -1, 0};
-            static const int dy[4] = {-1, 0, 0, 1};
-            for (int i = 0; i < 4; ++i) {
-                int tx = cell.first + dx[i], ty = cell.second + dy[i];
-                if (tx < 0 || ty < 0 || tx >= mapWidth_ || ty >= mapHeight_) { continue; }
-                auto index = std::size_t(ty) * mapWidth_ + tx;
-                if (grid[index] >= 0 || cellInfo_[index].blocked) { continue; }
-                grid[index] = step;
-                next.emplace_back(tx, ty);
-            }
-        }
-        current.swap(next);
-    }
-    return grid;
-}
-
-void Warfield::startMovingTo(std::map<std::pair<int, int>, SelectableCell> &cells, int x, int y) {
-    auto ite = cells.find(std::make_pair(x, y));
-    if (ite == cells.end()) { return; }
-    stage_ = Moving;
-    movingPath_.clear();
-    for (auto *sc = &ite->second; sc; sc = sc->moveParent) {
-        movingPath_.emplace_back(std::make_pair(sc->x, sc->y));
-    }
-}
-
-bool Warfield::moveAwayFromEnemies(CharInfo *ch) {
-    /*
-     * `AI-RETREAT` Z.DAT:0x34AEC: only cells that consume the whole movement
-     * allowance qualify, and among those the one with the largest total distance
-     * to the opposing side wins.
-     */
-    std::map<std::pair<int, int>, SelectableCell> cells;
-    getSelectableArea(ch, cells, ch->steps, 0);
-    int best = 0, bx = ch->x, by = ch->y;
-    for (auto &cell: cells) {
-        if (cell.second.moves != ch->steps) { continue; }
-        int total = 0;
-        for (auto &other: chars_) {
-            if (other.side == ch->side || other.x < 0 || other.y < 0) { continue; }
-            total += std::abs(cell.first.first - other.x) + std::abs(cell.first.second - other.y);
-        }
-        if (total > best) { best = total; bx = cell.first.first; by = cell.first.second; }
-    }
-    if (bx == ch->x && by == ch->y) { return false; }
-    startMovingTo(cells, bx, by);
-    return true;
-}
-
-bool Warfield::approachAndAct(CharInfo *ch, const CharInfo *target, int range, bool aligned,
-                              std::function<void()> act) {
-    if (!target || target->x < 0 || target->y < 0 || range < 0) { return false; }
-    const auto grid = rangeGrid(target->x, target->y);
-    auto distanceAt = [this, &grid](int x, int y) {
-        return int(grid[std::size_t(y) * mapWidth_ + x]);
-    };
-    const int tx = target->x, ty = target->y;
-    auto usable = [&](int x, int y) {
-        int distance = distanceAt(x, y);
-        if (distance < 0 || distance > range) { return false; }
-        return !aligned || x == tx || y == ty;
-    };
-    if (usable(ch->x, ch->y)) {
-        pendingAutoAction_ = std::move(act);
-        runPendingAutoAction();
-        return true;
-    }
-    if (ch->steps <= 0) { return false; }
-    std::map<std::pair<int, int>, SelectableCell> cells;
-    getSelectableArea(ch, cells, ch->steps, 0);
-    /*
-     * Z.DAT:0x36601 walks the standoff distance from the skill range down to 1
-     * and takes the cell closest to the current position, so the actor keeps as
-     * much distance as the skill allows.
-     */
-    for (int wanted = range; wanted >= 1; --wanted) {
-        int best = -1, bx = -1, by = -1;
-        for (auto &cell: cells) {
-            if (cell.second.moves < 0) { continue; }
-            int x = cell.first.first, y = cell.first.second;
-            if (distanceAt(x, y) != wanted) { continue; }
-            if (aligned && x != tx && y != ty) { continue; }
-            int cost = std::abs(x - ch->x) + std::abs(y - ch->y);
-            if (best < 0 || cost < best) { best = cost; bx = x; by = y; }
-        }
-        if (best < 0) { continue; }
-        pendingAutoAction_ = std::move(act);
-        startMovingTo(cells, bx, by);
-        return true;
-    }
-    return false;
-}
-
-void Warfield::aimAndAct(CharInfo *ch, int x, int y) {
-    const auto *skill = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
-    if (skill && skill->attackAreaType == 1) {
-        ch->direction = calcDirection(ch->x, ch->y, x, y);
-    }
-    cursorX_ = x;
-    cursorY_ = y;
-    startActAction();
-}
-
-bool Warfield::autoSupport(CharInfo *ch, CharInfo *target, std::int16_t actId) {
-    if (!target) { return false; }
-    int range;
-    switch (actId) {
-    case -3: range = ch->info.poison / 15 + 1; break;
-    case -2: range = ch->info.depoison / 15 + 1; break;
-    default: range = ch->info.medic / 15 + 1; break;
-    }
-    const int tx = target->x, ty = target->y;
-    return approachAndAct(ch, target, range, false, [this, ch, actId, tx, ty]() {
-        actIndex_ = -1;
-        actId_ = actId;
-        actLevel_ = 0;
-        attackTimesLeft_ = 1;
-        aimAndAct(ch, tx, ty);
-    });
-}
-
-bool Warfield::autoThrow(CharInfo *ch, CharInfo *target, std::int16_t itemId) {
-    if (!target || itemId < 0) { return false; }
-    const int tx = target->x, ty = target->y;
-    return approachAndAct(ch, target, ch->info.throwing / 15 + 1, false,
-                          [this, ch, itemId, tx, ty]() {
-        actIndex_ = itemId;
-        actId_ = -4;
-        actLevel_ = 0;
-        attackTimesLeft_ = 1;
-        aimAndAct(ch, tx, ty);
-    });
-}
-
-bool Warfield::autoAttack(CharInfo *ch, CharInfo *preferred) {
-    /* `AI-ATTACK` Z.DAT:0x34C47 picks one of the learnt skills at random. */
-    std::int16_t slots[data::LearnSkillCount];
-    int count = 0;
-    for (int i = 0; i < data::LearnSkillCount; ++i) {
-        if (ch->info.skillId[i] > 0) { slots[count++] = std::int16_t(i); }
-    }
-    if (!count) { return false; }
-    auto slot = slots[util::gRandom(count)];
-    const auto *skill = mem::gSaveData.skillInfo[ch->info.skillId[slot]];
-    if (!skill) { return false; }
-    auto level = std::clamp<std::int16_t>(ch->info.skillLevel[slot] / 100, 0, data::SkillLevelMaxDiv);
-    level = std::max<std::int16_t>(0, mem::calcRealSkillLevel(skill->reqMp, level, ch->info.mp));
-    const int range = skill->selRange[level];
-    const bool aligned = skill->attackAreaType == 1 || skill->attackAreaType == 2;
-    auto engage = [&](CharInfo *target)->bool {
-        if (!target) { return false; }
-        const int tx = target->x, ty = target->y;
-        return approachAndAct(ch, target, range, aligned,
-                              [this, ch, slot, level, tx, ty]() {
-            actIndex_ = slot;
-            actId_ = ch->info.skillId[slot];
-            actLevel_ = level;
-            attackTimesLeft_ = ch->info.doubleAttack == 1 ? 2 : 1;
-            aimAndAct(ch, tx, ty);
-        });
-    };
-    if (engage(preferred)) { return true; }
-    /* Z.DAT:0x34F55 falls back to the nearest enemy once moving did not help. */
-    CharInfo *nearest = nullptr;
-    int bestDistance = -1;
-    const auto grid = rangeGrid(ch->x, ch->y);
-    for (auto &other: chars_) {
-        if (other.side == ch->side || other.info.hp <= 0 || other.x < 0 || other.y < 0) { continue; }
-        int distance = grid[std::size_t(other.y) * mapWidth_ + other.x];
-        if (distance < 0) { continue; }
-        if (bestDistance < 0 || distance < bestDistance) { bestDistance = distance; nearest = &other; }
-    }
-    return nearest != preferred && engage(nearest);
-}
-
-bool Warfield::moveTowards(CharInfo *ch, const CharInfo *target) {
-    if (!target || target->x < 0 || target->y < 0 || ch->steps <= 0) { return false; }
-    std::map<std::pair<int, int>, SelectableCell> cells;
-    getSelectableArea(ch, cells, ch->steps, 0);
-    const auto grid = rangeGrid(target->x, target->y);
-    int best = -1, bx = ch->x, by = ch->y;
-    for (auto &cell: cells) {
-        if (cell.second.moves < 0) { continue; }
-        int distance = grid[std::size_t(cell.first.second) * mapWidth_ + cell.first.first];
-        if (distance < 0) { continue; }
-        if (best < 0 || distance < best) {
-            best = distance;
-            bx = cell.first.first;
-            by = cell.first.second;
-        }
-    }
-    if (bx == ch->x && by == ch->y) { return false; }
-    startMovingTo(cells, bx, by);
-    return true;
-}
-
-battle::AiContext Warfield::buildAiContext(CharInfo *ch) const {
-    battle::AiContext context;
-    const auto grid = rangeGrid(ch->x, ch->y);
-    for (auto &ci: chars_) {
-        battle::AiParticipant participant;
-        participant.side = ci.side;
-        participant.active = ci.info.hp > 0 && ci.x >= 0 && ci.y >= 0;
-        participant.request = ci.request;
-        participant.distance = participant.active
-            ? grid[std::size_t(ci.y) * mapWidth_ + ci.x] : -1;
-        auto &stats = participant.stats;
-        const auto &info = ci.info;
-        stats.hp = info.hp; stats.maxHp = info.maxHp;
-        stats.mp = info.mp; stats.maxMp = info.maxMp;
-        stats.stamina = info.stamina; stats.hurt = info.hurt; stats.poisoned = info.poisoned;
-        stats.attack = info.attack; stats.medic = info.medic; stats.poison = info.poison;
-        stats.depoison = info.depoison; stats.antipoison = info.antipoison;
-        stats.throwing = info.throwing;
-        stats.integrity = info.integrity; stats.potential = info.potential;
-        for (int i = 0; i < data::LearnSkillCount; ++i) {
-            if (info.skillId[i] <= 0) { continue; }
-            const auto *skill = mem::gSaveData.skillInfo[info.skillId[i]];
-            if (!skill) { continue; }
-            if (stats.minSkillReqMp < 0 || skill->reqMp < stats.minSkillReqMp) {
-                stats.minSkillReqMp = skill->reqMp;
-            }
-        }
-        if (&ci == ch) { context.self = int(context.participants.size()); }
-        context.participants.emplace_back(participant);
-    }
-    auto addItem = [&context](std::int16_t itemId) {
-        const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
-        if (!itemInfo || itemInfo->itemType == 1 || itemInfo->itemType == 2) { return; }
-        context.items.emplace_back(battle::AiItem{itemId, itemInfo->addHp, itemInfo->addMp,
-                                                 itemInfo->addPoisoned});
-    };
-    if (ch->side == 1) {
-        for (int i = 0; i < data::CarryItemCount; ++i) {
-            if (ch->info.item[i] >= 0 && ch->info.itemCount[i] > 0) { addItem(ch->info.item[i]); }
-        }
-    } else {
-        for (auto &entry: mem::gBag.items()) {
-            if (entry.first >= 0 && entry.second > 0) { addItem(entry.first); }
-        }
-    }
-    return context;
-}
-
 void Warfield::autoAction() {
     if (pendingAutoAction_) {
-        runPendingAutoAction();
+        battle::runPendingAction(pendingAutoAction_);
         return;
     }
     auto *ch = currentActor_;
     if (!ch) { stage_ = Idle; return; }
-    /* Z.DAT:0x329D0 drops the pending request when the character's own turn starts. */
-    ch->request = battle::AiRequest::None;
+    const auto resumeAutoAttack = resumeAutoAttack_;
+    resumeAutoAttack_ = false;
+    const auto currentAiStats = [](const CharInfo &actor) {
+        return battle::resolveAiRuntimeStats(
+            actor.aiEntryStats, actor.aiEquipmentBonusStats, actor.info);
+    };
+    const auto actorAiStats = currentAiStats(*ch);
+    const battle::AiResourceState resourceState{
+        ch->info.hp, ch->info.maxHp, ch->info.hurt, ch->info.poisoned,
+        ch->info.stamina, ch->info.mp, ch->info.maxMp,
+        actorAiStats.medic, actorAiStats.depoison,
+    };
+    const auto actorIndex = static_cast<int>(ch - chars_.data());
+    std::vector<battle::AiAllyState> allies;
+    allies.reserve(chars_.size());
+    for (const auto &ally: chars_) {
+        const auto validPosition = ally.x >= 0 && ally.x < mapWidth_
+            && ally.y >= 0 && ally.y < mapHeight_;
+        const auto allyAiStats = currentAiStats(ally);
+        allies.push_back(battle::AiAllyState{
+            ally.side, ally.id >= 0 && validPosition,
+            ally.info.hp > 0 && validPosition,
+            ally.info.hp, ally.info.maxHp, ally.info.hurt,
+            ally.info.poisoned, allyAiStats.medic, allyAiStats.depoison,
+            ally.actionCode, allyAiStats.attack,
+        });
+    }
+    const auto allyPower = battle::summarizeAllyPower(ch->side, allies);
+    std::int16_t resourceItemId = -1;
+    int resourceActId = 0;
+    std::optional<int> resourceTargetIndex;
+    std::optional<std::pair<int, int>> resourceSupportPosition;
+    std::vector<std::pair<int, int>> resourceMovingPath;
+    auto findResourceItem = [ch, &resourceItemId](mem::PropType type, int delta) {
+        resourceItemId = ch->side == 1
+            ? mem::tryUseNpcItem(&ch->info, type, static_cast<std::int16_t>(delta))
+            : mem::tryUseBagItem(&ch->info, type, static_cast<std::int16_t>(delta));
+        return resourceItemId >= 0;
+    };
+    using Position = std::pair<int, int>;
+    const auto onMap = [this](Position position) {
+        return position.first >= 0 && position.first < mapWidth_
+            && position.second >= 0 && position.second < mapHeight_;
+    };
+    const auto terrainDistance = [this](Position from, Position target) {
+        return battle::terrainPathDistance(
+            mapWidth_, mapHeight_, from, target,
+            [this](int x, int y) {
+                return cellInfo_[y * mapWidth_ + x].blocked;
+            });
+    };
+    const auto canCastAtCurrentPosition = [this, ch, onMap, terrainDistance](
+                                               int targetIndex,
+                                               int attackAreaType,
+                                               int range) {
+        if (targetIndex < 0
+            || targetIndex >= static_cast<int>(chars_.size())
+            || !onMap({ch->x, ch->y})) {
+            return false;
+        }
+        const auto &target = chars_[targetIndex];
+        if (target.info.hp <= 0 || !onMap({target.x, target.y})) {
+            return false;
+        }
+        const Position actorPosition{ch->x, ch->y};
+        const Position targetPosition{target.x, target.y};
+        return battle::canCastFromPosition(
+            attackAreaType, range,
+            terrainDistance(actorPosition, targetPosition),
+            actorPosition, targetPosition);
+    };
+    const auto buildCastRangeCells = [this, onMap](
+                                          Position targetPosition,
+                                          Position actorPosition,
+                                          int range) {
+        std::map<Position, SelectableCell> castRangeCells;
+        if (!onMap(targetPosition) || !onMap(actorPosition)) {
+            return castRangeCells;
+        }
+        battle::getCastRangeArea(
+            mapWidth_, mapHeight_, targetPosition, std::max(0, range),
+            castRangeCells,
+            [this](int x, int y) {
+                return cellInfo_[y * mapWidth_ + x].blocked;
+            },
+            [this, targetPosition, actorPosition](int x, int y) {
+                const Position position{x, y};
+                return position != targetPosition && position != actorPosition
+                    && cellInfo_[y * mapWidth_ + x].charInfo != nullptr;
+            });
+        return castRangeCells;
+    };
+    battle::GameRandom resourceRandom;
+    auto prepareSupport = [this, ch, actorIndex, actorAiStats, &allies, &resourceRandom,
+                           &resourceActId, &resourceTargetIndex,
+                           &resourceSupportPosition, &resourceMovingPath,
+                           &buildCastRangeCells, &terrainDistance]
+                          (battle::AiResourceAction action) {
+        std::optional<int> targetIndex;
+        int ability = 0;
+        if (action == battle::AiResourceAction::MedicSupport) {
+            ability = actorAiStats.medic;
+            resourceActId = -1;
+            targetIndex = battle::chooseMedicSupportTarget(
+                actorIndex, ability, allies, resourceRandom);
+        } else {
+            ability = actorAiStats.depoison;
+            resourceActId = -2;
+            targetIndex = battle::chooseDepoisonSupportTarget(
+                actorIndex, ability, allies, resourceRandom);
+        }
+        if (!targetIndex) { return battle::AiResourceAction::None; }
 
-    auto context = buildAiContext(ch);
-    auto decision = battle::decideAiAction(context, aiRandom());
-    ch->request = decision.request;
-    auto *target = decision.target >= 0 && decision.target < int(chars_.size())
-        ? &chars_[decision.target] : nullptr;
-    auto rest = [this, ch]() { doRest(ch); };
+        resourceTargetIndex = targetIndex;
+        const auto *target = &chars_[*targetIndex];
+        std::map<std::pair<int, int>, SelectableCell> movementCells;
+        getSelectableArea(ch, movementCells, ch->steps, 0);
+        const std::pair<int, int> targetPosition{target->x, target->y};
+        const std::pair<int, int> actorPosition{ch->x, ch->y};
+        const auto castRangeCells = buildCastRangeCells(
+            targetPosition, actorPosition, battle::calcTechniqueRange(ability));
+        const auto currentCanCast = battle::canCastFromPosition(
+            0, battle::calcTechniqueRange(ability),
+            terrainDistance(actorPosition, targetPosition),
+            actorPosition, targetPosition);
+        const auto choice = battle::chooseCastMovementPosition(
+            movementCells, castRangeCells, actorPosition, targetPosition,
+            battle::calcTechniqueRange(ability),
+            battle::CastMovementMode::Approach, currentCanCast,
+            terrainDistance);
+        resourceSupportPosition = choice.position;
+        if (resourceSupportPosition) {
+            auto *cell = &movementCells[*resourceSupportPosition];
+            while (cell) {
+                resourceMovingPath.emplace_back(cell->x, cell->y);
+                cell = cell->moveParent;
+            }
+        }
+        return action;
+    };
+    const auto resourceAction = resumeAutoAttack
+        ? battle::AiResourceAction::None
+        : battle::chooseAiResourceAction(
+            resourceState, resourceRandom,
+             [ch, actorIndex, actorAiStats, &allies, &findResourceItem, &resourceActId,
+             &resourceTargetIndex, &prepareSupport](battle::AiResourceAction action) {
+                switch (action) {
+                case battle::AiResourceAction::RecoverHp:
+                    if (battle::canSelfMedic(
+                            actorAiStats.medic, ch->info.stamina, ch->info.hurt)) {
+                        resourceActId = -1;
+                        return action;
+                    }
+                    if (findResourceItem(mem::PropType::Hp, ch->info.maxHp - ch->info.hp)) {
+                        return action;
+                    }
+                    resourceTargetIndex = battle::chooseMedicProvider(
+                        actorIndex, ch->info.hurt, allies);
+                    return resourceTargetIndex
+                        ? battle::AiResourceAction::RequestMedic
+                        : battle::AiResourceAction::None;
+                case battle::AiResourceAction::SelfDepoison:
+                    if (battle::canSelfDepoison(
+                            actorAiStats.depoison, ch->info.stamina, ch->info.poisoned)) {
+                        resourceActId = -2;
+                        return action;
+                    }
+                    if (findResourceItem(mem::PropType::Poisoned, ch->info.poisoned)) {
+                        return action;
+                    }
+                    resourceTargetIndex = battle::chooseDepoisonProvider(
+                        actorIndex, ch->info.poisoned, allies);
+                    return resourceTargetIndex
+                        ? battle::AiResourceAction::RequestDepoison
+                        : battle::AiResourceAction::None;
+                case battle::AiResourceAction::RecoverMp:
+                    return findResourceItem(mem::PropType::Mp, ch->info.maxMp - ch->info.mp)
+                        ? action : battle::AiResourceAction::None;
+                case battle::AiResourceAction::MedicSupport:
+                case battle::AiResourceAction::DepoisonSupport:
+                    return prepareSupport(action);
+                default:
+                    return battle::AiResourceAction::None;
+                }
+            });
+    const auto supportWithoutPosition =
+        (resourceAction == battle::AiResourceAction::MedicSupport
+         || resourceAction == battle::AiResourceAction::DepoisonSupport)
+        && !resourceSupportPosition;
+    const auto requestSupport =
+        resourceAction == battle::AiResourceAction::RequestMedic
+        || resourceAction == battle::AiResourceAction::RequestDepoison;
+    if (!resumeAutoAttack) {
+        ch->actionCode = battle::originalActionCode(
+            resourceAction, resourceItemId >= 0);
+    }
+    if (requestSupport) {
+        if (resourceTargetIndex) {
+            const auto *provider = &chars_[*resourceTargetIndex];
+            std::map<std::pair<int, int>, SelectableCell> movementCells;
+            getSelectableArea(ch, movementCells, ch->steps, 0);
+            const auto providerPosition = std::make_pair(provider->x, provider->y);
+            const auto approachPosition = battle::chooseApproachPosition(
+                movementCells, providerPosition,
+                [this](std::pair<int, int> from, std::pair<int, int> target) {
+                    return battle::shortestPathDistance(
+                        mapWidth_, mapHeight_, from, target,
+                        [this](int x, int y) {
+                            return cellInfo_[y * mapWidth_ + x].blocked;
+                        },
+                        [this, target](int x, int y) {
+                            return std::make_pair(x, y) != target
+                                && cellInfo_[y * mapWidth_ + x].charInfo != nullptr;
+                        });
+                });
+            if (approachPosition
+                && *approachPosition != std::make_pair<int, int>(ch->x, ch->y)) {
+                auto *cell = &movementCells[*approachPosition];
+                movingPath_.clear();
+                while (cell) {
+                    movingPath_.emplace_back(cell->x, cell->y);
+                    cell = cell->moveParent;
+                }
+                resumeAutoAttack_ = battle::shouldResumeAutoAttack(true);
+                stage_ = Moving;
+                return;
+            }
+        }
+        // No approach movement was scheduled.  The current actor continues
+        // immediately, and the continuation flag must not leak to the next
+        // queued actor.
+        resumeAutoAttack_ = battle::shouldResumeAutoAttack(false);
+    }
+    if (supportWithoutPosition
+        && battle::chooseUnreachableSupportFallback(
+               actorAiStats.attack, allyPower.total, allyPower.count)
+           == battle::AiSupportFallback::Rest) {
+        pendingAutoAction_ = [this, ch]() { doRest(ch); };
+        battle::runPendingAction(pendingAutoAction_);
+        return;
+    }
+    if (resourceAction != battle::AiResourceAction::None
+        && !supportWithoutPosition && !requestSupport) {
+        if (resourceAction == battle::AiResourceAction::Rest) {
+            pendingAutoAction_ = [this, ch]() { doRest(ch); };
+        } else if (resourceItemId >= 0) {
+            pendingAutoAction_ = [this, ch, resourceItemId]() {
+                if (currentActor_ != ch) { return; }
+                if (ch->info.hp <= 0) {
+                    endTurn(ch);
+                    return;
+                }
+                std::map<mem::PropType, std::int16_t> changes;
+                const auto usedItem = ch->side == 1
+                    ? mem::useNpcItem(&ch->info, resourceItemId, changes)
+                    : mem::useItem(&ch->info, resourceItemId, changes);
+                if (!usedItem) {
+                    doRest(ch);
+                    return;
+                }
+                stage_ = PoppingUp;
+                auto *msgBox = ItemView::popupUseResult(this, resourceItemId, changes);
+                msgBox->setCloseHandler([this, ch] {
+                    if (currentActor_ != ch) { return; }
+                    endTurn(ch);
+                });
+            };
+        } else {
+            auto *target = resourceTargetIndex
+                ? &chars_[*resourceTargetIndex] : ch;
+            const auto targetIndex = resourceTargetIndex.value_or(-1);
+            const auto resourceRange = (resourceAction
+                == battle::AiResourceAction::MedicSupport)
+                ? battle::calcTechniqueRange(actorAiStats.medic)
+                : battle::calcTechniqueRange(actorAiStats.depoison);
+            const auto castCheck = canCastAtCurrentPosition;
+            pendingAutoAction_ = [this, ch, target, targetIndex,
+                                  resourceActId, resourceAction,
+                                  resourceRange, castCheck, allyPower,
+                                  actorAiStats]() {
+                if (currentActor_ != ch) { return; }
+                if (ch->info.hp <= 0 || target->info.hp <= 0
+                    || target->x < 0 || target->x >= mapWidth_
+                    || target->y < 0 || target->y >= mapHeight_) {
+                    endTurn(ch);
+                    return;
+                }
+                if ((resourceAction == battle::AiResourceAction::MedicSupport
+                     || resourceAction == battle::AiResourceAction::DepoisonSupport)
+                    && !castCheck(targetIndex, 0, resourceRange)) {
+                    if (battle::chooseUnreachableSupportFallback(
+                            actorAiStats.attack, allyPower.total, allyPower.count)
+                        == battle::AiSupportFallback::Rest) {
+                        doRest(ch);
+                    } else {
+                        /* Keep action code 4/5 while the actor falls back to
+                         * the ordinary random-skill path on the next frame. */
+                        resumeAutoAttack_ = true;
+                    }
+                    return;
+                }
+                actIndex_ = -1;
+                actId_ = resourceActId;
+                actLevel_ = 0;
+                attackTimesLeft_ = 1;
+                cursorX_ = target->x;
+                cursorY_ = target->y;
+                startActAction();
+            };
+        }
+        if (resourceItemId >= 0) {
+            std::map<std::pair<int, int>, SelectableCell> movementCells;
+            getSelectableArea(ch, movementCells, ch->steps, 0);
+            std::vector<std::pair<int, int>> enemyPositions;
+            for (const auto &candidate: chars_) {
+                if (candidate.id >= 0 && candidate.side != ch->side
+                    && candidate.x >= 0 && candidate.x < mapWidth_
+                    && candidate.y >= 0 && candidate.y < mapHeight_) {
+                    enemyPositions.emplace_back(candidate.x, candidate.y);
+                }
+            }
+            const auto retreatPosition = battle::chooseRetreatPosition(
+                movementCells, ch->steps, enemyPositions);
+            if (retreatPosition
+                && *retreatPosition != std::make_pair<int, int>(ch->x, ch->y)) {
+                movingPath_.clear();
+                auto *cell = &movementCells[*retreatPosition];
+                while (cell) {
+                    movingPath_.emplace_back(cell->x, cell->y);
+                    cell = cell->moveParent;
+                }
+                stage_ = Moving;
+                return;
+            }
+        }
+        if (resourceSupportPosition
+            && (*resourceSupportPosition != std::make_pair<int, int>(ch->x, ch->y))) {
+            movingPath_ = std::move(resourceMovingPath);
+            stage_ = Moving;
+            return;
+        }
+        battle::runPendingAction(pendingAutoAction_);
+        return;
+    }
+    std::vector<battle::AiStrategyCharacter> strategyCharacters;
+    strategyCharacters.reserve(chars_.size());
+    for (const auto &candidate: chars_) {
+        const auto validPosition = candidate.x >= 0 && candidate.x < mapWidth_
+            && candidate.y >= 0 && candidate.y < mapHeight_;
+        const auto candidateAiStats = currentAiStats(candidate);
+        strategyCharacters.push_back(battle::AiStrategyCharacter{
+            candidate.side, candidate.id >= 0 && validPosition,
+            candidate.info.hp > 0 && validPosition,
+            candidate.x, candidate.y, candidate.info.hp, candidate.info.maxHp,
+            candidateAiStats.attack, candidateAiStats.medic,
+            candidate.info.poisoned, candidateAiStats.depoison,
+            candidateAiStats.antipoison, candidateAiStats.poison,
+        });
+    }
+    battle::AiStrategyActor strategyActor;
+    strategyActor.side = ch->side;
+    strategyActor.hp = ch->info.hp;
+    strategyActor.attack = actorAiStats.attack;
+    strategyActor.stamina = ch->info.stamina;
+    strategyActor.mp = ch->info.mp;
+    strategyActor.medic = actorAiStats.medic;
+    strategyActor.poison = actorAiStats.poison;
+    strategyActor.depoison = actorAiStats.depoison;
+    strategyActor.throwing = actorAiStats.throwing;
+    strategyActor.integrity = actorAiStats.integrity;
+    strategyActor.potential = actorAiStats.potential;
 
-    switch (decision.action) {
-    case battle::AiAction::Rest:
-        pendingAutoAction_ = rest;
-        runPendingAutoAction();
-        return;
-    case battle::AiAction::Flee:
-        pendingAutoAction_ = rest;
-        if (!moveAwayFromEnemies(ch)) { runPendingAutoAction(); }
-        return;
-    case battle::AiAction::UseItem: {
-        auto itemId = std::int16_t(decision.itemSlot);
-        pendingAutoAction_ = [this, ch, itemId]() { autoUseItem(ch, itemId); };
-        if (!moveAwayFromEnemies(ch)) { runPendingAutoAction(); }
-        return;
-    }
-    case battle::AiAction::Medic:
-        if (autoSupport(ch, target, -1)) { return; }
-        break;
-    case battle::AiAction::Depoison:
-        if (autoSupport(ch, target, -2)) { return; }
-        break;
-    case battle::AiAction::Poison: {
-        int index = battle::pickAiPoisonTarget(context, aiRandom());
-        auto *victim = index >= 0 && index < int(chars_.size()) ? &chars_[index] : nullptr;
-        if (autoSupport(ch, victim, -3)) { return; }
-        break;
-    }
-    case battle::AiAction::Throw: {
-        int index = battle::pickAiTarget(context, aiRandom());
-        auto *victim = index >= 0 && index < int(chars_.size()) ? &chars_[index] : nullptr;
-        if (autoThrow(ch, victim, std::int16_t(decision.itemSlot))) { return; }
-        break;
-    }
-    case battle::AiAction::Attack:
-        break;
+    std::vector<battle::AiSkillOption> strategySkills;
+    strategySkills.reserve(data::LearnSkillCount);
+    for (int i = 0; i < data::LearnSkillCount; ++i) {
+        const auto skillId = ch->info.skillId[i];
+        if (skillId <= 0) { continue; }
+        const auto *skill = mem::gSaveData.skillInfo[skillId];
+        if (!skill) { continue; }
+        strategySkills.push_back(battle::AiSkillOption{
+            i, skillId, skill->reqMp,
+        });
     }
 
+    std::vector<battle::AiThrowingOption> throwingItems;
+    if (ch->side != 0) {
+        for (int i = 0; i < data::CarryItemCount; ++i) {
+            const auto itemId = ch->info.item[i];
+            if (itemId < 0 || ch->info.itemCount[i] <= 0) { continue; }
+            const auto *item = mem::gSaveData.itemInfo[itemId];
+            if (!item) { continue; }
+            throwingItems.push_back(battle::AiThrowingOption{
+                i, itemId, item->addHp, item->addPoisoned, item->itemType,
+            });
+        }
+    } else {
+        int bagIndex = 0;
+        for (const auto &[itemId, count]: mem::gBag.orderedItems()) {
+            if (itemId < 0 || count <= 0) { continue; }
+            const auto *item = mem::gSaveData.itemInfo[itemId];
+            if (!item) { continue; }
+            throwingItems.push_back(battle::AiThrowingOption{
+                bagIndex++, itemId, item->addHp, item->addPoisoned, item->itemType,
+            });
+        }
+    }
+
+    const auto pathDistance = [this, ch, &strategyCharacters](int targetIndex) {
+        if (targetIndex < 0
+            || targetIndex >= static_cast<int>(strategyCharacters.size())) {
+            return -1;
+        }
+        const auto &target = strategyCharacters[targetIndex];
+        if (!target.valid || !target.alive) { return -1; }
+        const std::pair<int, int> targetPosition{target.x, target.y};
+        return battle::terrainPathDistance(
+            mapWidth_, mapHeight_, {ch->x, ch->y}, targetPosition,
+            [this](int x, int y) {
+                return cellInfo_[y * mapWidth_ + x].blocked;
+            });
+    };
+
+    auto runAtPosition = [this, ch](
+                             const std::map<std::pair<int, int>, SelectableCell> &cells,
+                             const std::pair<int, int> &position,
+                             std::function<void()> action) {
+        pendingAutoAction_ = [this, ch, action = std::move(action)]() mutable {
+            if (currentActor_ != ch) { return; }
+            if (ch->info.hp <= 0) {
+                endTurn(ch);
+                return;
+            }
+            action();
+        };
+        if (position != std::make_pair<int, int>(ch->x, ch->y)) {
+            const auto found = cells.find(position);
+            if (found == cells.end()) {
+                pendingAutoAction_ = nullptr;
+                if (currentActor_ == ch) { endTurn(ch); }
+                return false;
+            }
+            movingPath_.clear();
+            auto *cell = &found->second;
+            while (cell) {
+                movingPath_.emplace_back(cell->x, cell->y);
+                cell = cell->moveParent;
+            }
+            stage_ = Moving;
+            return true;
+        }
+        battle::runPendingAction(pendingAutoAction_);
+        return true;
+    };
+
+    struct CastPositionPlan {
+        std::map<Position, SelectableCell> movementCells;
+        std::optional<Position> position;
+        bool expectedInRange = false;
+    };
+    auto chooseCastPosition = [this, ch, buildCastRangeCells,
+                               canCastAtCurrentPosition, terrainDistance](
+                                  int targetIndex, int range,
+                                  int attackAreaType,
+                                  battle::CastMovementMode mode) {
+        CastPositionPlan plan;
+        getSelectableArea(ch, plan.movementCells, ch->steps, 0);
+        if (targetIndex < 0
+            || targetIndex >= static_cast<int>(chars_.size())) {
+            return plan;
+        }
+        const auto &target = chars_[targetIndex];
+        const Position targetPosition{target.x, target.y};
+        const Position actorPosition{ch->x, ch->y};
+        const auto castRangeCells = buildCastRangeCells(
+            targetPosition, actorPosition, range);
+        const auto choice = battle::chooseCastMovementPosition(
+            plan.movementCells, castRangeCells, actorPosition, targetPosition,
+            range, mode,
+            canCastAtCurrentPosition(targetIndex, attackAreaType, range),
+            terrainDistance);
+        plan.position = choice.position;
+        plan.expectedInRange = choice.expectedInRange;
+        return plan;
+    };
+
+    const auto forceSkill = resumeAutoAttack || requestSupport || supportWithoutPosition;
+    bool preserveSupportFallback = false;
+    if (!forceSkill && resourceAction == battle::AiResourceAction::None
+        && battle::shouldRetreatForHealth(resourceState, resourceRandom)) {
+        std::map<std::pair<int, int>, SelectableCell> movementCells;
+        getSelectableArea(ch, movementCells, ch->steps, 0);
+        std::vector<std::pair<int, int>> enemyPositions;
+        for (const auto &candidate: chars_) {
+            if (candidate.id >= 0 && candidate.side != ch->side
+                && candidate.x >= 0 && candidate.x < mapWidth_
+                && candidate.y >= 0 && candidate.y < mapHeight_) {
+                enemyPositions.emplace_back(candidate.x, candidate.y);
+            }
+        }
+        const auto retreatPosition = battle::chooseRetreatPosition(
+            movementCells, ch->steps, enemyPositions);
+        if (retreatPosition) {
+            runAtPosition(movementCells, *retreatPosition,
+                          [this]() { doRest(); });
+        } else {
+            doRest();
+        }
+        return;
+    }
+
+    auto followup = forceSkill
+        ? battle::AiFollowupDecision{battle::AiFollowupAction::Skill, -1, -1}
+        : battle::chooseAiFollowupAction(
+            actorIndex, strategyActor, strategyCharacters,
+            throwingItems, strategySkills, resourceRandom);
+
+    if (followup.action == battle::AiFollowupAction::Rest) {
+        ch->actionCode = 7;
+        doRest();
+        return;
+    }
+
+    if (followup.action == battle::AiFollowupAction::MedicSupport
+        || followup.action == battle::AiFollowupAction::DepoisonSupport) {
+        const auto medic = followup.action == battle::AiFollowupAction::MedicSupport;
+        const auto range = battle::calcTechniqueRange(
+            medic ? actorAiStats.medic : actorAiStats.depoison);
+        ch->actionCode = medic ? 5 : 4;
+        auto plan = chooseCastPosition(
+            followup.targetIndex, range, 0,
+            battle::CastMovementMode::Approach);
+        if (plan.position) {
+            const auto targetIndex = followup.targetIndex;
+            const auto castCheck = canCastAtCurrentPosition;
+            auto *target = targetIndex >= 0
+                && targetIndex < static_cast<int>(chars_.size())
+                ? &chars_[targetIndex] : nullptr;
+            runAtPosition(
+                plan.movementCells, *plan.position,
+                [this, ch, target, targetIndex, medic, range, castCheck,
+                 allyPower, actorAiStats]() {
+                    if (!target || target->info.hp <= 0
+                        || !castCheck(targetIndex, 0, range)) {
+                        if (battle::chooseUnreachableSupportFallback(
+                                actorAiStats.attack, allyPower.total, allyPower.count)
+                            == battle::AiSupportFallback::Rest) {
+                            doRest(ch);
+                        } else {
+                            /* Preserve action code 4/5 and let the next
+                             * invocation enter the ordinary skill path. */
+                            resumeAutoAttack_ = true;
+                        }
+                        return;
+                    }
+                    actIndex_ = -1;
+                    actId_ = medic ? -1 : -2;
+                    actLevel_ = 0;
+                    actItemSlot_ = -1;
+                    attackTimesLeft_ = 1;
+                    cursorX_ = target->x;
+                    cursorY_ = target->y;
+                    startActAction();
+                });
+            return;
+        }
+        if (battle::chooseUnreachableSupportFallback(
+                actorAiStats.attack, allyPower.total, allyPower.count)
+            == battle::AiSupportFallback::Rest) {
+            doRest();
+            return;
+        }
+        preserveSupportFallback = true;
+        followup.action = battle::AiFollowupAction::Skill;
+    }
+
+    if (followup.action == battle::AiFollowupAction::Poison) {
+        const auto targetIndex = battle::choosePoisonTarget(
+            actorIndex, strategyActor, strategyCharacters,
+            resourceRandom, pathDistance);
+        if (!targetIndex) {
+            /* Z.DAT:sub_3540E jumps directly to random-skill selection when
+             * no eligible poison target exists. */
+            followup.action = battle::AiFollowupAction::Skill;
+        } else {
+            const auto range = battle::calcTechniqueRange(actorAiStats.poison);
+            ch->actionCode = 3;
+            auto plan = chooseCastPosition(
+                *targetIndex, range, 0,
+                ch->steps > 0 ? battle::CastMovementMode::Reposition
+                              : battle::CastMovementMode::Approach);
+            if (plan.position) {
+                const auto selectedTargetIndex = *targetIndex;
+                const auto castCheck = canCastAtCurrentPosition;
+                auto *target = &chars_[selectedTargetIndex];
+                runAtPosition(
+                    plan.movementCells, *plan.position,
+                    [this, ch, target, selectedTargetIndex, range, castCheck,
+                     allyPower, actorAiStats]() {
+                        if (!target || target->info.hp <= 0
+                            || target->side == ch->side
+                            || !castCheck(selectedTargetIndex, 0, range)) {
+                            /* sub_3540E uses the same team-power split when
+                             * repositioning still cannot reach the target. */
+                            if (battle::chooseUnreachableSupportFallback(
+                                    actorAiStats.attack, allyPower.total,
+                                    allyPower.count)
+                                == battle::AiSupportFallback::Rest) {
+                                doRest(ch);
+                            } else {
+                                resumeAutoAttack_ = true;
+                            }
+                            return;
+                        }
+                        actIndex_ = -1;
+                        actId_ = -3;
+                        actLevel_ = 0;
+                        actItemSlot_ = -1;
+                        attackTimesLeft_ = 1;
+                        cursorX_ = target->x;
+                        cursorY_ = target->y;
+                        startActAction();
+                    });
+                return;
+            }
+            if (battle::chooseUnreachableSupportFallback(
+                    actorAiStats.attack, allyPower.total, allyPower.count)
+                == battle::AiSupportFallback::Rest) {
+                doRest();
+                return;
+            }
+            followup.action = battle::AiFollowupAction::Skill;
+        }
+    }
+
+    if (followup.action == battle::AiFollowupAction::Throw) {
+        const auto targetIndex = battle::chooseAiTarget(
+            actorIndex, strategyActor, strategyCharacters,
+            resourceRandom, pathDistance);
+        const auto item = std::find_if(
+            throwingItems.begin(), throwingItems.end(),
+            [&followup](const battle::AiThrowingOption &candidate) {
+                return candidate.selectionIndex == followup.selectionIndex;
+            });
+        if (targetIndex && item != throwingItems.end()) {
+            const auto range = battle::calcTechniqueRange(actorAiStats.throwing);
+            ch->actionCode = 10;
+            auto plan = chooseCastPosition(
+                *targetIndex, range, 0,
+                battle::CastMovementMode::Approach);
+            if (plan.position) {
+                const auto selectedTargetIndex = *targetIndex;
+                const auto castCheck = canCastAtCurrentPosition;
+                auto *target = &chars_[selectedTargetIndex];
+                const auto itemId = item->itemId;
+                const auto itemSlot = ch->side != 0 ? item->selectionIndex : -1;
+                runAtPosition(
+                    plan.movementCells, *plan.position,
+                    [this, ch, target, selectedTargetIndex, range, castCheck,
+                     itemId, itemSlot]() {
+                        if (!target || target->info.hp <= 0
+                            || target->side == ch->side
+                            || !castCheck(selectedTargetIndex, 0, range)) {
+                            /* sub_3582B falls through to random skills after
+                             * a failed post-move throw check. */
+                            resumeAutoAttack_ = true;
+                            return;
+                        }
+                        actIndex_ = itemId;
+                        actId_ = -4;
+                        actLevel_ = 0;
+                        actItemSlot_ = itemSlot;
+                        attackTimesLeft_ = 1;
+                        cursorX_ = target->x;
+                        cursorY_ = target->y;
+                        startActAction();
+                    });
+                return;
+            }
+        }
+        followup.action = battle::AiFollowupAction::Skill;
+    }
+
+    const auto skillSlot = battle::chooseOriginalSkillSlot(
+        strategySkills, resourceRandom);
+    if (!skillSlot || *skillSlot < 0 || *skillSlot >= data::LearnSkillCount) {
+        doRest();
+        return;
+    }
+    const auto skillId = ch->info.skillId[*skillSlot];
+    const auto *skill = skillId > 0 ? mem::gSaveData.skillInfo[skillId] : nullptr;
+    if (!skill) {
+        doRest();
+        return;
+    }
+    const auto storedSkillLevel = ch->info.skillLevel[*skillSlot];
+    const auto skillLevels = battle::resolveAiSkillLevels(
+        skill->reqMp, storedSkillLevel, ch->info.mp);
     /*
-     * Z.DAT:0x36366: when the support action could not be carried out, the actor
-     * attacks if it is worth more than the average of its own side and rests
-     * otherwise.
+     * Z.DAT:sub_34C47 chooses the candidate position from the stored
+     * proficiency level.  MP-based level forcing happens later, when the
+     * selected action is executed (sub_37734).  Resolving it here changes
+     * target selection for low-MP actors because selRange[level] can differ.
      */
-    int index = battle::pickAiTarget(context, aiRandom());
-    auto *victim = index >= 0 && index < int(chars_.size()) ? &chars_[index] : nullptr;
-    int ownTotal = 0, ownCount = 0;
-    for (auto &ci: chars_) {
-        if (ci.side != ch->side) { continue; }
-        ownTotal += ci.info.attack + ci.info.hp;
-        ++ownCount;
+    const auto skillRange = skill->selRange[skillLevels.planning];
+
+    struct SkillPlan {
+        std::map<Position, SelectableCell> movementCells;
+        std::optional<Position> position;
+        bool expectedInRange = false;
+    };
+    auto planSkillPosition = [this, ch, skill, skillRange,
+                              buildCastRangeCells, canCastAtCurrentPosition,
+                              terrainDistance](int targetIndex) {
+        SkillPlan plan;
+        getSelectableArea(ch, plan.movementCells, ch->steps, 0);
+        if (targetIndex < 0
+            || targetIndex >= static_cast<int>(chars_.size())) {
+            return plan;
+        }
+        const auto &target = chars_[targetIndex];
+        const Position targetPosition{target.x, target.y};
+        const Position actorPosition{ch->x, ch->y};
+        const auto castRangeCells = buildCastRangeCells(
+            targetPosition, actorPosition, skillRange);
+        const auto mode = (skill->attackAreaType == 1
+                           || skill->attackAreaType == 2)
+            ? battle::CastMovementMode::Aligned
+            : battle::CastMovementMode::Approach;
+        const auto choice = battle::chooseCastMovementPosition(
+            plan.movementCells, castRangeCells, actorPosition, targetPosition,
+            skillRange, mode,
+            canCastAtCurrentPosition(
+                targetIndex, skill->attackAreaType, skillRange),
+            terrainDistance);
+        plan.position = choice.position;
+        plan.expectedInRange = choice.expectedInRange;
+        return plan;
+    };
+
+    const auto nearestCurrentTarget = [this, ch, actorIndex, onMap,
+                                       terrainDistance]() {
+        std::optional<int> selected;
+        auto selectedDistance = std::numeric_limits<int>::max();
+        for (std::size_t i = 0; i < chars_.size(); ++i) {
+            const auto &candidate = chars_[i];
+            if (static_cast<int>(i) == actorIndex
+                || candidate.id < 0 || candidate.side == ch->side
+                || candidate.info.hp <= 0
+                || !onMap({candidate.x, candidate.y})) {
+                continue;
+            }
+            const auto distance = terrainDistance(
+                {ch->x, ch->y}, {candidate.x, candidate.y});
+            if (distance < 0 || distance >= selectedDistance) { continue; }
+            selected = static_cast<int>(i);
+            selectedDistance = distance;
+        }
+        return selected;
+    };
+
+    const int selectedSkillSlot = *skillSlot;
+    const auto castSkillAtCurrentPosition = [this, ch, skill, skillId,
+                                              selectedSkillSlot,
+                                              storedSkillLevel](int targetIndex) {
+        if (targetIndex < 0 || targetIndex >= static_cast<int>(chars_.size())) {
+            doRest(ch);
+            return;
+        }
+        const auto &target = chars_[targetIndex];
+        const auto directional = skill->attackAreaType == 1;
+        if (directional) {
+            const auto dx = target.x - ch->x;
+            const auto dy = target.y - ch->y;
+            if (dy < 0) ch->direction = DirUp;
+            else if (dx > 0) ch->direction = DirRight;
+            else if (dx < 0) ch->direction = DirLeft;
+            else ch->direction = DirDown;
+            cursorX_ = ch->x;
+            cursorY_ = ch->y;
+        } else {
+            cursorX_ = target.x;
+            cursorY_ = target.y;
+        }
+        actIndex_ = selectedSkillSlot;
+        actId_ = skillId;
+        /* Resolve the actual cast level only after movement is complete. */
+        actLevel_ = battle::resolveAiSkillLevels(
+            skill->reqMp, storedSkillLevel, ch->info.mp).execution;
+        actItemSlot_ = -1;
+        if (actLevel_ < 0) {
+            doRest(ch);
+            return;
+        }
+        attackTimesLeft_ = battle::attackCount(ch->info.doubleAttack);
+        startActAction();
+    };
+
+    auto targetIndex = battle::chooseAiTarget(
+        actorIndex, strategyActor, strategyCharacters,
+        resourceRandom, pathDistance);
+    SkillPlan skillPlan;
+    if (targetIndex) {
+        skillPlan = planSkillPosition(*targetIndex);
     }
-    const bool worthAttacking = decision.action == battle::AiAction::Attack
-        || ownCount == 0 || ch->info.attack * 2 > ownTotal * 2 / ownCount;
-    if (worthAttacking && autoAttack(ch, victim)) { return; }
-    pendingAutoAction_ = rest;
-    if (!moveTowards(ch, victim)) { runPendingAutoAction(); }
+    ch->actionCode = battle::actionCodeForSkill(
+        ch->actionCode, forceSkill || preserveSupportFallback);
+    if (skillPlan.position) {
+        const auto selectedTargetIndex = *targetIndex;
+        const auto castCheck = canCastAtCurrentPosition;
+        const auto nearestTarget = nearestCurrentTarget;
+        runAtPosition(
+            skillPlan.movementCells, *skillPlan.position,
+            [this, ch, selectedTargetIndex, skillRange, skill,
+             castCheck, nearestTarget, castSkillAtCurrentPosition]() {
+                if (castCheck(selectedTargetIndex,
+                              skill->attackAreaType, skillRange)) {
+                    castSkillAtCurrentPosition(selectedTargetIndex);
+                    return;
+                }
+                const auto fallback = nearestTarget();
+                if (fallback && castCheck(
+                        *fallback, skill->attackAreaType, skillRange)) {
+                    castSkillAtCurrentPosition(*fallback);
+                } else {
+                    doRest(ch);
+                }
+            });
+        return;
+    }
+
+    const auto fallbackTarget = nearestCurrentTarget();
+    if (fallbackTarget && canCastAtCurrentPosition(
+            *fallbackTarget, skill->attackAreaType, skillRange)) {
+        castSkillAtCurrentPosition(*fallbackTarget);
+        return;
+    }
+    doRest();
 }
 
 void Warfield::recalcKnowledge() {
     knowledge_[0] = knowledge_[1] = 0;
     for (auto &ci: chars_) {
-        /* Z.DAT:0x3919E compares with `jle`, so the barrier is exclusive. */
         if (ci.info.hp > 0 && ci.info.knowledge > data::KnowledgeBarrier) {
             knowledge_[ci.side] += ci.info.knowledge;
         }
@@ -1067,11 +1673,6 @@ void Warfield::playerMenu() {
     n.reserve(10);
     menuIndices.reserve(10);
     auto &info = ch->info;
-    /*
-     * Menu gates from Z.DAT:0x32EA4-0x32FE7. All stamina comparisons use `jle`,
-     * so the thresholds are exclusive, and the three support skills need a
-     * proficiency of at least 20.
-     */
     if (ch->steps > 0 && info.stamina > 5) {
         n.emplace_back(GETTEXT(82)); menuIndices.emplace_back(0);
     }
@@ -1178,28 +1779,30 @@ void Warfield::playerMenu() {
                     actIndex_ = itemId;
                     actId_ = -4;
                     actLevel_ = 0;
+                    actItemSlot_ = -1;
                     attackTimesLeft_ = 1;
-                    /* Z.DAT:0x3A33F adds one to the derived range. */
-                    maskSelectableArea(0, ch->info.throwing / 15 + 1);
+                    maskSelectableArea(0, battle::calcTechniqueRange(ch->info.throwing));
                     stage_ = AttackSelecting;
                     drawDirty_ = true;
                 }
             });
-            iv->setCloseHandler([this]() { playerMenu(); });
+            iv->setCloseHandler([this, ch]() {
+                if (currentActor_ == ch) { playerMenu(); }
+            });
             delete menu;
             return;
         }
-        case 6: {
-            auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
-            if (ite != charQueue_.end()) {
+        case 6:
+            if (currentActor_ != ch) { return; }
+            if (const auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
+                ite != charQueue_.end()) {
                 charQueue_.erase(ite);
-                charQueue_.insert(charQueue_.begin(), ch);
             }
+            charQueue_.insert(charQueue_.begin(), ch);
             currentActor_ = nullptr;
             pendingAutoAction_ = nullptr;
             stage_ = Idle;
             break;
-        }
         case 7: {
             std::vector<std::int16_t> idlist;
             for (auto &c: chars_) {
@@ -1226,7 +1829,7 @@ void Warfield::playerMenu() {
             return;
         }
         case 8:
-            doRest(ch);
+            doRest();
             break;
         case 9:
             autoControl_ = true;
@@ -1263,157 +1866,15 @@ void Warfield::unmaskArea() {
 }
 
 void Warfield::getSelectableArea(CharInfo *ch, std::map<std::pair<int, int>, SelectableCell> &selCells, int steps, int ranges, bool zoecheck) {
-    struct CompareSelCells {
-        bool operator()(const SelectableCell *a, const SelectableCell *b) {
-            return a->moves > b->moves;
-        }
-    };
-    auto myside = ch->side;
-    int w = mapWidth_, h = mapHeight_;
-    std::vector<SelectableCell*> sortedMovable;
-
-    selCells.clear();
-    auto &start = selCells[std::make_pair(ch->x, ch->y)];
-    start.x = ch->x;
-    start.y = ch->y;
-    start.moves = 0;
-    start.ranges = 0;
-    start.moveParent = nullptr;
-    start.rangeParent = nullptr;
-    if (steps > 0) {
-        sortedMovable.push_back(&start);
-    }
-    while (!sortedMovable.empty()) {
-        std::pop_heap(sortedMovable.begin(), sortedMovable.end(), CompareSelCells());
-        auto *mc = sortedMovable.back();
-        sortedMovable.erase(sortedMovable.end() - 1);
-        bool zoeblocked = false;
-        int nx[4], ny[4], ncnt = 0;
-        for (int i = 0; i < 4; ++i) {
-            int tx, ty;
-            switch (i) {
-            case 0:
-                if (mc->y <= 0) { continue; }
-                tx = mc->x;
-                ty = mc->y - 1;
-                break;
-            case 1:
-                if (mc->x + 1 >= w) { continue; }
-                tx = mc->x + 1;
-                ty = mc->y;
-                break;
-            case 2:
-                if (mc->x <= 0) { continue; }
-                tx = mc->x - 1;
-                ty = mc->y;
-                break;
-            default:
-                if (mc->y + 1 >= h) { continue; }
-                tx = mc->x;
-                ty = mc->y + 1;
-                break;
-            }
-            if (zoecheck) {
-                auto &ci = cellInfo_[ty * w + tx];
-                if (ci.charInfo && ci.charInfo->side == myside) {
-                    zoeblocked = true;
-                    break;
-                }
-            }
-            nx[ncnt] = tx;
-            ny[ncnt] = ty;
-            ++ncnt;
-        }
-        if (zoeblocked) { continue; }
-        for (int i = 0; i < ncnt; ++i) {
-            int tx = nx[i], ty = ny[i];
-            auto &ci = cellInfo_[ty * w + tx];
-            if (ci.charInfo || ci.blocked) {
-                continue;
-            }
-            auto currMove = mc->moves + 1;
-            auto ite = selCells.find(std::make_pair(tx, ty));
-            if (ite == selCells.end()) {
-                auto &mcell = selCells[std::make_pair(tx, ty)];
-                mcell.x = tx;
-                mcell.y = ty;
-                mcell.moves = currMove;
-                mcell.moveParent = mc;
-                if (currMove < steps) {
-                    sortedMovable.push_back(&mcell);
-                    std::push_heap(sortedMovable.begin(), sortedMovable.end(), CompareSelCells());
-                }
-            }
-        }
-    }
-    if (ranges) {
-        struct CompareRangeCells {
-            bool operator()(const SelectableCell *a, const SelectableCell *b) {
-                return a->ranges > b->ranges;
-            }
-        };
-        std::vector<SelectableCell*> sortedAttackable;
-        sortedAttackable.reserve(selCells.size());
-        for (auto &p: selCells) {
-            sortedAttackable.push_back(&p.second);
-        }
-        std::make_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
-        while (!sortedAttackable.empty()) {
-            std::pop_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
-            auto *mc = sortedAttackable.back();
-            sortedAttackable.erase(sortedAttackable.end() - 1);
-            int nx[4], ny[4], ncnt = 0;
-            for (int i = 0; i < 4; ++i) {
-                int tx, ty;
-                switch (i) {
-                case 0:
-                    if (mc->x <= 0) { continue; }
-                    tx = mc->x - 1;
-                    ty = mc->y;
-                    break;
-                case 1:
-                    if (mc->y <= 0) { continue; }
-                    tx = mc->x;
-                    ty = mc->y - 1;
-                    break;
-                case 2:
-                    if (mc->x + 1 >= w) { continue; }
-                    tx = mc->x + 1;
-                    ty = mc->y;
-                    break;
-                default:
-                    if (mc->y + 1 >= h) { continue; }
-                    tx = mc->x;
-                    ty = mc->y + 1;
-                    break;
-                }
-                nx[ncnt] = tx;
-                ny[ncnt] = ty;
-                ++ncnt;
-            }
-            for (int i = 0; i < ncnt; ++i) {
-                int tx = nx[i], ty = ny[i];
-                auto &ci = cellInfo_[ty * w + tx];
-                if (ci.blocked) {
-                    continue;
-                }
-                auto currRange = mc->ranges + 1;
-                auto ite = selCells.find(std::make_pair(tx, ty));
-                if (ite == selCells.end()) {
-                    auto &mcell = selCells[std::make_pair(tx, ty)];
-                    mcell.x = tx;
-                    mcell.y = ty;
-                    mcell.moves = -1;
-                    mcell.ranges = currRange;
-                    mcell.rangeParent = mc;
-                    if (currRange < ranges) {
-                        sortedAttackable.push_back(&mcell);
-                        std::push_heap(sortedAttackable.begin(), sortedAttackable.end(), CompareRangeCells());
-                    }
-                }
-            }
-        }
-    }
+    battle::getSelectableArea(
+        mapWidth_, mapHeight_, {ch->x, ch->y}, steps, ranges, selCells,
+        [this](int x, int y) { return cellInfo_[y * mapWidth_ + x].blocked; },
+        [this](int x, int y) { return cellInfo_[y * mapWidth_ + x].charInfo != nullptr; },
+        [this, ch, zoecheck](int x, int y) {
+            if (!zoecheck) { return false; }
+            const auto *other = cellInfo_[y * mapWidth_ + x].charInfo;
+            return other != nullptr && other->side == ch->side;
+        });
 }
 
 class DirectionSelMessageBox: public MessageBox {
@@ -1459,25 +1920,22 @@ private:
 bool Warfield::tryUseSkill(int index) {
     auto *ch = currentActor_;
     if (!ch) { return false; }
+    clearActionState(false);
     if (index < 0) {
         actIndex_ = -1;
         actId_ = index;
         actLevel_ = 0;
         attackTimesLeft_ = 1;
-        /*
-         * Z.DAT:0x397A7, 0x39B50 and 0x39EB9 all derive the range as
-         * `proficiency / 15 + 1`.
-         */
         int steps;
         switch (index) {
         case -3:
-            steps = ch->info.poison / 15 + 1;
+            steps = battle::calcTechniqueRange(ch->info.poison);
             break;
         case -2:
-            steps = ch->info.depoison / 15 + 1;
+            steps = battle::calcTechniqueRange(ch->info.depoison);
             break;
         case -1:
-            steps = ch->info.medic / 15 + 1;
+            steps = battle::calcTechniqueRange(ch->info.medic);
             break;
         default:
             steps = 1;
@@ -1495,13 +1953,14 @@ bool Warfield::tryUseSkill(int index) {
     if (skillLevel < 0) { return false; }
     actIndex_ = index;
     actId_ = ch->info.skillId[index];
-    attackTimesLeft_ = ch->info.doubleAttack ? 2 : 1;
+    attackTimesLeft_ = battle::attackCount(ch->info.doubleAttack);
     actLevel_ = skillLevel;
     switch (skill->attackAreaType) {
     case 1: {
         auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
         msgBox->popup({GETTEXT(92)});
         msgBox->setCloseHandler([this]() {
+            clearActionState(false);
             playerMenu();
         });
         msgBox->setDirectionHandler([this, ch](Map::Direction direction) {
@@ -1526,9 +1985,22 @@ void Warfield::startActAction() {
     auto *ch = currentActor_;
     if (!ch) { stage_ = Idle; return; }
     if (actId_ < 0) {
+        if (cursorX_ < 0 || cursorX_ >= mapWidth_
+            || cursorY_ < 0 || cursorY_ >= mapHeight_) {
+            if (ch->side == 0) {
+                clearActionState(false);
+                playerMenu();
+            }
+            else { endTurn(ch); }
+            return;
+        }
         auto *target = cellInfo_[cursorY_ * mapWidth_ + cursorX_].charInfo;
         if (!target) {
-            playerMenu();
+            if (ch->side == 0) {
+                clearActionState(false);
+                playerMenu();
+            }
+            else { endTurn(ch); }
             return;
         }
         std::int16_t result;
@@ -1552,7 +2024,6 @@ void Warfield::startActAction() {
         case -1:
             effectId_ = data::MedicEffectID;
             popup = target && ch->side == target->side;
-            /* actMedic charges 2 itself (Z.DAT:0x3A28E), the shared tail 2 more. */
             result = popup ? mem::actMedic(&ch->info, &target->info, 2) : 0;
             r = 236; g = 200; b = 40;
             break;
@@ -1563,10 +2034,9 @@ void Warfield::startActAction() {
             bool dead = false;
             result = popup ? mem::actThrow(&ch->info, &target->info, actIndex_, 0, dead) : 0;
             if (popup) {
-                if (ch->side == 1) {
-                    mem::consumeNpcItem(&ch->info, actIndex_);
-                } else {
-                    mem::gBag.remove(actIndex_, 1);
+                if (ch->side == 0) { mem::gBag.remove(actIndex_, 1); }
+                else {
+                    mem::consumeNpcItemAt(&ch->info, actItemSlot_, actIndex_);
                 }
             }
             popup = popup && result != 0;
@@ -1581,14 +2051,8 @@ void Warfield::startActAction() {
             auto txt = fmt::format(L"{:+}", result);
             popupNumbers_.emplace_back(PopupNumber{txt, cursorX_, cursorY_, r, g, b});
         }
-        /*
-         * Z.DAT:0x399FE-0x39A33 is the shared tail of poison, depoison and
-         * medic: exactly one experience point and two stamina, whatever the
-         * result was. Throwing awards nothing (Z.DAT:0x3A83B).
-         */
         if (actId_ >= -3 && actId_ <= -1) {
-            ++ch->exp;
-            ch->info.stamina = std::clamp<std::int16_t>(ch->info.stamina - 2, 0, data::StaminaMax);
+            battle::finishUtilityAction(ch->info, ch->exp);
         }
         stage_ = Acting;
         if (cameraX_ != cursorX_ || cameraY_ != cursorY_) {
@@ -1625,77 +2089,37 @@ void Warfield::startActAction() {
         effectTexIdx_ = -ch->info.frameDelay[skillType];
         fightFrame_ = -ch->info.frameSoundDelay[skillType];
 
-        /*
-         * The original walks a line or cross outwards (Z.DAT:0x389D1 and
-         * Z.DAT:0x37E32 both count up from 1), so the random draws happen in
-         * near-to-far order.
-         */
-        switch (skillInfo->attackAreaType) {
-        case 1: {
-            auto sx = cameraX_, sy = cameraY_;
-            int r = skillInfo->selRange[actLevel_];
-            for (int i = 1; i <= r; ++i) {
-                switch (ch->direction) {
-                case Map::DirUp:
-                    if (sy >= i) { makeDamage(ch, sx, sy - i, i); }
-                    break;
-                case Map::DirRight:
-                    if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy, i); }
-                    break;
-                case Map::DirLeft:
-                    if (sx >= i) { makeDamage(ch, sx - i, sy, i); }
-                    break;
-                case Map::DirDown:
-                    if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i, i); }
-                    break;
-                default:
-                    break;
-                }
-            }
-            break;
+        battle::AttackDirection attackDirection = battle::AttackDirection::Up;
+        switch (ch->direction) {
+        case Map::DirRight: attackDirection = battle::AttackDirection::Right; break;
+        case Map::DirDown: attackDirection = battle::AttackDirection::Down; break;
+        case Map::DirLeft: attackDirection = battle::AttackDirection::Left; break;
+        case Map::DirUp: break;
         }
-        case 2: {
-            auto sx = cameraX_, sy = cameraY_;
-            int r = skillInfo->selRange[actLevel_];
-            /* Z.DAT:0x37E43, 0x37FC5, 0x380C8, 0x381CD: up, down, left, right. */
-            for (int i = 1; i <= r; ++i) {
-                if (sy >= i) { makeDamage(ch, sx, sy - i, i); }
-                if (sy + i < mapHeight_) { makeDamage(ch, sx, sy + i, i); }
-                if (sx >= i) { makeDamage(ch, sx - i, sy, i); }
-                if (sx + i < mapWidth_) { makeDamage(ch, sx + i, sy, i); }
-            }
-            break;
+        const auto attackCells = battle::enumerateAttackCells(
+            mapWidth_, mapHeight_, cameraX_, cameraY_, cursorX_, cursorY_,
+            skillInfo->attackAreaType, skillInfo->selRange[actLevel_],
+            skillInfo->area[actLevel_], attackDirection);
+        for (const auto &cell: attackCells) {
+            makeDamage(ch, cell.x, cell.y, cell.distance);
         }
-        case 3: {
-            auto sx = cursorX_, sy = cursorY_;
-            int r = skillInfo->area[actLevel_];
-            /*
-             * Z.DAT:0x37AAD measures the distance from the actor to each hit
-             * cell, not from the actor to the area centre plus the offset.
-             * The original also scans columns first.
-             */
-            for (int i = -r; i <= r; ++i) {
-                auto rx = sx + i;
-                if (rx < 0 || rx >= mapWidth_) { continue; }
-                for (int j = -r; j <= r; ++j) {
-                    auto ry = sy + j;
-                    if (ry < 0 || ry >= mapHeight_) { continue; }
-                    makeDamage(ch, rx, ry, std::abs(rx - cameraX_) + std::abs(ry - cameraY_));
-                }
-            }
-            break;
-        }
-        default: {
-            int x = cursorX_, y = cursorY_;
-            makeDamage(ch, x, y, std::abs(x - cameraX_) + std::abs(y - cameraY_));
-            break;
-        }
-        }
-        mem::postDamage(&ch->info, actIndex_, actLevel_, attackTimesLeft_ == 1 ? 3 : 0, skillLevelup_);
+        mem::postDamage(&ch->info, actIndex_, actLevel_,
+                        attackTimesLeft_ == 1 ? 3 : 0, skillLevelup_);
         if (skillLevelup_) {
             actLevel_ = std::clamp<std::int16_t>(ch->info.skillLevel[actIndex_] / 100, 0, 9);
         }
     } else {
+        actIndex_ = actId_ = -1;
+        actLevel_ = 0;
+        actItemSlot_ = -1;
+        skillLevelup_ = false;
+        effectId_ = -1;
+        effectTexIdx_ = -1;
+        fightTexIdx_ = -1;
+        fightTexCount_ = 0;
+        fightFrame_ = 0;
+        attackTimesLeft_ = 0;
+        fightTex_ = nullptr;
         endTurn(ch);
     }
 }
@@ -1707,19 +2131,15 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
     std::int16_t dmg, ps, exp;
     bool dead = false;
     bool wasDead = enemyInfo.hp <= 0;
-    /*
-     * The original recomputes both knowledge sums inside the damage routine
-     * relative to the attacker (Z.DAT:0x3919E), so the attacker's own side
-     * always feeds the attack term.
-     */
     if (mem::actDamage(&ch->info, &enemyInfo, knowledge_[ch->side], knowledge_[ch->side ^ 1],
                        distance, actIndex_, actLevel_, dmg, ps, exp, dead)) {
         ch->exp += exp;
         if (!wasDead && dead) {
             recalcKnowledge();
         }
-        const auto *skillInfo = mem::gSaveData.skillInfo[actId_];
-        if (skillInfo && skillInfo->damageType > 0) {
+        auto *ttf = renderer_->ttf();
+        const auto *skillInfo = actId_ > 0 ? mem::gSaveData.skillInfo[actId_] : nullptr;
+        if (skillInfo && battle::isDrainSkill(*skillInfo)) {
             auto txt = fmt::format(L"{:+}", -dmg);
             popupNumbers_.emplace_back(PopupNumber{txt, x, y, 112, 12, 112});
         } else {
@@ -1732,34 +2152,36 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
 void Warfield::doRest(CharInfo *expectedActor) {
     auto *ch = currentActor_;
     if (!ch || (expectedActor && expectedActor != ch)) { return; }
-    /*
-     * Z.DAT:0x3A8CF compares the remaining steps with `speed / 10` instead of
-     * the value the round handed out (`Z.DAT:0x328A7`), which makes the
-     * stationary bonus unreachable for almost every speed. The comparison
-     * itself is a defect, so this build tests the actual movement.
-     */
-    mem::actRest(&ch->info, ch->steps != ch->initialSteps);
+    if (ch->info.hp <= 0) {
+        endTurn(ch);
+        return;
+    }
+    mem::actRest(&ch->info, battle::hasMoved(ch->initialSteps, ch->steps));
     endTurn(ch);
 }
 
 void Warfield::endTurn(CharInfo *expectedActor) {
     auto *ch = currentActor_;
     if (!ch || (expectedActor && expectedActor != ch)) { return; }
-    auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
+    const auto ite = std::find(charQueue_.begin(), charQueue_.end(), ch);
     if (ite != charQueue_.end()) {
         charQueue_.erase(ite);
     }
     currentActor_ = nullptr;
     pendingAutoAction_ = nullptr;
+    movingPath_.clear();
+    resumeAutoAttack_ = false;
+    clearActionState(false);
     for (auto &ci: chars_) {
-        if (ci.info.hp <= 0 && ci.x >= 0 && ci.y >= 0) {
-            if (ci.x < mapWidth_ && ci.y < mapHeight_) {
-                auto &cell = cellInfo_[ci.x + ci.y * mapWidth_];
-                if (cell.charInfo == &ci) { cell.charInfo = nullptr; }
-            }
-            ci.x = ci.y = -1;
-            drawDirty_ = true;
+        if (!battle::shouldClearDeadPosition(ci.info.hp, ci.x, ci.y)) {
+            continue;
         }
+        if (ci.x < mapWidth_ && ci.y < mapHeight_) {
+            auto &cell = cellInfo_[ci.x + ci.y * mapWidth_];
+            if (cell.charInfo == &ci) { cell.charInfo = nullptr; }
+        }
+        ci.x = ci.y = -1;
+        drawDirty_ = true;
     }
     if (checkWarEnd()) { return; }
     stage_ = Idle;
@@ -1786,6 +2208,9 @@ bool Warfield::checkWarEnd() {
 void Warfield::endWar() {
     currentActor_ = nullptr;
     pendingAutoAction_ = nullptr;
+    movingPath_.clear();
+    resumeAutoAttack_ = false;
+    clearActionState(false);
     removeAllChildren();
     fadeNode_ = nullptr;
     fadePostAction_ = nullptr;
@@ -1795,12 +2220,10 @@ void Warfield::endWar() {
         if (ci.side != 0) { continue; }
         auto *charInfo = mem::gSaveData.charInfo[ci.id];
         if (!charInfo) { continue; }
-        /*
-         * Z.DAT:0x3B46A: survivors never leave the field below a fifth of their
-         * maximum, and the fallen get back up at that value with at least ten
-         * stamina.
-         */
-        charInfo->mp = ci.info.mp;
+        charInfo->maxMp = battle::mergeBattleMaxMpGrowth(
+            ci.persistentEntryMaxMp, ci.battleEntryMaxMp, ci.info.maxMp);
+        charInfo->mp = std::clamp<std::int16_t>(
+            ci.info.mp, 0, charInfo->maxMp);
         charInfo->poisoned = ci.info.poisoned;
         charInfo->hurt = ci.info.hurt;
         charInfo->stamina = ci.info.stamina;
@@ -1818,139 +2241,128 @@ void Warfield::endWar() {
         if (ci.info.hp > 0) { alives.push_back(&ci); }
     }
     const auto *info = data::gWarfieldData.info(warId_);
-    auto wexp = info != nullptr ? info->exp : 0;
-    std::vector<std::pair<int, std::wstring>> messages = { {0, GETTEXT(won_ ? 93 : 94) } };
-    /*
-     * Z.DAT:0x3B405 only shares the battlefield bonus among the survivors of a
-     * won fight; the experience earned per hit is credited either way.
-     */
-    if (won_ || getExpOnLose_) {
+    const auto wexp = info != nullptr ? info->exp : 0;
+    std::vector<std::pair<int, std::wstring>> messages = {{0, GETTEXT(won_ ? 93 : 94)}};
+    /* The battlefield bonus is victory-only; the loss flag gates the later
+     * level/training/crafting steps, not this shared bonus. */
+    if (won_ && !alives.empty()) {
         for (auto *ch: alives) {
-            ch->exp += wexp / int(alives.size());
+            ch->exp += wexp / static_cast<int>(alives.size());
         }
     }
-    {
-        for (auto &ci: chars_) {
-            if (ci.side != 0) { continue; }
-            auto *ch = &ci;
-            auto *charInfo = mem::gSaveData.charInfo[ch->id];
-            if (!charInfo) { continue; }
-            /*
-             * Z.DAT:0x3B509 credits the earned experience for everyone before it
-             * checks the outcome: the whole amount feeds the character level and
-             * four fifths feeds both the skill book and the crafting progress,
-             * instead of being split between them.
-             */
-            const int exp = ch->exp;
-            const int exp2 = ch->exp * 8 / 10;
-            charInfo->exp = std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax);
-            charInfo->expForItem = std::uint16_t(
-                std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax));
-            charInfo->expForMakeItem = std::uint16_t(
-                std::clamp<int>(int(charInfo->expForMakeItem) + exp2, 0, data::ExpMax));
-            /* Z.DAT:0x3B5A1 gates the level up, training and crafting steps. */
-            if (!won_ && !getExpOnLose_) { continue; }
-            auto name = GETCHARNAME(ch->id);
-            messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(95), name, ch->exp)));
-            bool canLearn = false, makingItem = false;
-            std::int16_t skillId = 0;
-            int skillLevel = 0;
-            const mem::ItemData *itemInfo = nullptr;
-            if (charInfo->learningItem >= 0) {
-                itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
-                if (itemInfo) {
-                    makingItem = true;
-                    canLearn = true;
-                    skillId = itemInfo->skillId;
-                    if (skillId > 0) {
+    for (auto &ci: chars_) {
+        if (ci.side != 0) { continue; }
+        auto *ch = &ci;
+        auto *charInfo = mem::gSaveData.charInfo[ch->id];
+        if (!charInfo) { continue; }
+        const int exp = ch->exp;
+        const int exp2 = ch->exp * 8 / 10;
+        charInfo->exp = std::uint16_t(
+            std::clamp<int>(int(charInfo->exp) + exp, 0, data::ExpMax));
+        charInfo->expForItem = std::uint16_t(
+            std::clamp<int>(int(charInfo->expForItem) + exp2, 0, data::ExpMax));
+        charInfo->expForMakeItem = std::uint16_t(
+            std::clamp<int>(int(charInfo->expForMakeItem) + exp2, 0, data::ExpMax));
+        if (!won_ && !getExpOnLose_) { continue; }
+
+        const auto name = GETCHARNAME(ch->id);
+        messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(95), name, ch->exp)));
+        bool canLearn = false;
+        bool makingItem = false;
+        std::int16_t skillId = 0;
+        int skillLevel = 0;
+        const mem::ItemData *itemInfo = nullptr;
+        if (charInfo->learningItem >= 0) {
+            itemInfo = mem::gSaveData.itemInfo[charInfo->learningItem];
+            if (itemInfo) {
+                makingItem = true;
+                canLearn = true;
+                skillId = itemInfo->skillId;
+                if (skillId > 0) {
+                    for (int i = 0; i < data::LearnSkillCount; ++i) {
+                        if (charInfo->skillId[i] != skillId) { continue; }
+                        skillLevel = std::clamp<std::int16_t>(
+                            charInfo->skillLevel[i] / 100, 0, data::SkillLevelMaxDiv);
+                        if (skillLevel >= data::SkillLevelMaxDiv) { canLearn = false; }
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (charInfo->level < data::LevelMax) {
+            int gained = 0;
+            std::uint16_t expReq;
+            while (charInfo->level + gained < data::LevelMax
+                   && (expReq = mem::getExpForLevelUp(charInfo->level + gained)) > 0
+                   && charInfo->exp >= expReq) {
+                ++gained;
+            }
+            if (gained > 0) {
+                mem::actLevelup(charInfo, gained);
+                messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(96), name)));
+            }
+        }
+
+        if (canLearn && itemInfo) {
+            const auto expReq = mem::getExpForSkillLearn(
+                charInfo->learningItem, skillLevel, charInfo->potential);
+            if (expReq > 0 && charInfo->expForItem >= expReq) {
+                mem::applyBookChanges(charInfo, itemInfo);
+                charInfo->expForItem = 0;
+                messages.emplace_back(std::make_pair(0, fmt::format(
+                    GETTEXT(97), name, GETITEMNAME(charInfo->learningItem))));
+                if (skillId > 0) {
+                    bool known = false;
+                    for (int i = 0; i < data::LearnSkillCount; ++i) {
+                        if (charInfo->skillId[i] != skillId) { continue; }
+                        known = true;
+                        if (charInfo->skillLevel[i] >= data::SkillLevelMaxDiv * 100 - 1) {
+                            continue;
+                        }
+                        charInfo->skillLevel[i] = std::int16_t(charInfo->skillLevel[i] + 100);
+                        messages.emplace_back(std::make_pair(1, fmt::format(
+                            GETTEXT(98), GETSKILLNAME(skillId),
+                            charInfo->skillLevel[i] / 100 + 1)));
+                    }
+                    if (!known) {
                         for (int i = 0; i < data::LearnSkillCount; ++i) {
-                            if (charInfo->skillId[i] != skillId) { continue; }
-                            skillLevel = std::clamp<std::int16_t>(charInfo->skillLevel[i] / 100,
-                                                                  0, data::SkillLevelMaxDiv);
-                            /* Z.DAT:0x3BB41: a maxed skill blocks the whole step. */
-                            if (skillLevel >= data::SkillLevelMaxDiv) { canLearn = false; }
+                            if (charInfo->skillId[i] > 0) { continue; }
+                            charInfo->skillId[i] = skillId;
                             break;
                         }
                     }
                 }
             }
-            if (charInfo->level < data::LevelMax) {
-                int gained = 0;
-                std::uint16_t expReq;
-                while (charInfo->level + gained < data::LevelMax
-                       && (expReq = mem::getExpForLevelUp(charInfo->level + gained)) > 0
-                       && charInfo->exp >= expReq) {
-                    ++gained;
+        }
+
+        if (makingItem && itemInfo) {
+            const auto craftReq = mem::getExpForMakeItem(
+                charInfo->learningItem, charInfo->potential);
+            const auto material = mem::gBag[itemInfo->reqMaterial];
+            bool affordable[data::MakeItemCount] = {false};
+            bool anyAffordable = false;
+            for (int i = 0; i < data::MakeItemCount; ++i) {
+                if (itemInfo->makeItem[i] < 0
+                    || material < itemInfo->makeItemCount[i]) {
+                    continue;
                 }
-                if (gained > 0) {
-                    mem::actLevelup(charInfo, gained);
-                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(96), name)));
-                }
+                affordable[i] = true;
+                anyAffordable = true;
             }
-            /*
-             * `WAR-TRAIN` Z.DAT:0x3BA85 advances the book once per battle, keeps
-             * no leftover progress and grants no random maximum-mp bonus. The
-             * skill level rises by exactly 100 while the stored value stays below
-             * 899, and an unknown skill simply lands in the first free slot.
-             */
-            if (canLearn && itemInfo) {
-                auto expReq = mem::getExpForSkillLearn(charInfo->learningItem, skillLevel,
-                                                       charInfo->potential);
-                if (expReq > 0 && charInfo->expForItem >= expReq) {
-                    mem::applyBookChanges(charInfo, itemInfo);
-                    charInfo->expForItem = 0;
-                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(97), name,
-                                                                        GETITEMNAME(charInfo->learningItem))));
-                    if (skillId > 0) {
-                        bool known = false;
-                        for (int i = 0; i < data::LearnSkillCount; ++i) {
-                            if (charInfo->skillId[i] != skillId) { continue; }
-                            known = true;
-                            if (charInfo->skillLevel[i] >= data::SkillLevelMaxDiv * 100 - 1) { continue; }
-                            charInfo->skillLevel[i] = std::int16_t(charInfo->skillLevel[i] + 100);
-                            messages.emplace_back(std::make_pair(1, fmt::format(GETTEXT(98),
-                                GETSKILLNAME(skillId), charInfo->skillLevel[i] / 100 + 1)));
-                        }
-                        if (!known) {
-                            for (int i = 0; i < data::LearnSkillCount; ++i) {
-                                if (charInfo->skillId[i] > 0) { continue; }
-                                charInfo->skillId[i] = skillId;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            /*
-             * `WAR-CRAFT` Z.DAT:0x3C2AC. `makeItemCount` is the amount of
-             * material a recipe consumes, not the amount produced: the output is
-             * one unit for a new bag entry and `rnd(3) + 1` when the bag already
-             * holds that item. Any of the five recipe slots may be drawn, not
-             * only the leading ones.
-             */
-            if (makingItem) {
-                const auto craftReq = mem::getExpForMakeItem(charInfo->learningItem, charInfo->potential);
-                const auto material = mem::gBag[itemInfo->reqMaterial];
-                bool affordable[data::MakeItemCount] = {false};
-                bool anyAffordable = false;
-                for (int i = 0; material > 0 && i < data::MakeItemCount; ++i) {
-                    if (itemInfo->makeItem[i] < 0 || material < itemInfo->makeItemCount[i]) { continue; }
-                    affordable[i] = true;
-                    anyAffordable = true;
-                }
-                if (craftReq > 0 && charInfo->expForMakeItem >= craftReq && anyAffordable) {
-                    int index;
-                    do {
-                        index = int(util::gRandom(data::MakeItemCount));
-                    } while (!affordable[index]);
-                    const auto produced = mem::gBag[itemInfo->makeItem[index]] > 0
-                        ? std::int16_t(util::gRandom(3) + 1) : std::int16_t(1);
-                    charInfo->expForMakeItem = 0;
-                    mem::gBag.add(itemInfo->makeItem[index], produced);
-                    mem::gBag.remove(itemInfo->reqMaterial, itemInfo->makeItemCount[index]);
-                    messages.emplace_back(std::make_pair(0, fmt::format(GETTEXT(99),
-                                                                        name, GETITEMNAME(itemInfo->makeItem[index]))));
-                }
+            if (craftReq > 0 && charInfo->expForMakeItem >= craftReq && anyAffordable) {
+                int index;
+                do {
+                    index = int(util::gRandom(data::MakeItemCount));
+                } while (!affordable[index]);
+                const auto produced = mem::gBag[itemInfo->makeItem[index]] > 0
+                    ? std::int16_t(util::gRandom(3) + 1)
+                    : std::int16_t(1);
+                charInfo->expForMakeItem = 0;
+                mem::gBag.add(itemInfo->makeItem[index], produced);
+                mem::gBag.remove(itemInfo->reqMaterial, itemInfo->makeItemCount[index]);
+                messages.emplace_back(std::make_pair(0, fmt::format(
+                    GETTEXT(99), name, GETITEMNAME(itemInfo->makeItem[index]))));
             }
         }
     }

@@ -13,6 +13,13 @@ class IdaBackendTests(unittest.TestCase):
         from ida_backend import IdaDatabase
 
         root = Path(os.environ["HOJY_ORIGINAL_DATA_DIR"])
+        sidecar_suffixes = {
+            ".idb", ".i64", ".id0", ".id1", ".id2", ".nam", ".til",
+        }
+        sidecars_before = {
+            path.name for path in root.iterdir()
+            if path.is_file() and path.suffix.lower() in sidecar_suffixes
+        }
         with IdaDatabase(root / "Z.COM") as zcom:
             self.assertEqual(zcom.processor_name(), "metapc")
             self.assertEqual(zcom.segment_count(), 1)
@@ -28,6 +35,12 @@ class IdaBackendTests(unittest.TestCase):
             self.assertIn(0x31DAC, refs)
             function = zdat.containing_function(0x31DAC)
             self.assertEqual(function["start"], "0x31da0")
+
+        sidecars_after = {
+            path.name for path in root.iterdir()
+            if path.is_file() and path.suffix.lower() in sidecar_suffixes
+        }
+        self.assertEqual(sidecars_after, sidecars_before)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@
 
 #include <SDL.h>
 
+#include <algorithm>
 #include <limits>
 
 namespace hojy::audio {
@@ -33,6 +34,17 @@ bool checkedConversionSize(size_t inputSize, int multiplier, size_t &outputSize)
         return false;
     }
     outputSize = inputSize * static_cast<size_t>(multiplier);
+    return true;
+}
+
+bool checkedFrameSize(size_t outputSize, size_t inputSampleSize, size_t outputSampleSize,
+                     size_t &inputSize) {
+    if (inputSampleSize == 0 || outputSampleSize == 0) { return false; }
+    const auto frameOut = outputSampleSize * 2;
+    if (outputSize / frameOut > std::numeric_limits<size_t>::max() / (inputSampleSize * 2)) {
+        return false;
+    }
+    inputSize = outputSize / frameOut * inputSampleSize * 2;
     return true;
 }
 
@@ -59,7 +71,7 @@ size_t ChannelWav::readPCMData(const void **data, size_t size, bool convType) {
     if (needConv) {
         size_t inSize = Mixer::dataTypeToSize(typeIn_);
         size_t outSize = Mixer::dataTypeToSize(typeOut_);
-        size = size / outSize / 2 * inSize * 2;
+        if (!checkedFrameSize(size, inSize, outSize, size)) { return 0; }
     }
     if (repeat_) {
         if (!length_) { return 0; }
@@ -101,26 +113,29 @@ size_t ChannelWav::readPCMData(const void **data, size_t size, bool convType) {
     if (!needConv) {
         return size;
     }
-    if (size > std::numeric_limits<int>::max()) { return 0; }
+    if (size > static_cast<size_t>(std::numeric_limits<int>::max())) { return 0; }
     SDL_AudioCVT cvt{};
-    if (SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
-                          Mixer::convertType(typeOut_), 2, int(sampleRateIn_)) < 0) {
-        return 0;
-    }
+    const auto built = SDL_BuildAudioCVT(&cvt, Mixer::convertType(typeIn_), 2, int(sampleRateIn_),
+                                         Mixer::convertType(typeOut_), 2, int(sampleRateIn_));
+    if (built < 0) { return 0; }
     size_t outputSize = 0;
-    if (!checkedConversionSize(size, cvt.len_mult, outputSize)) { return 0; }
-    auto smax = std::max(size, outputSize);
+    if (built > 0 && !checkedConversionSize(size, cvt.len_mult, outputSize)) { return 0; }
+    const auto smax = std::max(size, outputSize);
     if (cache_.size() < smax) {
         cache_.resize(smax);
     }
     if (needCopy) {
         memcpy(cache_.data(), *data, size);
     }
+    if (built == 0) {
+        *data = cache_.data();
+        return size;
+    }
     cvt.len = static_cast<int>(size);
     cvt.buf = cache_.data();
-    if (SDL_ConvertAudio(&cvt) < 0) { return 0; }
+    if (SDL_ConvertAudio(&cvt) < 0 || cvt.len_cvt < 0) { return 0; }
     *data = cache_.data();
-    return cvt.len_cvt;
+    return static_cast<size_t>(cvt.len_cvt);
 }
 
 void ChannelWav::clearBuffer() {
@@ -134,51 +149,79 @@ void ChannelWav::clearBuffer() {
 
 void ChannelWav::loadFromData() {
     clearBuffer();
-    if (data_.size() > std::numeric_limits<int>::max()) {
-        ok_ = false;
+    ok_ = false;
+    if (data_.empty() || data_.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
         return;
     }
+
     SDL_AudioSpec spec{};
+    Uint8 *loadedBuffer = nullptr;
+    Uint32 loadedLength = 0;
     auto *source = SDL_RWFromConstMem(data_.data(), static_cast<int>(data_.size()));
-    if (!source || !SDL_LoadWAV_RW(source, 1, &spec, &buffer_, &length_)) {
-        ok_ = false;
+    if (!source || !SDL_LoadWAV_RW(source, 1, &spec, &loadedBuffer, &loadedLength)) {
         return;
     }
-    sampleRateIn_ = spec.freq;
-    auto format = spec.format;
-    if (spec.channels != 2 || (format != AUDIO_F32 && format != AUDIO_S32 && format != AUDIO_S16)) {
-        SDL_AudioCVT cvt{};
-        format = format != AUDIO_F32 && format != AUDIO_S32 && format != AUDIO_S16 ? AUDIO_S16 : format;
-        if (SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq, format, 2, spec.freq) < 0) {
-            clearBuffer();
-            ok_ = false;
-            return;
-        }
-        size_t convertedSize = 0;
-        if (!checkedConversionSize(length_, cvt.len_mult, convertedSize)) {
-            clearBuffer();
-            ok_ = false;
-            return;
-        }
-        auto *converted = static_cast<Uint8*>(SDL_realloc(buffer_, convertedSize));
-        if (!converted) {
-            clearBuffer();
-            ok_ = false;
-            return;
-        }
-        buffer_ = converted;
-        cvt.len = static_cast<int>(length_);
-        cvt.buf = buffer_;
-        if (SDL_ConvertAudio(&cvt) < 0) {
-            clearBuffer();
-            ok_ = false;
-            return;
-        }
-        length_ = static_cast<std::uint32_t>(cvt.len_cvt);
+    if (spec.freq <= 0 || spec.channels == 0 || loadedLength == 0) {
+        SDL_FreeWAV(loadedBuffer);
+        return;
     }
+
+    auto format = spec.format;
+    const bool supportedFormat = format == AUDIO_F32 || format == AUDIO_S32 || format == AUDIO_S16;
+    if (spec.channels != 2 || !supportedFormat) {
+        const auto targetFormat = supportedFormat ? format : AUDIO_S16;
+        SDL_AudioCVT cvt{};
+        const auto built = SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq,
+                                             targetFormat, 2, spec.freq);
+        if (built < 0) {
+            SDL_FreeWAV(loadedBuffer);
+            return;
+        }
+        if (built == 0) {
+            // A zero result means no conversion is needed; that is only valid
+            // when the source already has the target channel count and format.
+            if (spec.channels != 2 || spec.format != targetFormat) {
+                SDL_FreeWAV(loadedBuffer);
+                return;
+            }
+        } else {
+            size_t convertedSize = 0;
+            if (!checkedConversionSize(loadedLength, cvt.len_mult, convertedSize)
+                || convertedSize > static_cast<size_t>(std::numeric_limits<Uint32>::max())) {
+                SDL_FreeWAV(loadedBuffer);
+                return;
+            }
+            const auto capacity = std::max<size_t>(loadedLength, convertedSize);
+            auto *converted = static_cast<Uint8 *>(SDL_malloc(capacity));
+            if (!converted) {
+                SDL_FreeWAV(loadedBuffer);
+                return;
+            }
+            memcpy(converted, loadedBuffer, loadedLength);
+            cvt.len = static_cast<int>(loadedLength);
+            cvt.buf = converted;
+            if (SDL_ConvertAudio(&cvt) < 0 || cvt.len_cvt <= 0
+                || static_cast<std::uint64_t>(cvt.len_cvt) > std::numeric_limits<Uint32>::max()) {
+                SDL_free(converted);
+                SDL_FreeWAV(loadedBuffer);
+                return;
+            }
+            SDL_FreeWAV(loadedBuffer);
+            loadedBuffer = converted;
+            loadedLength = static_cast<Uint32>(cvt.len_cvt);
+        }
+        format = targetFormat;
+    }
+
     typeIn_ = Mixer::convertDataType(format);
-    ok_ = typeIn_ != Mixer::InvalidType;
-    if (!ok_) { clearBuffer(); }
+    if (typeIn_ == Mixer::InvalidType) {
+        SDL_FreeWAV(loadedBuffer);
+        return;
+    }
+    buffer_ = loadedBuffer;
+    length_ = loadedLength;
+    sampleRateIn_ = spec.freq;
+    ok_ = true;
 }
 
 }

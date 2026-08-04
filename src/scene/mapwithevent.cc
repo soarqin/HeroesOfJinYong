@@ -19,6 +19,7 @@
 
 #include "mapwithevent.hh"
 
+#include "event_helpers.hh"
 #include "window.hh"
 #include "mask.hh"
 #include "menu.hh"
@@ -168,16 +169,21 @@ void MapWithEvent::continueEvents(bool result) {
         OpRun(4, useItem);
         OpRun(5, askForWar);
         case 6:
+        {
 #ifndef NDEBUG
             fprintf(stdout, "{ %d %d %d %d }\n", currEventList_[currEventIndex_], currEventList_[currEventIndex_ + 1], currEventList_[currEventIndex_ + 2], currEventList_[currEventIndex_ + 3]);
             fflush(stdout);
 #endif
             currEventAdvTrue_ = currEventList_[currEventIndex_ + 1];
             currEventAdvFalse_ = currEventList_[currEventIndex_ + 2];
-            gWindow->enterWar(currEventList_[currEventIndex_], currEventList_[currEventIndex_ + 3] > 0);
+            const auto entered = gWindow->enterWar(
+                currEventList_[currEventIndex_],
+                currEventList_[currEventIndex_ + 3] > 0);
             currEventIndex_ += 4;
-            currEventPaused_ = true;
+            currEventPaused_ = detail::resolveDeferredBranchStart(
+                entered, currEventIndex_, currEventAdvTrue_, currEventAdvFalse_);
             break;
+        }
         OpRun(7, exitEventList);
         OpRun(8, changeExitMusic);
         OpRun(9, askForJoinTeam);
@@ -1062,8 +1068,7 @@ bool MapWithEvent::tournament(MapWithEvent *map) {
         });
         map->pendingSubEvents_.emplace_back([i, n] {
             gWindow->closePopup();
-            gWindow->enterWar(102 + i * 2 + n, false, true);
-            return false;
+            return gWindow->enterWar(102 + i * 2 + n, false, true) ? false : true;
         });
         map->pendingSubEvents_.emplace_back([map] {
             makeDim(map);

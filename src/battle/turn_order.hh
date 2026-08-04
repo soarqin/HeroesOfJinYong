@@ -12,12 +12,21 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace hojy::battle {
 
-int calculateActionSpeed(int baseSpeed, int weaponSpeed, int armourSpeed) noexcept;
+struct TurnActor {
+    int speed = 0;
+    int id = -1;
+};
+
+int calculateActionSpeed(int baseSpeed, int weaponSpeed = 0, int armourSpeed = 0) noexcept;
 int calculateMovementSteps(int actionSpeed, int hurt) noexcept;
+std::vector<int> buildTurnOrder(std::vector<TurnActor> actors);
+int calcMovementSteps(int speed, int hurt);
 
 /*
  * The original game compares every later actor with the actor in the
@@ -37,18 +46,24 @@ void sortActionOrder(Iterator first, Iterator last, SpeedFunc speed) {
     }
 }
 
-/* The returned queue is consumed from back(), matching Warfield. */
+/* Sort every original slot first, then filter inactive actors while reversing
+ * the result for Warfield's back()-consumed queue. */
 template<typename Actor, typename SpeedFunc, typename AliveFunc>
-std::vector<Actor> buildRoundQueue(std::vector<Actor> &turnOrder, SpeedFunc speed, AliveFunc alive) {
+std::vector<Actor> buildRoundQueue(std::vector<Actor> &turnOrder,
+                                   SpeedFunc speed, AliveFunc alive) {
     sortActionOrder(turnOrder.begin(), turnOrder.end(), speed);
     std::vector<Actor> queue;
     queue.reserve(turnOrder.size());
     for (auto ite = turnOrder.rbegin(); ite != turnOrder.rend(); ++ite) {
-        if (alive(*ite)) {
-            queue.emplace_back(*ite);
-        }
+        if (alive(*ite)) { queue.emplace_back(*ite); }
     }
     return queue;
 }
+bool beginRound(bool &roundStarted);
+void resetTurnState(bool &roundStarted, std::function<void()> &pendingAction);
+void runPendingAction(std::function<void()> &pendingAction);
+void prepareActorActionCode(std::int16_t &actionCode, bool hasPendingAction);
+bool shouldResumeAutoAttack(bool movementScheduled);
+std::int16_t actionCodeForSkill(std::int16_t currentActionCode, bool preserveCurrent);
 
 }

@@ -6,6 +6,8 @@
 
 namespace hojy::battle {
 
+inline constexpr int OriginalRandomBoundMax = 30000;
+
 struct RandomCall {
     int minimum;
     int maximum;

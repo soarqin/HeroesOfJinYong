@@ -20,12 +20,13 @@
 #pragma once
 
 /*
- * Battle AI decision rules, reconstructed from the original DOS build.
- * The entry point is `Z.DAT:0x33599`, which walks eight stages and produces one
- * of twelve action codes; the codes that share a handler are merged here.
- * Addresses refer to the approved `Z.DAT` load image, see
+ * Compatibility-level battle AI data contracts reconstructed from the
+ * original DOS build.  Runtime scene decisions live in ai_policy and
+ * ai_strategy; addresses refer to the approved Z.DAT load image recorded in
  * docs/reverse/battle-evidence.md.
  */
+
+#include "mem/character.hh"
 
 #include <vector>
 
@@ -35,7 +36,7 @@ class RandomSource;
 
 enum class AiAction {
     Rest,       /* original 0 and 7 */
-    Attack,     /* original 1 and 2: a random learnt skill on the picked target */
+    Attack,     /* original 1 and 2 */
     Poison,     /* original 3 */
     Depoison,   /* original 4 */
     Medic,      /* original 5 */
@@ -44,11 +45,8 @@ enum class AiAction {
     Flee,       /* original 11 */
 };
 
-/*
- * A character that could not help itself records what it needs, and the next
- * ally with the matching proficiency treats that as an unconditional request
- * (Z.DAT:0x34278 and Z.DAT:0x3445C). The values are the original action codes.
- */
+/* Unresolved self-recovery records a persistent request for a later ally.
+ * The values are the original action codes. */
 enum class AiRequest {
     None = 0,
     Medic = 8,
@@ -58,23 +56,44 @@ enum class AiRequest {
 struct AiStats {
     int hp = 0, maxHp = 0, mp = 0, maxMp = 0;
     int stamina = 0, hurt = 0, poisoned = 0;
-    int attack = 0, medic = 0, poison = 0, depoison = 0, antipoison = 0, throwing = 0;
+    int attack = 0, medic = 0, poison = 0, depoison = 0;
+    int antipoison = 0, throwing = 0;
     int integrity = 0, potential = 0;
-    /* Smallest `reqMp` among the learnt skills, or -1 when nothing is learnt. */
+    /* Smallest reqMp among learnt skills, or -1 when nothing is learnt. */
     int minSkillReqMp = -1;
 };
+
+/*
+ * Capture the battle-runtime properties before the scene applies effective
+ * equipment bonuses to its combat copy.  The original AI reads these runtime
+ * fields directly; planning must not accidentally use the post-equipment
+ * presentation/calculation values.
+ */
+AiStats snapshotAiStats(const mem::CharacterData &info) noexcept;
+
+/* Record only the static AI properties contributed by the effective
+ * equipment copy.  Keeping this delta lets battle-time mutations remain
+ * visible without feeding equipment bonuses back into AI planning. */
+AiStats captureAiEquipmentBonuses(const AiStats &entry,
+                                  const mem::CharacterData &effective) noexcept;
+
+/* Reconstruct current runtime AI properties from the entry snapshot, the
+ * static equipment delta, and the mutable battle copy. */
+AiStats resolveAiRuntimeStats(const AiStats &entry,
+                              const AiStats &equipmentBonus,
+                              const mem::CharacterData &effective) noexcept;
 
 struct AiParticipant {
     AiStats stats;
     int side = 0;
     bool active = true;            /* still standing on the field */
     AiRequest request = AiRequest::None;
-    /* Attack-range grid distance from the acting character, negative when unreachable. */
+    /* Grid distance from the actor, negative when unreachable. */
     int distance = -1;
 };
 
 struct AiItem {
-    int slot = -1;                 /* caller defined identifier, echoed in the decision */
+    int slot = -1;                 /* caller-defined identifier */
     int addHp = 0;
     int addMp = 0;
     int addPoisoned = 0;
@@ -88,24 +107,18 @@ struct AiContext {
 
 struct AiDecision {
     AiAction action = AiAction::Rest;
-    int target = -1;               /* participant index, -1 when the action has no target */
-    int itemSlot = -1;             /* AiItem::slot for AiAction::UseItem and AiAction::Throw */
-    AiRequest request = AiRequest::None;  /* what the acting character now waits for */
+    int target = -1;               /* participant index, or -1 */
+    int itemSlot = -1;             /* AiItem::slot for item actions */
+    AiRequest request = AiRequest::None;  /* request left by the actor */
 };
 
-/* `AI-ACTION` Z.DAT:0x33599 plus the stage handlers it calls. */
+/* Compatibility facade for the original public AI snapshot API.  Runtime
+ * scene code uses ai_policy/ai_strategy directly; this adapter intentionally
+ * contains no duplicate decision rules. */
 AiDecision decideAiAction(const AiContext &context, RandomSource &random);
-
-/*
- * `AI-TARGET` Z.DAT:0x3505B: an attack target chosen from the character's
- * temperament. Returns -1 when no living enemy is left.
- */
+/* Z.DAT:0x3505B attack-target compatibility entry point. */
 int pickAiTarget(const AiContext &context, RandomSource &random);
-
-/*
- * `AI-TARGET-POISON` Z.DAT:0x355FF: a poison target, restricted to enemies that
- * the poison can still affect. Returns -1 when there is none.
- */
+/* Z.DAT:0x355FF poison-target compatibility entry point. */
 int pickAiPoisonTarget(const AiContext &context, RandomSource &random);
 
 }

@@ -21,6 +21,7 @@
 
 #include "savedata.hh"
 
+#include <algorithm>
 #include <cstring>
 
 namespace hojy::mem {
@@ -29,9 +30,18 @@ Bag gBag;
 
 void Bag::syncFromSave() {
     items_.clear();
+    orderedItems_.clear();
     for (auto &item : gSaveData.baseInfo->items) {
         if (item.count) {
-            items_[item.id] = item.count;
+            items_[item.id] += item.count;
+            auto ordered = std::find_if(
+                orderedItems_.begin(), orderedItems_.end(),
+                [&item](const ItemEntry &entry) { return entry.first == item.id; });
+            if (ordered == orderedItems_.end()) {
+                orderedItems_.emplace_back(item.id, item.count);
+            } else {
+                ordered->second += item.count;
+            }
         }
     }
     dirty_ = false;
@@ -43,12 +53,12 @@ void Bag::syncToSave() {
     }
     dirty_ = false;
     size_t index = 0;
-    for (auto &p: items_) {
+    for (const auto &p: orderedItems_) {
         auto &item = gSaveData.baseInfo->items[index++];
         item.id = p.first;
         item.count = p.second;
     }
-    auto items = gSaveData.baseInfo->items;
+    auto &items = gSaveData.baseInfo->items;
     for (; index < data::BagItemCount; ++index) {
         items[index] = {-1, 0};
     }
@@ -60,7 +70,19 @@ void Bag::add(std::int16_t id, std::int16_t count) {
     cnt += count;
     if (cnt <= 0) {
         items_.erase(id);
+        orderedItems_.erase(
+            std::remove_if(orderedItems_.begin(), orderedItems_.end(),
+                           [id](const ItemEntry &item) { return item.first == id; }),
+            orderedItems_.end());
     } else {
+        auto ordered = std::find_if(
+            orderedItems_.begin(), orderedItems_.end(),
+            [id](const ItemEntry &item) { return item.first == id; });
+        if (ordered == orderedItems_.end()) {
+            orderedItems_.emplace_back(id, cnt);
+        } else {
+            ordered->second = cnt;
+        }
         const auto *itemInfo = gSaveData.itemInfo[id];
         if (itemInfo) {
             switch (itemInfo->itemType) {
@@ -68,6 +90,12 @@ void Bag::add(std::int16_t id, std::int16_t count) {
             case 2:
                 if (cnt > 1) {
                     cnt = 1;
+                    auto ordered = std::find_if(
+                        orderedItems_.begin(), orderedItems_.end(),
+                        [id](const ItemEntry &item) { return item.first == id; });
+                    if (ordered != orderedItems_.end()) {
+                        ordered->second = cnt;
+                    }
                 }
             default: break;
             }
@@ -88,6 +116,17 @@ bool Bag::remove(std::int16_t id, std::int16_t count) {
     cnt -= count;
     if (cnt <= 0) {
         items_.erase(id);
+        orderedItems_.erase(
+            std::remove_if(orderedItems_.begin(), orderedItems_.end(),
+                           [id](const ItemEntry &item) { return item.first == id; }),
+            orderedItems_.end());
+    } else {
+        auto ordered = std::find_if(
+            orderedItems_.begin(), orderedItems_.end(),
+            [id](const ItemEntry &item) { return item.first == id; });
+        if (ordered != orderedItems_.end()) {
+            ordered->second = cnt;
+        }
     }
     dirty_ = true;
     return true;

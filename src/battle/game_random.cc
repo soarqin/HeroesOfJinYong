@@ -7,8 +7,9 @@
 namespace hojy::battle {
 
 int GameRandom::next(int upperExclusive) {
-    if (upperExclusive <= 0) {
-        throw std::invalid_argument("upperExclusive must be positive");
+    /* Original Z.DAT sub_3D612 accepts only bounds from 2 through 30000. */
+    if (upperExclusive <= 1 || upperExclusive > OriginalRandomBoundMax) {
+        return 0;
     }
     return static_cast<int>(util::gRandom(static_cast<util::Random::IntType>(upperExclusive)));
 }

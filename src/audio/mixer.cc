@@ -32,6 +32,12 @@ Mixer gMixer;
 void Mixer::ChannelInfo::reset() {
     ch.reset();
     volume = 0;
+    fadeInStart = fadeIn = 0;
+    fadeOutStart = fadeOut = 0;
+    chNext.reset();
+    volumeNext = 0;
+    filenameNext.clear();
+    repeatNext = false;
 }
 
 Mixer::~Mixer() {
@@ -47,13 +53,16 @@ bool Mixer::init(int channels) {
         return false;
     }
     if (audioDevice_ != 0) {
+        SDL_PauseAudioDevice(audioDevice_, SDL_TRUE);
         SDL_CloseAudioDevice(audioDevice_);
         audioDevice_ = 0;
     }
+    std::scoped_lock lk(playMutex_);
     sampleRate_ = 0;
     format_ = 0;
     channels_.clear();
     cache_.clear();
+
     SDL_AudioFormat format;
 #if defined(USE_SOXR)
     switch (core::config.sampleFormat()) {
@@ -80,13 +89,15 @@ bool Mixer::init(int channels) {
     SDL_AudioSpec obtained{};
     audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
     if (audioDevice_ == 0) {
-        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained,
+                                           SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
     }
     if (audioDevice_ == 0) {
         SDL_Log("Unable to open audio device: %s", SDL_GetError());
         return false;
     }
-    if (obtained.channels != 2 || convertDataType(obtained.format) == InvalidType) {
+    if (obtained.channels != 2 || convertDataType(obtained.format) == InvalidType
+        || obtained.freq <= 0 || obtained.size == 0) {
         SDL_Log("Unsupported audio format returned by device");
         SDL_CloseAudioDevice(audioDevice_);
         audioDevice_ = 0;
@@ -203,6 +214,10 @@ void Mixer::play(size_t channelId, const std::string &filename, bool repeat, int
             chi.ch->start();
         } else {
             chi.ch->load(filename);
+            if (!chi.ch->ok()) {
+                chi.reset();
+                return;
+            }
             chi.volume = volume;
             chi.ch->start();
         }
@@ -273,6 +288,10 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     std::scoped_lock lk(mixer->playMutex_);
     auto &cache = mixer->cache_;
     auto &channels = mixer->channels_;
+    if (len <= 0 || cache.size() < static_cast<size_t>(len) || channels.empty()) {
+        if (len > 0) { memset(stream, 0, static_cast<size_t>(len)); }
+        return;
+    }
     memset(stream, 0, len);
     for (auto &chi: channels) {
         if (!chi.ch) { continue; }
@@ -323,6 +342,10 @@ void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
                             chi = {std::unique_ptr<Channel>(ch), chi.volumeNext};
                         } else {
                             chi.ch->load(filename);
+                            if (!chi.ch->ok()) {
+                                chi.reset();
+                                continue;
+                            }
                             chi.volume = chi.volumeNext;
                         }
                         chi.ch->start();

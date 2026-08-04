@@ -19,25 +19,28 @@
 
 #include "action.hh"
 
-#include <algorithm>
+#include "item_slots.hh"
 
 namespace hojy::mem {
+
+bool consumeNpcItemAt(CharacterData *charInfo, int slot,
+                      std::int16_t expectedItemId) {
+    if (!charInfo || slot < 0 || slot >= data::CarryItemCount
+        || charInfo->itemCount[slot] <= 0
+        || (expectedItemId >= 0 && charInfo->item[slot] != expectedItemId)) {
+        return false;
+    }
+    if (--charInfo->itemCount[slot] <= 0) {
+        compactCarryItemSlots(*charInfo, slot);
+    }
+    return true;
+}
 
 bool consumeNpcItem(CharacterData *charInfo, std::int16_t itemId) {
     if (!charInfo) { return false; }
     for (int i = 0; i < data::CarryItemCount; ++i) {
         if (charInfo->item[i] != itemId || charInfo->itemCount[i] <= 0) { continue; }
-        if (--charInfo->itemCount[i] == 0) {
-            std::move(charInfo->item + i + 1,
-                      charInfo->item + data::CarryItemCount,
-                      charInfo->item + i);
-            std::move(charInfo->itemCount + i + 1,
-                      charInfo->itemCount + data::CarryItemCount,
-                      charInfo->itemCount + i);
-            charInfo->item[data::CarryItemCount - 1] = -1;
-            charInfo->itemCount[data::CarryItemCount - 1] = 0;
-        }
-        return true;
+        return consumeNpcItemAt(charInfo, i, itemId);
     }
     return false;
 }

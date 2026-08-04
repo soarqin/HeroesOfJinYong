@@ -2,12 +2,12 @@ project(HeroesOfJinYongMain CXX)
 
 file(GLOB CORE_FILES  core/*.cc  core/*.hh)
 file(GLOB DATA_FILES  data/*.cc  data/*.hh)
-file(GLOB MEM_FILES   mem/*.cc   mem/*.hh)
+file(GLOB MEM_FILES   CONFIGURE_DEPENDS mem/*.cc mem/*.hh)
 file(GLOB SCENE_FILES scene/*.cc scene/*.hh)
 file(GLOB AUDIO_FILES audio/*.cc audio/*.hh)
 file(GLOB UTIL_FILES  util/*.cc  util/*.hh)
 
-file(GLOB BATTLE_FILES battle/*.cc battle/*.hh)
+file(GLOB BATTLE_FILES CONFIGURE_DEPENDS battle/*.cc battle/*.hh)
 
 add_library(hojy_battle STATIC ${BATTLE_FILES})
 set_target_properties(hojy_battle PROPERTIES CXX_STANDARD 17)

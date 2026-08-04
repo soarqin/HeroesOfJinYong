@@ -5,6 +5,7 @@
  */
 
 #include "audio/channelwav.hh"
+#include "audio/sample_bounds.hh"
 #include "audio/resampler.hh"
 #include "test_support.hh"
 
@@ -14,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -151,11 +153,36 @@ void wavTailAndReload() {
     std::filesystem::remove_all(directory, ec);
 }
 
+void midiSampleByteBounds() {
+    std::size_t bytes = 0;
+    HOJY_CHECK_EQ(hojy::audio::detail::checkedMidiSampleBytes(0, bytes), true);
+    HOJY_CHECK_EQ(bytes, std::size_t(0));
+    HOJY_CHECK_EQ(hojy::audio::detail::checkedMidiSampleBytes(
+                      std::numeric_limits<int>::max(), bytes), true);
+    HOJY_CHECK_EQ(bytes, static_cast<std::size_t>(std::numeric_limits<int>::max()) * sizeof(short));
+
+    int cvtLength = 0;
+    HOJY_CHECK_EQ(hojy::audio::detail::checkedAudioCvtLength(
+                      bytes, cvtLength), false);
+    HOJY_CHECK_EQ(hojy::audio::detail::checkedMidiSampleBytes(-1, bytes), false);
+
+    unsigned long midiLength = 0;
+    const auto maxMidiLength = std::numeric_limits<unsigned long>::max();
+    HOJY_CHECK_EQ(hojy::audio::detail::checkedAdlDataSize(
+                      static_cast<std::size_t>(maxMidiLength), midiLength), true);
+    HOJY_CHECK_EQ(midiLength, maxMidiLength);
+    if (maxMidiLength < std::numeric_limits<std::size_t>::max()) {
+        HOJY_CHECK_EQ(hojy::audio::detail::checkedAdlDataSize(
+                          std::numeric_limits<std::size_t>::max(), midiLength), false);
+    }
+}
+
 }
 
 int main() {
     try {
         wavTailAndReload();
+        midiSampleByteBounds();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

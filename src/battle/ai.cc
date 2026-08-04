@@ -19,426 +19,362 @@
 
 #include "ai.hh"
 
-#include "formulas.hh"
-#include "random.hh"
+#include "ai_policy.hh"
+#include "ai_strategy.hh"
+#include "resource_items.hh"
 
-#include <cstdlib>
+#include <optional>
 
 namespace hojy::battle {
 
 namespace {
 
-struct SideTotals {
-    int own = 0, ownCount = 0;
-    int enemy = 0, enemyCount = 0;
-};
+bool validContext(const AiContext &context) {
+    return context.self >= 0
+        && context.self < static_cast<int>(context.participants.size());
+}
 
-/* Z.DAT:0x335D8 sums `attack + hp` per side over every participant. */
-SideTotals sideTotals(const AiContext &context) {
-    SideTotals totals;
-    const int mySide = context.participants[context.self].side;
+AiResourceState resourceState(const AiStats &stats) {
+    return AiResourceState{
+        stats.hp, stats.maxHp, stats.hurt, stats.poisoned,
+        stats.stamina, stats.mp, stats.maxMp, stats.medic, stats.depoison,
+    };
+}
+
+std::vector<AiAllyState> allyStates(const AiContext &context) {
+    std::vector<AiAllyState> states;
+    states.reserve(context.participants.size());
     for (const auto &participant: context.participants) {
-        const int power = participant.stats.attack + participant.stats.hp;
-        if (participant.side == mySide) {
-            totals.own += power;
-            ++totals.ownCount;
-        } else {
-            totals.enemy += power;
-            ++totals.enemyCount;
-        }
+        states.push_back(AiAllyState{
+            participant.side,
+            true,
+            participant.active,
+            participant.stats.hp,
+            participant.stats.maxHp,
+            participant.stats.hurt,
+            participant.stats.poisoned,
+            participant.stats.medic,
+            participant.stats.depoison,
+            static_cast<int>(participant.request),
+            participant.stats.attack,
+        });
     }
-    return totals;
+    return states;
 }
 
-bool isEnemy(const AiContext &context, int index) {
-    const auto &participant = context.participants[index];
-    return participant.side != context.participants[context.self].side && participant.active;
-}
-
-bool isAlly(const AiContext &context, int index) {
-    const auto &participant = context.participants[index];
-    return index != context.self
-        && participant.side == context.participants[context.self].side
-        && participant.active;
-}
-
-/* Z.DAT:0x3513A: the most dangerous enemy. */
-int targetByHighestAttack(const AiContext &context) {
-    int best = 0, found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i)) { continue; }
-        const int attack = context.participants[i].stats.attack;
-        if (attack > best) { best = attack; found = i; }
-    }
-    return found;
-}
-
-/* Z.DAT:0x351A7: the easiest enemy. */
-int targetByLowestAttack(const AiContext &context) {
-    int best = 1000, found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i)) { continue; }
-        const int attack = context.participants[i].stats.attack;
-        if (attack < best) { best = attack; found = i; }
-    }
-    return found;
-}
-
-/* Z.DAT:0x35372: the enemy that takes the fewest steps to reach. */
-int targetByShortestPath(const AiContext &context) {
-    int best = 1000, found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i)) { continue; }
-        const int distance = context.participants[i].distance;
-        if (distance < 0 || distance >= best) { continue; }
-        best = distance;
-        found = i;
-    }
-    return found;
-}
-
-/* Highest value of one proficiency among the reachable enemies. */
-int bestEnemyBy(const AiContext &context, int AiStats::*field, int &value) {
-    value = 0;
-    int found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i)) { continue; }
-        const int score = context.participants[i].stats.*field;
-        if (score > value) { value = score; found = i; }
-    }
-    return found;
-}
-
-/*
- * Z.DAT:0x35217: knock out the enemy support first, the healer if the own side
- * does not field poison and the curer if it does.
- *
- * The original tracks the two sweeps with separate flags but only honours the
- * medic one: when the depoison sweep succeeds it still falls through to the
- * lowest-attack selector, which overwrites the stored target. That makes the
- * curer branch dead code, so this build keeps the target it just chose.
- */
-int targetBySupportRole(const AiContext &context) {
-    const int mySide = context.participants[context.self].side;
-    bool sidePoisons = false;
-    for (const auto &participant: context.participants) {
-        if (participant.side == mySide && participant.stats.poison > 20) {
-            sidePoisons = true;
-            break;
-        }
-    }
-    int value = 0;
-    if (sidePoisons) {
-        const int curer = bestEnemyBy(context, &AiStats::depoison, value);
-        if (curer >= 0 && value >= 20) { return curer; }
-    }
-    const int healer = bestEnemyBy(context, &AiStats::medic, value);
-    if (healer >= 0 && value >= 20) { return healer; }
-    return targetByLowestAttack(context);
-}
-
-bool poisonCanBite(const AiContext &context, int index) {
-    const auto &target = context.participants[index].stats;
-    const auto &me = context.participants[context.self].stats;
-    return target.poisoned < 95 && target.antipoison < me.poison;
-}
-
-/* Z.DAT:0x35667: among the enemies the poison still bites, the strongest one. */
-int poisonTargetByHighestAttack(const AiContext &context) {
-    int best = 0, found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i) || !poisonCanBite(context, i)) { continue; }
-        const int attack = context.participants[i].stats.attack;
-        if (attack > best) { best = attack; found = i; }
-    }
-    return found;
-}
-
-/*
- * Z.DAT:0x3570F: the nearest of those enemies. The original reads the grid at
- * the previously stored target instead of the candidate, so every candidate
- * compares the same distance and the first one always wins. That is a plain
- * wrong-variable defect, so this build measures the candidate.
- */
-int poisonTargetByShortestPath(const AiContext &context) {
-    int best = 1000, found = -1;
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isEnemy(context, i) || !poisonCanBite(context, i)) { continue; }
-        const int distance = context.participants[i].distance;
-        if (distance < 0 || distance >= best) { continue; }
-        best = distance;
-        found = i;
-    }
-    return found;
-}
-
-bool findItem(const AiContext &context, AiDecision &decision, AiAction action,
-              bool (*matches)(const AiItem &)) {
+std::vector<ResourceItemOption> resourceItems(const AiContext &context) {
+    std::vector<ResourceItemOption> items;
+    items.reserve(context.items.size());
     for (const auto &item: context.items) {
-        if (!matches(item)) { continue; }
-        decision.action = action;
-        decision.target = context.self;
-        decision.itemSlot = item.slot;
-        return true;
+        items.push_back(ResourceItemOption{
+            item.slot, item.addHp, item.addMp, 0, item.addPoisoned,
+        });
     }
-    return false;
+    return items;
 }
 
-/* Z.DAT:0x33C4D */
-bool tryRestoreHp(const AiContext &context, AiDecision &decision) {
-    const auto &me = context.participants[context.self].stats;
-    if (me.medic >= 20 && me.stamina >= 50 && me.medic > me.hurt - 30) {
-        decision.action = AiAction::Medic;
-        decision.target = context.self;
-        return true;
+AiStrategyActor strategyActor(const AiStats &stats, int side) {
+    AiStrategyActor actor;
+    actor.side = side;
+    actor.hp = stats.hp;
+    actor.attack = stats.attack;
+    actor.stamina = stats.stamina;
+    actor.mp = stats.mp;
+    actor.medic = stats.medic;
+    actor.poison = stats.poison;
+    actor.depoison = stats.depoison;
+    actor.throwing = stats.throwing;
+    actor.integrity = stats.integrity;
+    actor.potential = stats.potential;
+    return actor;
+}
+
+std::vector<AiStrategyCharacter> strategyCharacters(
+    const AiContext &context) {
+    std::vector<AiStrategyCharacter> characters;
+    characters.reserve(context.participants.size());
+    for (const auto &participant: context.participants) {
+        const auto &stats = participant.stats;
+        characters.push_back(AiStrategyCharacter{
+            participant.side,
+            true,
+            participant.active,
+            0,
+            0,
+            stats.hp,
+            stats.maxHp,
+            stats.attack,
+            stats.medic,
+            stats.poisoned,
+            stats.depoison,
+            stats.antipoison,
+            stats.poison,
+        });
     }
-    if (findItem(context, decision, AiAction::UseItem,
-                 [](const AiItem &item) { return item.addHp > 0; })) {
-        return true;
+    return characters;
+}
+
+std::vector<AiThrowingOption> throwingItems(const AiContext &context) {
+    std::vector<AiThrowingOption> items;
+    items.reserve(context.items.size());
+    for (const auto &item: context.items) {
+        items.push_back(AiThrowingOption{
+            item.slot, item.slot, item.addHp, item.addPoisoned, 3,
+        });
     }
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isAlly(context, i)) { continue; }
-        const auto &ally = context.participants[i].stats;
-        if (ally.medic <= 20 || ally.medic <= me.hurt - 30) { continue; }
-        /* Ask for help and keep fighting this turn. */
+    return items;
+}
+
+std::vector<AiSkillOption> skillOptions(const AiStats &stats) {
+    if (stats.minSkillReqMp < 0) { return {}; }
+    return {{0, 1, stats.minSkillReqMp}};
+}
+
+AiDecision mapResourceDecision(AiResourceAction action, int self,
+                               int target, int itemSlot) {
+    AiDecision decision;
+    switch (action) {
+    case AiResourceAction::Rest:
+        break;
+    case AiResourceAction::RecoverHp:
+        decision.action = itemSlot >= 0 ? AiAction::UseItem : AiAction::Medic;
+        decision.target = self;
+        decision.itemSlot = itemSlot;
+        break;
+    case AiResourceAction::SelfDepoison:
+        decision.action = itemSlot >= 0 ? AiAction::UseItem : AiAction::Depoison;
+        decision.target = self;
+        decision.itemSlot = itemSlot;
+        break;
+    case AiResourceAction::RecoverMp:
+        decision.action = AiAction::UseItem;
+        decision.target = self;
+        decision.itemSlot = itemSlot;
+        break;
+    case AiResourceAction::RequestMedic:
         decision.action = AiAction::Attack;
         decision.request = AiRequest::Medic;
-        return true;
-    }
-    return false;
-}
-
-/*
- * Z.DAT:0x33E93. The original scans the shared bag for `addPoison < 0`, which is
- * the poison proficiency modifier rather than the poisoned value, so no antidote
- * ever matches on the player side. This build uses `addPoisoned` for both sides.
- */
-bool tryCurePoison(const AiContext &context, AiDecision &decision) {
-    const auto &me = context.participants[context.self].stats;
-    if (me.depoison >= 20 && me.stamina >= 50 && me.depoison > me.poisoned - 30) {
-        decision.action = AiAction::Depoison;
-        decision.target = context.self;
-        return true;
-    }
-    if (findItem(context, decision, AiAction::UseItem,
-                 [](const AiItem &item) { return item.addPoisoned < 0; })) {
-        return true;
-    }
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isAlly(context, i)) { continue; }
-        const auto &ally = context.participants[i].stats;
-        if (ally.depoison <= 20 || ally.depoison <= me.poisoned - 30) { continue; }
+        break;
+    case AiResourceAction::RequestDepoison:
         decision.action = AiAction::Attack;
         decision.request = AiRequest::Depoison;
-        return true;
-    }
-    return false;
-}
-
-/* Z.DAT:0x341F6 */
-bool tryMedicAlly(const AiContext &context, AiDecision &decision, RandomSource &random) {
-    const auto &me = context.participants[context.self].stats;
-    auto gate = [&random](int threshold) { return originalRandom(random, 10) < threshold; };
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isAlly(context, i)) { continue; }
-        const auto &ally = context.participants[i];
-        if (me.medic <= ally.stats.hurt - 30) { continue; }
-        const bool wanted = ally.request == AiRequest::Medic
-            || ally.stats.hp < 20 || ally.stats.hurt > 40
-            || (ally.stats.hp < ally.stats.maxHp / 2 && gate(7))
-            || (ally.stats.hp < ally.stats.maxHp / 3 && gate(8))
-            || (ally.stats.hp < ally.stats.maxHp / 4 && gate(9))
-            || (ally.stats.hp < ally.stats.maxHp / 5);
-        if (!wanted) { continue; }
+        break;
+    case AiResourceAction::MedicSupport:
         decision.action = AiAction::Medic;
-        decision.target = i;
-        return true;
-    }
-    return false;
-}
-
-/* Z.DAT:0x343DA */
-bool tryDepoisonAlly(const AiContext &context, AiDecision &decision, RandomSource &random) {
-    const auto &me = context.participants[context.self].stats;
-    auto gate = [&random](int threshold) { return originalRandom(random, 10) < threshold; };
-    for (int i = 0; i < int(context.participants.size()); ++i) {
-        if (!isAlly(context, i)) { continue; }
-        const auto &ally = context.participants[i];
-        if (me.depoison <= ally.stats.poisoned - 30) { continue; }
-        const bool wanted = ally.request == AiRequest::Depoison
-            || (ally.stats.poisoned > 10 && gate(4))
-            || (ally.stats.poisoned > 20 && gate(6))
-            || (ally.stats.poisoned > 30 && gate(8))
-            || ally.stats.poisoned > 40;
-        if (!wanted) { continue; }
+        decision.target = target;
+        break;
+    case AiResourceAction::DepoisonSupport:
         decision.action = AiAction::Depoison;
-        decision.target = i;
-        return true;
-    }
-    return false;
-}
-
-/* Z.DAT:0x34550 */
-AiDecision decideAttack(const AiContext &context, RandomSource &random) {
-    AiDecision decision;
-    const auto &me = context.participants[context.self].stats;
-    const auto totals = sideTotals(context);
-
-    /* Weak myself but a dominant team: spend the turn supporting instead. */
-    const bool supportInstead = totals.enemyCount > 0
-        && (totals.enemy / totals.enemyCount) / 2 > me.hp + me.attack
-        && totals.own > totals.enemy * 2;
-    if (supportInstead) {
-        if (me.medic >= 20 && me.stamina >= 50) {
-            int best = 0, target = -1;
-            for (int i = 0; i < int(context.participants.size()); ++i) {
-                if (!isAlly(context, i)) { continue; }
-                const auto &ally = context.participants[i].stats;
-                if (ally.hp >= ally.maxHp) { continue; }
-                if (ally.maxHp - ally.hp > best) { best = ally.maxHp - ally.hp; target = i; }
-            }
-            if (target >= 0) {
-                decision.action = AiAction::Medic;
-                decision.target = target;
-                return decision;
-            }
-        } else if (me.depoison >= 20 && me.stamina >= 50) {
-            int best = 0, target = -1;
-            for (int i = 0; i < int(context.participants.size()); ++i) {
-                if (!isAlly(context, i)) { continue; }
-                const auto &ally = context.participants[i].stats;
-                if (ally.poisoned <= 0) { continue; }
-                if (ally.poisoned > best) { best = ally.poisoned; target = i; }
-            }
-            if (target >= 0) {
-                decision.action = AiAction::Depoison;
-                decision.target = target;
-                return decision;
-            }
-        }
-    }
-
-    /* Poison skill. */
-    if (me.poison - me.attack > originalRandom(random, 50)
-        && originalRandom(random, 150) < me.poison) {
-        decision.action = AiAction::Poison;
-        return decision;
-    }
-
-    /*
-     * Throwing. The player side demands a stronger item and rolls against the
-     * throwing proficiency; the enemy side only compares with the raw attack.
-     */
-    const bool sharedBag = context.participants[context.self].side == 0;
-    const int damageBar = sharedBag ? me.attack * 3 / 2 : me.attack;
-    for (const auto &item: context.items) {
-        if (item.addHp < 0 && std::abs(item.addHp) > damageBar) {
-            const bool roll = sharedBag ? originalRandom(random, me.throwing) > 20
-                                        : originalRandom(random, 10) < 6;
-            if (roll) {
-                decision.action = AiAction::Throw;
-                decision.itemSlot = item.slot;
-                return decision;
-            }
-        }
-        if (item.addPoisoned > 0 && std::abs(item.addPoisoned) > damageBar
-            && originalRandom(random, 10) < 3) {
-            decision.action = AiAction::Throw;
-            decision.itemSlot = item.slot;
-            return decision;
-        }
-    }
-
-    /* Plain skill attack. */
-    if (me.stamina > 10 && me.minSkillReqMp >= 0 && me.mp >= me.minSkillReqMp) {
-        decision.action = AiAction::Attack;
-        return decision;
+        decision.target = target;
+        break;
+    case AiResourceAction::None:
+        break;
     }
     return decision;
 }
 
+AiDecision mapFollowupDecision(const AiFollowupDecision &followup) {
+    AiDecision decision;
+    switch (followup.action) {
+    case AiFollowupAction::Rest:
+        break;
+    case AiFollowupAction::MedicSupport:
+        decision.action = AiAction::Medic;
+        decision.target = followup.targetIndex;
+        break;
+    case AiFollowupAction::DepoisonSupport:
+        decision.action = AiAction::Depoison;
+        decision.target = followup.targetIndex;
+        break;
+    case AiFollowupAction::Poison:
+        decision.action = AiAction::Poison;
+        break;
+    case AiFollowupAction::Throw:
+        decision.action = AiAction::Throw;
+        decision.itemSlot = followup.selectionIndex;
+        break;
+    case AiFollowupAction::Skill:
+        decision.action = AiAction::Attack;
+        break;
+    }
+    return decision;
 }
 
-int pickAiTarget(const AiContext &context, RandomSource &random) {
-    const auto &me = context.participants[context.self].stats;
-    int found = -1;
-    if (me.integrity >= 75 && originalRandom(random, 10) < 7) {
-        found = targetByHighestAttack(context);
-    }
-    if (found < 0 && me.integrity <= 25 && originalRandom(random, 10) < 7) {
-        found = targetByLowestAttack(context);
-    }
-    if (found < 0 && me.potential >= 70 && originalRandom(random, 10) < 7) {
-        found = targetBySupportRole(context);
-    }
-    if (found < 0) {
-        found = targetByShortestPath(context);
-    }
-    return found;
+AiPathDistance contextDistance(const AiContext &context) {
+    return [&context](int targetIndex) {
+        if (targetIndex < 0
+            || targetIndex >= static_cast<int>(context.participants.size())) {
+            return -1;
+        }
+        return context.participants[targetIndex].distance;
+    };
 }
 
-int pickAiPoisonTarget(const AiContext &context, RandomSource &random) {
-    const auto &me = context.participants[context.self].stats;
-    int found = -1;
-    if (me.potential > 60 && originalRandom(random, 10) < 7) {
-        found = poisonTargetByHighestAttack(context);
-    }
-    if (found < 0) {
-        found = poisonTargetByShortestPath(context);
-    }
-    return found;
+}
+
+AiStats snapshotAiStats(const mem::CharacterData &info) noexcept {
+    AiStats stats;
+    stats.hp = info.hp;
+    stats.maxHp = info.maxHp;
+    stats.mp = info.mp;
+    stats.maxMp = info.maxMp;
+    stats.stamina = info.stamina;
+    stats.hurt = info.hurt;
+    stats.poisoned = info.poisoned;
+    stats.attack = info.attack;
+    stats.medic = info.medic;
+    stats.poison = info.poison;
+    stats.depoison = info.depoison;
+    stats.antipoison = info.antipoison;
+    stats.throwing = info.throwing;
+    stats.integrity = info.integrity;
+    stats.potential = info.potential;
+    return stats;
+}
+
+AiStats captureAiEquipmentBonuses(const AiStats &entry,
+                                  const mem::CharacterData &effective) noexcept {
+    const auto current = snapshotAiStats(effective);
+    AiStats bonus;
+    bonus.attack = current.attack - entry.attack;
+    bonus.medic = current.medic - entry.medic;
+    bonus.poison = current.poison - entry.poison;
+    bonus.depoison = current.depoison - entry.depoison;
+    bonus.antipoison = current.antipoison - entry.antipoison;
+    bonus.throwing = current.throwing - entry.throwing;
+    bonus.integrity = current.integrity - entry.integrity;
+    bonus.potential = current.potential - entry.potential;
+    return bonus;
+}
+
+AiStats resolveAiRuntimeStats(const AiStats &entry,
+                              const AiStats &equipmentBonus,
+                              const mem::CharacterData &effective) noexcept {
+    auto current = snapshotAiStats(effective);
+    const auto resolve = [](int entryValue, int equipmentValue,
+                            int currentValue) {
+        return entryValue + (currentValue - (entryValue + equipmentValue));
+    };
+    current.attack = resolve(entry.attack, equipmentBonus.attack, current.attack);
+    current.medic = resolve(entry.medic, equipmentBonus.medic, current.medic);
+    current.poison = resolve(entry.poison, equipmentBonus.poison, current.poison);
+    current.depoison = resolve(entry.depoison, equipmentBonus.depoison, current.depoison);
+    current.antipoison = resolve(
+        entry.antipoison, equipmentBonus.antipoison, current.antipoison);
+    current.throwing = resolve(
+        entry.throwing, equipmentBonus.throwing, current.throwing);
+    current.integrity = resolve(
+        entry.integrity, equipmentBonus.integrity, current.integrity);
+    current.potential = resolve(
+        entry.potential, equipmentBonus.potential, current.potential);
+    return current;
 }
 
 AiDecision decideAiAction(const AiContext &context, RandomSource &random) {
-    AiDecision decision;
-    if (context.self < 0 || context.self >= int(context.participants.size())) { return decision; }
-    const auto &me = context.participants[context.self].stats;
-    if (me.stamina < 10) { return decision; }
+    if (!validContext(context)) { return {}; }
 
-    auto gate = [&random](int threshold) { return originalRandom(random, 10) < threshold; };
+    const auto &self = context.participants[context.self];
+    const auto state = resourceState(self.stats);
+    const auto allies = allyStates(context);
+    const auto items = resourceItems(context);
+    int target = -1;
+    int itemSlot = -1;
 
-    const bool wantHp = me.hp < 20 || me.hurt > 50
-        || (me.hp < me.maxHp / 2 && gate(3))
-        || (me.hp < me.maxHp / 3 && gate(5))
-        || (me.hp < me.maxHp / 4 && gate(7))
-        || (me.hp < me.maxHp / 5 && gate(9));
-    if (wantHp && tryRestoreHp(context, decision)) { return decision; }
-
-    if (originalRandom(random, 10) < me.poisoned / 10 && tryCurePoison(context, decision)) {
-        return decision;
+    const auto resourceAction = chooseAiResourceAction(
+        state, random,
+        [&](AiResourceAction action) {
+            switch (action) {
+            case AiResourceAction::RecoverHp:
+                if (canSelfMedic(self.stats.medic, self.stats.stamina,
+                                 self.stats.hurt)) {
+                    return action;
+                }
+                if (const auto item = chooseFirstResourceItem(
+                        items, ResourceItemKind::Hp)) {
+                    itemSlot = *item;
+                    return action;
+                }
+                if (const auto provider = chooseMedicProvider(
+                        context.self, self.stats.hurt, allies)) {
+                    target = *provider;
+                    return AiResourceAction::RequestMedic;
+                }
+                return AiResourceAction::None;
+            case AiResourceAction::SelfDepoison:
+                if (canSelfDepoison(self.stats.depoison, self.stats.stamina,
+                                    self.stats.poisoned)) {
+                    return action;
+                }
+                if (const auto item = chooseFirstResourceItem(
+                        items, ResourceItemKind::Poisoned)) {
+                    itemSlot = *item;
+                    return action;
+                }
+                if (const auto provider = chooseDepoisonProvider(
+                        context.self, self.stats.poisoned, allies)) {
+                    target = *provider;
+                    return AiResourceAction::RequestDepoison;
+                }
+                return AiResourceAction::None;
+            case AiResourceAction::RecoverMp:
+                if (const auto item = chooseFirstResourceItem(
+                        items, ResourceItemKind::Mp)) {
+                    itemSlot = *item;
+                    return action;
+                }
+                return AiResourceAction::None;
+            case AiResourceAction::MedicSupport:
+                if (const auto selected = chooseMedicSupportTarget(
+                        context.self, self.stats.medic, allies, random)) {
+                    target = *selected;
+                    return action;
+                }
+                return AiResourceAction::None;
+            case AiResourceAction::DepoisonSupport:
+                if (const auto selected = chooseDepoisonSupportTarget(
+                        context.self, self.stats.depoison, allies, random)) {
+                    target = *selected;
+                    return action;
+                }
+                return AiResourceAction::None;
+            default:
+                return AiResourceAction::None;
+            }
+        });
+    if (resourceAction != AiResourceAction::None) {
+        return mapResourceDecision(
+            resourceAction, context.self, target, itemSlot);
     }
 
-    const bool wantMp = (me.mp < me.maxMp / 2 && gate(2))
-        || (me.mp < me.maxMp / 3 && gate(4))
-        || (me.mp < me.maxMp / 4 && gate(6))
-        || (me.mp < me.maxMp / 5 && gate(8));
-    if (wantMp && findItem(context, decision, AiAction::UseItem,
-                           [](const AiItem &item) { return item.addMp > 0; })) {
-        return decision;
-    }
-
-    if (me.stamina > 50
-        && ((me.medic >= 20 && gate(4)) || (me.medic >= 40 && gate(6))
-            || (me.medic >= 60 && gate(8)) || me.medic >= 80)
-        && tryMedicAlly(context, decision, random)) {
-        return decision;
-    }
-
-    if (me.stamina > 50
-        && ((me.depoison >= 20 && gate(4)) || (me.depoison >= 40 && gate(6))
-            || (me.depoison >= 60 && gate(8)) || me.depoison >= 80)
-        && tryDepoisonAlly(context, decision, random)) {
-        return decision;
-    }
-
-    if (gate(5)
-        && (me.hp < 20 || (me.hp < me.maxHp / 4 && gate(6))
-            || (me.hp < me.maxHp / 5 && gate(8)))) {
+    if (shouldRetreatForHealth(state, random)) {
+        AiDecision decision;
         decision.action = AiAction::Flee;
         return decision;
     }
 
-    return decideAttack(context, random);
+    const auto actor = strategyActor(self.stats, self.side);
+    const auto characters = strategyCharacters(context);
+    return mapFollowupDecision(chooseAiFollowupAction(
+        context.self, actor, characters, throwingItems(context),
+        skillOptions(self.stats), random));
+}
+
+int pickAiTarget(const AiContext &context, RandomSource &random) {
+    if (!validContext(context)) { return -1; }
+    const auto &self = context.participants[context.self];
+    const auto target = chooseAiTarget(
+        context.self, strategyActor(self.stats, self.side),
+        strategyCharacters(context), random, contextDistance(context));
+    return target.value_or(-1);
+}
+
+int pickAiPoisonTarget(const AiContext &context, RandomSource &random) {
+    if (!validContext(context)) { return -1; }
+    const auto &self = context.participants[context.self];
+    const auto target = choosePoisonTarget(
+        context.self, strategyActor(self.stats, self.side),
+        strategyCharacters(context), random, contextDistance(context));
+    return target.value_or(-1);
 }
 
 }

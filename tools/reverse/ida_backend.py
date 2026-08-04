@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Any
 import warnings
 
@@ -21,19 +23,31 @@ class IdaDatabase:
     def __init__(self, path: Path):
         self.path = Path(path)
         self._opened = False
+        self._temp_dir: tempfile.TemporaryDirectory | None = None
+        self._database_path: Path | None = None
 
     def __enter__(self) -> "IdaDatabase":
         idapro.enable_console_messages(False)
-        result = idapro.open_database(str(self.path), True)
-        if result != 0:
-            raise RuntimeError(f"failed to open IDA database: {self.path} ({result})")
-        self._opened = True
-        return self
+        self._temp_dir = tempfile.TemporaryDirectory(prefix="hojy-ida-")
+        self._database_path = Path(self._temp_dir.name) / self.path.name
+        try:
+            shutil.copyfile(self.path, self._database_path)
+            result = idapro.open_database(str(self._database_path), True)
+            if result != 0:
+                raise RuntimeError(f"failed to open IDA database: {self.path} ({result})")
+            self._opened = True
+            return self
+        except Exception:
+            self._cleanup_temp_dir()
+            raise
 
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
-        if self._opened:
-            idapro.close_database(False)
+        try:
+            if self._opened:
+                idapro.close_database(False)
+        finally:
             self._opened = False
+            self._cleanup_temp_dir()
 
     def processor_name(self) -> str:
         self._require_open()
@@ -90,3 +104,9 @@ class IdaDatabase:
     def _require_open(self) -> None:
         if not self._opened:
             raise RuntimeError("IDA database is not open")
+
+    def _cleanup_temp_dir(self) -> None:
+        if self._temp_dir is not None:
+            self._temp_dir.cleanup()
+            self._temp_dir = None
+            self._database_path = None

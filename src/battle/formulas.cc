@@ -39,7 +39,7 @@ inline int narrow(int value) noexcept {
 }
 
 int originalRandom(RandomSource &random, int bound) {
-    if (bound <= 1 || bound > 30000) { return 0; }
+    if (bound <= 1 || bound > OriginalRandomBoundMax) { return 0; }
     return random.next(bound);
 }
 

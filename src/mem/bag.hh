@@ -22,16 +22,22 @@
 #include "data/consts.hh"
 #include <map>
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 namespace hojy::mem {
 
 class Bag {
 public:
+    using ItemEntry = std::pair<std::int16_t, std::int16_t>;
+
     void syncFromSave();
     void syncToSave();
     void add(std::int16_t id, std::int16_t count);
     bool remove(std::int16_t id, std::int16_t count);
     [[nodiscard]] const std::map<std::int16_t, std::int16_t> &items() const { return items_; }
+    // Battle AI follows the DOS save-slot order rather than sorted item IDs.
+    [[nodiscard]] const std::vector<ItemEntry> &orderedItems() const { return orderedItems_; }
     [[nodiscard]] inline std::int16_t operator[](std::int16_t id) const {
         auto ite = items_.find(id);
         if (ite == items_.end()) return 0;
@@ -40,6 +46,7 @@ public:
 
 private:
     std::map<std::int16_t, std::int16_t> items_;
+    std::vector<ItemEntry> orderedItems_;
     bool dirty_ = false;
 };
 

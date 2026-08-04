@@ -19,9 +19,9 @@
 
 #pragma once
 
-#include "map.hh"
 #include "battle/ai.hh"
-#include "mem/action.hh"
+#include "battle/movement.hh"
+#include "map.hh"
 #include "mem/character.hh"
 #include <functional>
 #include <vector>
@@ -55,8 +55,12 @@ class Warfield: public Map {
         std::int16_t steps;
         std::int16_t initialSteps;
         std::int16_t attack, defence;
-        /* Set when the character could not help itself and waits for an ally. */
-        battle::AiRequest request = battle::AiRequest::None;
+        battle::AiStats aiEntryStats;
+        battle::AiStats aiEquipmentBonusStats;
+        /* 8/9 are persistent AI request markers (medic/depoison), not UI-only codes. */
+        std::int16_t actionCode = 0;
+        std::int16_t persistentEntryMaxMp = 0;
+        std::int16_t battleEntryMaxMp = 0;
     };
     struct CellInfo {
         std::int16_t earthId = 0, buildingId = 0;
@@ -65,10 +69,7 @@ class Warfield: public Map {
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
     };
-    struct SelectableCell {
-        int x, y, moves, ranges;
-        SelectableCell *moveParent, *rangeParent;
-    };
+    using SelectableCell = battle::SelectableCell;
     struct PopupNumber {
         std::wstring str;
         int x, y;
@@ -93,19 +94,6 @@ protected:
 
     void nextAction();
     void autoAction();
-    void runPendingAutoAction();
-    battle::AiContext buildAiContext(CharInfo *ch) const;
-    void autoUseItem(CharInfo *ch, std::int16_t itemId);
-    std::vector<std::int16_t> rangeGrid(int fromX, int fromY) const;
-    void startMovingTo(std::map<std::pair<int, int>, SelectableCell> &cells, int x, int y);
-    bool moveAwayFromEnemies(CharInfo *ch);
-    bool moveTowards(CharInfo *ch, const CharInfo *target);
-    bool approachAndAct(CharInfo *ch, const CharInfo *target, int range, bool aligned,
-                        std::function<void()> act);
-    void aimAndAct(CharInfo *ch, int x, int y);
-    bool autoSupport(CharInfo *ch, CharInfo *target, std::int16_t actId);
-    bool autoThrow(CharInfo *ch, CharInfo *target, std::int16_t itemId);
-    bool autoAttack(CharInfo *ch, CharInfo *preferred);
     void recalcKnowledge();
     void playerMenu();
     void maskSelectableArea(int steps, int ranges, bool zoecheck = false);
@@ -118,6 +106,7 @@ protected:
     void endTurn(CharInfo *expectedActor = nullptr);
     bool checkWarEnd();
     void endWar();
+    void clearActionState(bool clearPopupNumbers);
     void popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index);
 
 private:
@@ -143,11 +132,13 @@ private:
     std::vector<std::pair<int, int>> movingPath_;
     /* -3poison -2depoison -1medic 0~skillId */
     std::int16_t actIndex_ = -1, actId_ = -1, actLevel_ = 0;
+    std::int16_t actItemSlot_ = -1;
     int effectId_ = -1, effectTexIdx_ = -1, fightTexIdx_ = -1, fightTexCount_ = 0, fightFrame_ = 0;
     int attackTimesLeft_ = 0;
     const std::vector<std::string> *fightTex_ = nullptr;
     std::vector<PopupNumber> popupNumbers_;
     std::function<void()> pendingAutoAction_;
+    bool resumeAutoAttack_ = false;
     Node *statusPanel_ = nullptr;
     Texture *drawingTerrainTex2_ = nullptr;
     std::vector<std::vector<std::string>> fightTexData_;

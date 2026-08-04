@@ -1,9 +1,3 @@
-/*
- * Heroes of Jin Yong.
- * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
- * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
- */
-
 #include "mem/action.hh"
 #include "test_support.hh"
 
@@ -49,12 +43,35 @@ void decrementsAndRejectsEmptySlots() {
     HOJY_CHECK_EQ(hojy::mem::consumeNpcItem(nullptr, 11), false);
 }
 
+void consumesTheSelectedDuplicateSlotInsteadOfTheFirstMatchingId() {
+    hojy::mem::CharacterData character{};
+    for (int i = 0; i < hojy::data::CarryItemCount; ++i) {
+        character.item[i] = -1;
+        character.itemCount[i] = 0;
+    }
+    character.item[0] = 42;
+    character.item[1] = 43;
+    character.item[2] = 42;
+    character.itemCount[0] = character.itemCount[1] = character.itemCount[2] = 1;
+
+    HOJY_CHECK_EQ(hojy::mem::consumeNpcItemAt(&character, 2, 42), true);
+    HOJY_CHECK_EQ(character.item[0], 42);
+    HOJY_CHECK_EQ(character.item[1], 43);
+    HOJY_CHECK_EQ(character.item[2], -1);
+    HOJY_CHECK_EQ(character.itemCount[2], 0);
+
+    HOJY_CHECK_EQ(hojy::mem::consumeNpcItemAt(&character, 0, 99), false);
+    HOJY_CHECK_EQ(character.item[0], 42);
+    HOJY_CHECK_EQ(character.itemCount[0], 1);
+}
+
 }
 
 int main() {
     try {
         removesEverySlotSafely();
         decrementsAndRejectsEmptySlots();
+        consumesTheSelectedDuplicateSlotInsteadOfTheFirstMatchingId();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

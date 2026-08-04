@@ -41,7 +41,11 @@ if (GIT_FOUND)
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
     #How many commits since last tag
-    execute_process(COMMAND ${GIT_EXECUTABLE} rev-list master ${${PROJECT_NAME}_VERSION_STRING}^..HEAD --count
+    # Count commits since the selected tag directly.  The repository may use
+    # a branch name other than `master` (for example, a feature branch or a
+    # remote-only default branch), so referring to a local `master` ref makes
+    # otherwise valid configurations emit a fatal git error.
+    execute_process(COMMAND ${GIT_EXECUTABLE} rev-list ${${PROJECT_NAME}_VERSION_STRING}..HEAD --count
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         OUTPUT_VARIABLE ${PROJECT_NAME}_VERSION_AHEAD
         OUTPUT_STRIP_TRAILING_WHITESPACE)

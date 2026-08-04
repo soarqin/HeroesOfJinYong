@@ -1,29 +1,21 @@
 #include "battle/turn_order.hh"
 #include "test_support.hh"
 
-#include <exception>
+#include <functional>
 #include <iostream>
-#include <vector>
 
 namespace {
 
-struct Actor {
+struct QueueActor {
     int id;
     int speed;
-    int hurt;
-    bool alive = true;
+    bool alive;
 };
 
-std::vector<Actor*> makeQueue(std::vector<Actor*> &turnOrder) {
-    return hojy::battle::buildRoundQueue(turnOrder,
-        [](const Actor *actor) { return actor->speed; },
-        [](const Actor *actor) { return actor->alive; });
-}
-
-std::vector<int> consume(std::vector<Actor*> queue) {
+std::vector<int> consume(std::vector<QueueActor *> queue) {
     std::vector<int> ids;
     while (!queue.empty()) {
-        ids.emplace_back(queue.back()->id);
+        ids.push_back(queue.back()->id);
         queue.pop_back();
     }
     return ids;
@@ -33,46 +25,75 @@ std::vector<int> consume(std::vector<Actor*> queue) {
 
 int main() {
     try {
-        HOJY_CHECK_EQ(hojy::battle::calculateActionSpeed(29, 10, 5), 44);
-        HOJY_CHECK_EQ(hojy::battle::calculateMovementSteps(78, 40), 4);
-        HOJY_CHECK_EQ(hojy::battle::calculateMovementSteps(14, 99), 0);
+        const auto order = hojy::battle::buildTurnOrder({
+            {10, 0}, {20, 1}, {20, 2}, {5, 3}});
+        HOJY_CHECK_EQ(order.size(), 4U);
+        HOJY_CHECK_EQ(order[0], 3);
+        HOJY_CHECK_EQ(order[1], 0);
+        HOJY_CHECK_EQ(order[2], 2);
+        HOJY_CHECK_EQ(order[3], 1);
 
-        Actor soar{0, 29, 0};
-        Actor tian{1, 78, 40};
-        std::vector<Actor*> distinctOrder{&soar, &tian};
-        HOJY_CHECK_EQ(consume(makeQueue(distinctOrder)), (std::vector<int>{1, 0}));
-        HOJY_CHECK_EQ(consume(makeQueue(distinctOrder)), (std::vector<int>{1, 0}));
+        const auto unsorted = hojy::battle::buildTurnOrder({
+            {5, 0}, {90, 1}, {10, 2}, {1, 3}});
+        HOJY_CHECK_EQ(unsorted[0], 3);
+        HOJY_CHECK_EQ(unsorted[1], 0);
+        HOJY_CHECK_EQ(unsorted[2], 2);
+        HOJY_CHECK_EQ(unsorted[3], 1);
 
-        Actor equipped{2, hojy::battle::calculateActionSpeed(29, 50, 0), 0};
-        std::vector<Actor*> equippedOrder{&tian, &equipped};
-        HOJY_CHECK_EQ(consume(makeQueue(equippedOrder)), (std::vector<int>{2, 1}));
+        HOJY_CHECK_EQ(hojy::battle::calcMovementSteps(60, 0), 4);
+        HOJY_CHECK_EQ(hojy::battle::calcMovementSteps(60, 80), 2);
+        HOJY_CHECK_EQ(hojy::battle::calcMovementSteps(10, 80), 0);
 
-        Actor wounded{3, 80, 99};
-        Actor healthy{4, 79, 0};
-        std::vector<Actor*> hurtOrder{&healthy, &wounded};
-        HOJY_CHECK_EQ(consume(makeQueue(hurtOrder)), (std::vector<int>{3, 4}));
+        bool roundStarted = false;
+        HOJY_CHECK_EQ(hojy::battle::beginRound(roundStarted), false);
+        HOJY_CHECK_EQ(roundStarted, true);
+        HOJY_CHECK_EQ(hojy::battle::beginRound(roundStarted), true);
 
-        Actor equalA{10, 1, 0};
-        Actor equalB{11, 1, 0};
-        Actor faster{12, 2, 0};
-        std::vector<Actor*> equalOrder{&equalA, &equalB, &faster};
-        HOJY_CHECK_EQ(consume(makeQueue(equalOrder)), (std::vector<int>{12, 11, 10}));
+        std::function<void()> pendingAction = [] {};
+        hojy::battle::resetTurnState(roundStarted, pendingAction);
+        HOJY_CHECK_EQ(roundStarted, false);
+        HOJY_CHECK_EQ(static_cast<bool>(pendingAction), false);
+        HOJY_CHECK_EQ(hojy::battle::beginRound(roundStarted), false);
 
-        tian.alive = false;
-        std::vector<Actor*> deathOrder{&soar, &tian};
-        HOJY_CHECK_EQ(consume(makeQueue(deathOrder)), (std::vector<int>{0}));
-        soar.alive = false;
-        HOJY_CHECK_EQ(makeQueue(deathOrder).size(), 0U);
-        soar.alive = true;
-        tian.alive = true;
+        int pendingCalls = 0;
+        pendingAction = [&]() {
+            ++pendingCalls;
+            pendingAction = [&]() { ++pendingCalls; };
+        };
+        hojy::battle::runPendingAction(pendingAction);
+        HOJY_CHECK_EQ(pendingCalls, 1);
+        HOJY_CHECK_EQ(static_cast<bool>(pendingAction), true);
+        hojy::battle::runPendingAction(pendingAction);
+        HOJY_CHECK_EQ(pendingCalls, 2);
+        HOJY_CHECK_EQ(static_cast<bool>(pendingAction), false);
 
-        std::vector<Actor*> waitingOrder{&soar, &tian};
-        auto waitingQueue = makeQueue(waitingOrder);
-        auto *waitingActor = waitingQueue.back();
-        waitingQueue.pop_back();
-        waitingQueue.insert(waitingQueue.begin(), waitingActor);
-        HOJY_CHECK_EQ(consume(waitingQueue), (std::vector<int>{0, 1}));
-        HOJY_CHECK_EQ(consume(makeQueue(waitingOrder)), (std::vector<int>{1, 0}));
+        std::int16_t actionCode = 8;
+        hojy::battle::prepareActorActionCode(actionCode, true);
+        HOJY_CHECK_EQ(actionCode, 8);
+        hojy::battle::prepareActorActionCode(actionCode, false);
+        HOJY_CHECK_EQ(actionCode, 0);
+
+        HOJY_CHECK_EQ(hojy::battle::shouldResumeAutoAttack(true), true);
+        HOJY_CHECK_EQ(hojy::battle::shouldResumeAutoAttack(false), false);
+
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(8, true), 8);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(9, true), 9);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(4, true), 4);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(5, true), 5);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(4, false), 4);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(5, false), 5);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(0, true), 2);
+        HOJY_CHECK_EQ(hojy::battle::actionCodeForSkill(8, false), 2);
+
+        QueueActor liveA{0, 0, true};
+        QueueActor liveB{1, 0, true};
+        QueueActor deadFast{2, 1, false};
+        std::vector<QueueActor *> allActors{&liveA, &liveB, &deadFast};
+        auto queue = hojy::battle::buildRoundQueue(
+            allActors,
+            [](const QueueActor *actor) { return actor->speed; },
+            [](const QueueActor *actor) { return actor->alive; });
+        HOJY_CHECK_EQ(consume(std::move(queue)), (std::vector<int>{1, 0}));
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -14,12 +14,16 @@ int main() {
         HOJY_CHECK_EQ(random.callCount(), 3U);
         HOJY_CHECK_EQ(random.calls()[1].minimum, 1);
         HOJY_CHECK_EQ(random.calls()[1].maximum, 3);
-        HOJY_CHECK_THROWS(std::out_of_range, random.next(1));
+        HOJY_CHECK_EQ(random.next(1), 0);
+        HOJY_CHECK_EQ(random.callCount(), 3U);
 
-        hojy::battle::SequenceRandom invalidRange({1});
-        HOJY_CHECK_THROWS(std::invalid_argument, invalidRange.next(0));
-        HOJY_CHECK_THROWS(std::invalid_argument, invalidRange.next(4, 3));
-        HOJY_CHECK_EQ(invalidRange.callCount(), 0U);
+        hojy::battle::SequenceRandom boundary({5});
+        HOJY_CHECK_EQ(boundary.next(0), 0);
+        HOJY_CHECK_EQ(boundary.next(1), 0);
+        HOJY_CHECK_EQ(boundary.next(30001), 0);
+        HOJY_CHECK_EQ(boundary.callCount(), 0U);
+        HOJY_CHECK_EQ(boundary.next(10), 5);
+        HOJY_CHECK_THROWS(std::invalid_argument, boundary.next(4, 3));
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -97,7 +97,7 @@ void Strings::saveDataLoaded() {
     for (size_t i = 0; i < sz; ++i) {
         strings_[WarfieldName][i] = util::big5Conv.toUnicode(std::string_view(data::gWarfieldData.info(i)->name, 10));
     }
-    if (core::config.simplifiedChinese()) {
+    if (core::config.simplifiedChinese() && !strings_[CharName].empty()) {
         std::wstring backupCharName = strings_[CharName][0];
         for (auto t = int(CharName); t < int(StringsMax); ++t) {
             for (auto &n: strings_[t]) {
