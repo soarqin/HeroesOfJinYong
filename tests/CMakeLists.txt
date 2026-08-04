@@ -18,6 +18,14 @@ target_link_libraries(scene_input_port_tests PRIVATE hojy_scene_logic)
 set_target_properties(scene_input_port_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME scene_input_port_tests COMMAND scene_input_port_tests)
 
+add_executable(scene_command_queue_tests scene/command_queue_tests.cc)
+target_include_directories(scene_command_queue_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_command_queue_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_command_queue_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_command_queue_tests COMMAND scene_command_queue_tests)
+
 add_executable(battle_random_tests
     battle/random_tests.cc
     ${PROJECT_SOURCE_DIR}/src/util/random.cc)
