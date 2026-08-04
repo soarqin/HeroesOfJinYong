@@ -107,10 +107,12 @@ target_include_directories(audio_channel_tests PRIVATE
 target_compile_definitions(audio_channel_tests PRIVATE SDL_MAIN_HANDLED)
 target_link_libraries(audio_channel_tests PRIVATE SDL2)
 set_target_properties(audio_channel_tests PROPERTIES CXX_STANDARD 17)
+if(TARGET SDL2::SDL2)
 add_custom_command(TARGET audio_channel_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:SDL2>
+        $<TARGET_FILE:SDL::SDL2>
         $<TARGET_FILE_DIR:audio_channel_tests>)
+endif()
 add_test(NAME audio_channel_tests COMMAND audio_channel_tests)
 
 add_executable(npc_item_tests
