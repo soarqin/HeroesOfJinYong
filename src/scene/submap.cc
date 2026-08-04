@@ -21,8 +21,8 @@
 
 #include "window.hh"
 #include "colorpalette.hh"
-#include "data/grpdata.hh"
-#include "mem/savedata.hh"
+#include "content/grpdata.hh"
+#include "world/savedata.hh"
 #include <fmt/format.h>
 
 namespace hojy::scene {
@@ -39,15 +39,15 @@ SubMap::~SubMap() {
 
 bool SubMap::load(std::int16_t subMapId) {
     if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
-        mapWidth_ = data::SubMapWidth;
-        mapHeight_ = data::SubMapHeight;
-        if (data::GrpData::loadData("SDX", "SMP", texData_)) {
+        mapWidth_ = ::hojy::content::SubMapWidth;
+        mapHeight_ = ::hojy::content::SubMapHeight;
+        if (::hojy::content::GrpData::loadData("SDX", "SMP", texData_)) {
             for (std::int16_t i = 0; i < 1000; ++i) {
                 subMapLoaded_.insert(i);
             }
         } else {
-            data::GrpData::DataSet dset;
-            if (!data::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
+            ::hojy::content::GrpData::DataSet dset;
+            if (!::hojy::content::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
                 return false;
             }
             if (dset.size() > texData_.size()) {
@@ -64,8 +64,8 @@ bool SubMap::load(std::int16_t subMapId) {
     cleanupEvents();
     eventLoop_.clear();
     eventDelay_.clear();
-    eventLoop_.resize(data::SubMapEventCount);
-    eventDelay_.resize(data::SubMapEventCount);
+    eventLoop_.resize(::hojy::content::SubMapEventCount);
+    eventDelay_.resize(::hojy::content::SubMapEventCount);
     {
         const auto *arr = reinterpret_cast<const uint16_t*>(texData_[0].data());
         cellWidth_ = arr[0];
@@ -79,8 +79,8 @@ bool SubMap::load(std::int16_t subMapId) {
     cellInfo_.clear();
     cellInfo_.resize(size);
 
-    auto &layers = mem::gSaveData.subMapLayerInfo[subMapId]->data;
-    auto &events = mem::gSaveData.subMapEventInfo[subMapId]->events;
+    auto &layers = ::hojy::world::state::gSaveData.subMapLayerInfo[subMapId]->data;
+    auto &events = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId]->events;
     int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
     int y = offsetY_;
     int pos = 0;
@@ -152,7 +152,7 @@ void SubMap::render() {
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= data::SubMapWidth || y < 0 || y >= data::SubMapHeight) {
+                if (x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight) {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
@@ -183,7 +183,7 @@ void SubMap::render() {
             int dx = tx;
             int offset = y * mapWidth_ + x;
             for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= data::SubMapWidth || y < 0 || y >= data::SubMapHeight) {
+                if (x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight) {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
@@ -246,8 +246,8 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     if (ci.buildingId || ci.blocked) {
         return true;
     }
-    auto &layers = mem::gSaveData.subMapLayerInfo[subMapId_]->data;
-    auto &events = mem::gSaveData.subMapEventInfo[subMapId_]->events;
+    auto &layers = ::hojy::world::state::gSaveData.subMapLayerInfo[subMapId_]->data;
+    auto &events = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId_]->events;
     auto ev = layers[3][pos];
     if (ev >= 0 && events[ev].blocked) {
         return true;
@@ -261,7 +261,7 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     if (checkEvent) {
         onMove();
     }
-    const auto &subMapInfo = mem::gSaveData.subMapInfo[subMapId_];
+    const auto &subMapInfo = ::hojy::world::state::gSaveData.subMapInfo[subMapId_];
     for (int i = 0; i < 3; ++i) {
         if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
             gWindow->exitToGlobalMap(int(direction_));
@@ -316,7 +316,7 @@ void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
 
 void SubMap::frameUpdate() {
     MapWithEvent::frameUpdate();
-    auto &evlist = mem::gSaveData.subMapEventInfo[subMapId_];
+    auto &evlist = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId_];
     for (auto &ev: evlist->events) {
         if (ev.x <= 0) { break; }
         if (ev.begTex == ev.endTex) { continue; }

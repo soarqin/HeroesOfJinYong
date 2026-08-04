@@ -74,7 +74,7 @@ python tools/reverse/extract_battle_evidence.py `
 
 同两段恢复分支中的物品扫描直接遍历原始来源：NPC 遍历 4 个携带槽，背包遍历 200 个保存槽；先过滤 `itemType == 3`，生命、内力和体力只接受正增量，解毒只接受负的中毒增量，并立即返回首个合格物品。原版不按差值排序，`value` 仅作为 C++ 适配层参数保留，不参与选择，也不触发额外随机调用。
 
-背包槽序由 `sub_2E571` 和 `sub_2B227` 确认：新增物品写入首个空槽，物品耗尽后把后续槽逐项左移，因此顺序是保存槽与插入顺序，不是物品 ID 顺序。`mem::Bag::orderedItems()` 保留该顺序，并在保存时按相同顺序写回。NPC 物品耗尽后由 `sub_36133` 逐个移动 16 位物品与数量槽；C++ 使用 `mem::compactCarryItemSlots`，避免旧 `memmove` 长度表达式造成越界读写。
+背包槽序由 `sub_2E571` 和 `sub_2B227` 确认：新增物品写入首个空槽，物品耗尽后把后续槽逐项左移，因此顺序是保存槽与插入顺序，不是物品 ID 顺序。`world::state::Bag::orderedItems()` 保留该顺序，并在保存时按相同顺序写回。NPC 物品耗尽后由 `sub_36133` 逐个移动 16 位物品与数量槽；C++ 使用 `world::state::compactCarryItemSlots`，避免旧 `memmove` 长度表达式造成越界读写。
 
 医疗目标依次检查行动代码 8、生命低于 20、受伤高于 40，以及生命低于上限 `1/2`、`1/3`、`1/4`、`1/5` 的条件；前三个比例门槛分别使用 `< 7`、`< 8`、`< 9`。解毒目标依次检查行动代码 9，以及中毒高于 10、20、30、40 的条件；前三个中毒门槛分别使用 `< 4`、`< 6`、`< 8`。`BATTLE-AI-MEDIC-ACTION` 与 `BATTLE-AI-DEPOISON-ACTION` 的施术距离分别为 `medic / 15 + 1` 和 `depoison / 15 + 1`，距离不足时先沿可达路径移动；仍无法施术时，以 `2 * attack <= floor(2 * allyPowerTotal / allyCount)` 选择休息或武功分支。`BATTLE-AI-FOLLOWUP` 的暗器、随机武功和最低内力判断已接入 `Warfield::autoAction`；行动代码 8/9 的请求者完成接近后按原版直接进入随机武功选择。
 

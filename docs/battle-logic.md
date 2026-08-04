@@ -19,12 +19,12 @@
 | 纯数值规则 | `src/battle/formulas.hh` / `.cc` | 伤害、中毒、医疗、解毒、暗器、休息、回合末结算、武功等级与内力消耗、升级成长 |
 | AI 规则 | `src/battle/ai_policy.*`、`ai_strategy.*`、`ai.*` | 资源决策、后续行动、目标与武功槽选择；`ai.*` 仅提供兼容门面 |
 | 移动与范围 | `src/battle/movement.*`、`attack_area.*` | 地形距离、占位感知移动、施术站位和攻击格遍历 |
-| 资源槽序 | `src/battle/resource_items.*`、`src/mem/item_slots.*` | NPC 携带槽、玩家背包保存槽和耗尽压缩 |
+| 资源槽序 | `src/battle/resource_items.*`、`src/world/item_slots.*` | NPC 携带槽、玩家背包保存槽和耗尽压缩 |
 | 回合顺序 | `src/battle/turn_order.hh` / `.cc` | 行动速度、移动步数、回合队列排序 |
 | 随机源 | `src/battle/random.hh` / `.cc`、`game_random.hh` / `.cc` | 随机接口、固定序列实现、游戏随机源适配 |
-| 角色状态变更 | `src/mem/action.cc` | 把纯规则套用到 `mem::CharacterData`，负责钳制与状态写入 |
-| 战场适配 | `src/scene/warfield.cc` | 回合调度、范围枚举、目标枚举、AI 快照与执行、战后结算 |
-| 常量 | `src/data/consts.hh` | 各属性上限、学习槽位数、经验上限 |
+| 角色状态变更 | `src/world/action.cc` | 把纯规则套用到 `world::state::CharacterData`，负责钳制与状态写入 |
+| 战场适配 | `src/scene/warfield_{load,turns,actions,ai,results}.cc` | 回合调度、范围枚举、目标枚举、AI 快照与执行、战后结算 |
+| 常量 | `src/content/constants.hh` | 各属性上限、学习槽位数、经验上限 |
 
 测试：`tests/battle/formula_tests.cc`、`combat_rules_tests.cc`、`ai_tests.cc`、`ai_policy_tests.cc`、`ai_strategy_tests.cc`、`movement_tests.cc`、`attack_area_tests.cc`、`resource_items_tests.cc`、`turn_order_tests.cc`，以及 `tests/battle/random_tests.cc`。每条断言的注释标注对应地址或控制流契约。
 
@@ -64,7 +64,7 @@ rnd(n) = rand() % n        其余情况，取值 0..n-1
 
 原版在 16 位寄存器里运算这些值，只在表达式末尾用 `cwde` 扩展为 32 位，因此中间结果会在 16 位处回绕。`formulas.cc` 内的 `narrow()` 复现这一截断。除法一律采用 C 语言的向零取整。
 
-角色数值本身都是 `int16_t`，写入前按 `src/data/consts.hh` 的上限做钳制。
+角色数值本身都是 `int16_t`，写入前按 `src/content/constants.hh` 的上限做钳制。
 
 ### 2.3 关键数据字段
 
@@ -108,7 +108,7 @@ rnd(n) = rand() % n        其余情况，取值 0..n-1
 steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
 ```
 
-`battle::calculateMovementSteps` 实现该式。本实现中，`CharInfo::info.speed` 已由 `mem::addUpPropFromEquipToChar` 并入装备加成，因此只需传入 `speed` 与 `hurt` 即可。`initialSteps` 记录本回合发放的步数，供休息判定使用。
+`battle::calculateMovementSteps` 实现该式。本实现中，`CharInfo::info.speed` 已由 `world::state::addUpPropFromEquipToChar` 并入装备加成，因此只需传入 `speed` 与 `hurt` 即可。`initialSteps` 记录本回合发放的步数，供休息判定使用。
 
 ### 3.4 等待（`0x3AA17`）
 
@@ -129,7 +129,7 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
   hp < 1      → 1（当前修正版）
 ```
 
-`battle::roundEndDrain(hurt, poisoned)` 只算扣血量，`mem::actRoundEndDrain` 负责守卫与写入。
+`battle::roundEndDrain(hurt, poisoned)` 只算扣血量，`world::state::actRoundEndDrain` 负责守卫与写入。
 
 **有意偏离**：原版在 `hurt > 0` 时跳过退场与生命检查，且只在 `hp < 0` 时改为 1；结果恰为 0 时仍保留 0，已阵亡且带受伤值的角色也可能被改回 1。本实现先排除已阵亡者，并统一执行 `hp < 1 → 1`。
 
@@ -158,7 +158,7 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
 | 医疗 | `stamina > 50` 且 `medic >= 20` |
 | 物品、等待、状态、休息、自动 | 始终开放 |
 
-「武功」子菜单按 `mem::calcRealSkillLevel` 返回 -1 来过滤单条武功，判据与菜单门一致（`mp >= reqMp`）。
+「武功」子菜单按 `world::state::calcRealSkillLevel` 返回 -1 来过滤单条武功，判据与菜单门一致（`mp >= reqMp`）。
 
 ## 5. 数值公式
 
@@ -173,7 +173,7 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
 
 `battle::skillMpCost` 与 `battle::resolveSkillLevel` 实现这两式。`resolveSkillLevel` 在 `reqMp > 0 且 mp < reqMp` 时返回 -1，用于菜单过滤；这一层是本实现的界面契约，原版靠菜单门实现同样效果。
 
-内力在**每次攻击**扣除一次，不按受击目标逐个扣除。区域武功打中五个目标也只扣一份，由 `mem::postDamage` 保证。
+内力在**每次攻击**扣除一次，不按受击目标逐个扣除。区域武功打中五个目标也只扣一份，由 `world::state::postDamage` 保证。
 
 ### 5.2 实际攻击与实际防御
 
@@ -188,9 +188,9 @@ steps = max(0, (speed + 武器 addSpeed + 防具 addSpeed) / 15 - hurt / 40)
   defence + 防具 addDefence + 武器 addDefence + 对方知识项
 ```
 
-`attack` 与 `defence` 指**不含装备**的角色基础值。本实现中，`info.attack` 已并入装备加成，`mem::calcRealAttack` 先减去装备加成再按上式重算，`mem::calcRealDefense` 直接使用已含装备的 `defence`。
+`attack` 与 `defence` 指**不含装备**的角色基础值。本实现中，`info.attack` 已并入装备加成，`world::state::calcRealAttack` 先减去装备加成再按上式重算，`world::state::calcRealDefense` 直接使用已含装备的 `defence`。
 
-兵器绑定（`0x377DC`）：`data::gFactors.skillWeaponsBindings` 是 7 组三元组 `{装备 id, 武功 id, 加成}`，当 `equip[0]` 与武功 id 同时匹配时把加成计入攻击。
+兵器绑定（`0x377DC`）：`content::gFactors.skillWeaponsBindings` 是 7 组三元组 `{装备 ID, 武功 ID, 加成}`，当 `equip[0]` 与武功 ID 同时匹配时把加成计入攻击。
 
 知识项（`0x3919E`）：遍历全部参与者，满足 `knowledge > 80`（不含等号）、`hp > 0`、未退场者才参与；与**攻击方**同阵营的计入攻击项，其余计入防御项，累加值均为 `knowledge * 2`。阵营相对攻击方判定，敌方攻击时两项互换。`Warfield::recalcKnowledge` 维护两侧的知识和，`makeDamage` 按 `ch->side` 取用。
 
@@ -244,7 +244,7 @@ dmg = max(dmg, 1)
 
 中毒一步用的是**未经内力降级的原始等级**，与伤害用的等级可能不同；目标已阵亡时同样执行。击杀奖励只在「过量击杀」时给出，伤害恰好等于剩余生命时不奖励。
 
-`battle::poisonOnHit` 实现毒力计算，其余写入在 `mem::actDamage`。
+`battle::poisonOnHit` 实现毒力计算，其余写入在 `world::state::actDamage`。
 
 **未复刻**：原版把中毒值与 100 比较却写入 99（`0x395B6`），恰好等于 100 的中毒值因此会保留；本实现统一钳制到 99。
 
@@ -256,7 +256,7 @@ dmg = max(dmg, 1)
 体力（0x38579）：全部攻击次数结束后统一扣 3
 ```
 
-`mem::postDamage` 按「熟练度成长 → 内力扣除 → 体力扣除」的顺序执行，体力只在最后一次攻击时传入非零值。
+`world::state::postDamage` 按「熟练度成长 → 内力扣除 → 体力扣除」的顺序执行，体力只在最后一次攻击时传入非零值。
 
 ### 5.7 吸内力（`0x395EC`）
 
@@ -284,7 +284,7 @@ dmg = max(dmg, 1)
 | 暗器（`0x3A537`） | 见下 | 0 | 0 |
 | 休息（`0x3A8A4`） | 见 5.10 | — | 0 |
 
-医疗的 `hurt > medic + 20` 判定在随机数抽取**之后**才生效，此时治疗量与受伤削减同时归零，但随机数已经消耗。实现上由 `battle::medicHeal` 只返回治疗量、`mem::actMedic` 施加拒绝条件来保证这一点。
+医疗的 `hurt > medic + 20` 判定在随机数抽取**之后**才生效，此时治疗量与受伤削减同时归零，但随机数已经消耗。实现上由 `battle::medicHeal` 只返回治疗量、`world::state::actMedic` 施加拒绝条件来保证这一点。
 
 用毒返回的是实际增加的中毒值（正数），解毒返回实际减少量（正数）。
 
@@ -332,7 +332,7 @@ stamina += rnd(3) + (本回合已移动 ? 2 : 3)      上限 100
 
 **有意偏离**：原版用剩余步数与 `speed / 10` 比较来判断是否移动过（`0x3A8CF`），而回合发放的步数是 `speed / 15 - hurt / 40`，两者几乎不可能相等，「未移动」奖励因此永远拿不到。本实现按 `remainingSteps != initialSteps` 判断；只要消耗过任意一步，就视为本回合已经移动。
 
-`battle::restGain` 返回三项增量，`mem::actRest` 负责写入与钳制。
+`battle::restGain` 返回三项增量，`world::state::actRest` 负责写入与钳制。
 
 ### 5.11 升级（`0x3B6BE`）
 
@@ -358,7 +358,7 @@ special：不成长
 
 随机消耗顺序：成长系数 1 次，`maxHp` 的 `rnd(3)` 1 次，六项熟练度按 medic、poison、depoison、fist、sword、blade 的顺序（各自满足条件时），最后 throwing 1 次。
 
-`battle::levelUpFactor` 与 `battle::levelUpGain` 实现前两部分，`mem::actLevelup(c, gainedLevels)` 负责写入。调用方须先算出等级差，不能在循环中反复调用。
+`battle::levelUpFactor` 与 `battle::levelUpGain` 实现前两部分，`world::state::actLevelup(c, gainedLevels)` 负责写入。调用方须先算出等级差，不能在循环中反复调用。
 
 ## 6. 范围与目标
 
@@ -411,7 +411,7 @@ AI 分三段：**决定做什么**（`src/battle/ai_policy.*` 与 `ai_strategy.*
 | 物品快照 | 敌方按 4 个携带槽，玩家按背包保存槽顺序扫描 |
 | 武功快照 | 保留原始槽位与熟练度；站位按存储熟练等级规划，执行时再按当前 MP 降级 |
 
-AI 属性快照在 `putChars()` 中于 `mem::addUpPropFromEquipToChar()` 之前建立。装备加成仍保留在 `CharInfo::info`，供实际伤害、速度、防御和施术执行使用；AI 规划从运行时基础字段中扣除入场装备增量。若战斗内直接改写这些运行时字段，下一次决策会保留该改写，不会重新从持久存档读取。
+AI 属性快照在 `putChars()` 中于 `world::state::addUpPropFromEquipToChar()` 之前建立。装备加成仍保留在 `CharInfo::info`，供实际伤害、速度、防御和施术执行使用；AI 规划从运行时基础字段中扣除入场装备增量。若战斗内直接改写这些运行时字段，下一次决策会保留该改写，不会重新从持久存档读取。
 
 ### 7.2 决策级联（`0x33599`）
 
@@ -582,7 +582,7 @@ AI 属性快照在 `putChars()` 中于 `mem::addUpPropFromEquipToChar()` 之前�
 
 ### 8.2 升级
 
-见 5.11。调用方须先用 `mem::getExpForLevelUp` 算出等级差，再一次性调用 `mem::actLevelup(charInfo, gained)`。
+见 5.11。调用方须先用 `world::state::getExpForLevelUp` 算出等级差，再一次性调用 `world::state::actLevelup(charInfo, gained)`。
 
 ### 8.3 资质档位
 
@@ -623,7 +623,7 @@ expForItem < need 时跳过
 - 升级是 `+= 100`，余量随之带入下一级，不做取整。
 - 全程**不消耗随机数**，也没有内力上限的随机加成。
 
-书本属性套用（`0x3BC6C`）是一套**独立规则**，与消耗品用的 `mem::applyItemChanges` 不同，按下列顺序执行 19 项：
+书本属性套用（`0x3BC6C`）是一套**独立规则**，与消耗品用的 `world::state::applyItemChanges` 不同，按下列顺序执行 19 项：
 
 | 物品字段 | 目标 | 规则 |
 | --- | --- | --- |
@@ -636,7 +636,7 @@ expForItem < need 时跳过
 
 `addHp`、`addMp`、`addPoisoned`、`addStamina` 这四个消耗品字段**完全不套用**。
 
-`mem::getExpForSkillLearn` 负责需求量，`mem::applyBookChanges` 负责属性套用（钳制语义由 `battle::applyBookStat` 提供），写入流程在 `Warfield::endWar`。
+`world::state::getExpForSkillLearn` 负责需求量，`world::state::applyBookChanges` 负责属性套用（钳制语义由 `battle::applyBookStat` 提供），写入流程在 `Warfield::endWar`。
 
 ### 8.5 制药（`0x3C2AC`）
 
@@ -662,7 +662,7 @@ expForMakeItem = 0
 - 抽取范围是全部 5 个配方槽位，不限于排在前面的几个。
 - 只有己方角色制药。
 
-`mem::getExpForMakeItem` 负责需求量，其余在 `Warfield::endWar`。
+`world::state::getExpForMakeItem` 负责需求量，其余在 `Warfield::endWar`。
 
 ## 9. 差异索引
 
@@ -678,13 +678,13 @@ expForMakeItem = 0
 | --- | --- | --- |
 | 某条数值公式 | `src/battle/formulas.cc`（含 `.hh` 注释与地址） | `formula_tests.cc` 的对应用例、随机消耗次数断言 |
 | 随机消耗次数 | 相关规则函数 | 所有用 `SequenceRandom` 的测试都会因序列错位而失败，属预期 |
-| 属性上限 | `src/data/consts.hh` | `mem/action.cc` 中所有 `std::clamp` 调用点 |
+| 属性上限 | `src/content/constants.hh` | `src/world/action.cc` 中所有 `std::clamp` 调用点 |
 | AI 判据或阈值 | `src/battle/ai_policy.cc`、`ai_strategy.cc` | `ai_tests.cc`、`ai_policy_tests.cc`、`ai_strategy_tests.cc`；注意级联条件的判断顺序决定随机消耗 |
-| AI 执行方式（移动、出手） | `src/scene/warfield.cc`、`src/battle/movement.cc` | `movement_tests.cc`；场景回调仍需实际战斗验证 |
+| AI 执行方式（移动、出手） | `src/scene/warfield_{turns,actions,ai}.cc`、`src/battle/movement.cc` | `movement_tests.cc`；场景回调仍需实际战斗验证 |
 | 作用范围形状或遍历顺序 | `src/battle/attack_area.cc`、`Warfield::startActAction` | `attack_area_tests.cc` 与战场表现分支 |
 | 回合流程 | `Warfield::nextAction`、`src/battle/turn_order.hh` | `turn_order_tests.cc` |
-| 战后结算 | `Warfield::endWar`、`mem::actLevelup` | 无纯逻辑测试覆盖，需实际战斗验证 |
-| 练功或制药的需求量 | `mem::getExpForSkillLearn`、`mem::getExpForMakeItem`、`battle::potentialTier` | `formula_tests.cc` 的 `potentialTiers` 用例 |
-| 书本属性套用 | `mem::applyBookChanges`、`battle::applyBookStat` | `formula_tests.cc` 的 `bookStats` 用例；不要顺手改 `applyItemChanges`，那条路径用于消耗品 |
+| 战后结算 | `Warfield::endWar`、`world::state::actLevelup` | 无纯逻辑测试覆盖，需实际战斗验证 |
+| 练功或制药的需求量 | `world::state::getExpForSkillLearn`、`world::state::getExpForMakeItem`、`battle::potentialTier` | `formula_tests.cc` 的 `potentialTiers` 用例 |
+| 书本属性套用 | `world::state::applyBookChanges`、`battle::applyBookStat` | `formula_tests.cc` 的 `bookStats` 用例；不要顺手改 `applyItemChanges`，那条路径用于消耗品 |
 
-新增一条规则时的约定：纯计算放进 `src/battle/`，状态写入放进 `src/mem/action.cc`，场景交互放进 `src/scene/warfield.cc`；函数注释首行给出证据 ID 与地址。数值公式的一参原版随机经 `battle::originalRandom` 取用；AI 与策略层可直接调用一参 `RandomSource::next`；两参闭区间接口仅按独立契约使用。
+新增一条规则时的约定：纯计算放进 `src/battle/`，状态写入放进 `src/world/action.cc`，场景交互按职责放进 `src/scene/warfield_{turns,actions,ai,results}.cc`；函数注释首行给出证据 ID 与地址。数值公式的一参原版随机经 `battle::originalRandom` 取用；AI 与策略层可直接调用一参 `RandomSource::next`；两参闭区间接口仅按独立契约使用。

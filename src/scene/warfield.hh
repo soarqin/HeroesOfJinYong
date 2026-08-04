@@ -20,13 +20,19 @@
 #pragma once
 
 #include "battle/ai.hh"
+#include "battle/ai_policy.hh"
+#include "battle/engine.hh"
+#include "battle/game_random.hh"
 #include "battle/movement.hh"
 #include "map.hh"
-#include "mem/character.hh"
+#include "world/bag.hh"
+#include "world/character.hh"
 #include <functional>
-#include <vector>
+#include <memory>
 #include <map>
+#include <optional>
 #include <set>
+#include <vector>
 
 namespace hojy::scene {
 
@@ -50,7 +56,7 @@ class Warfield: public Map {
         std::int16_t texId;
         std::int16_t x, y;
         Direction direction;
-        mem::CharacterData info;
+        ::hojy::world::state::CharacterData info;
         std::uint16_t exp;
         std::int16_t steps;
         std::int16_t initialSteps;
@@ -64,7 +70,6 @@ class Warfield: public Map {
     };
     struct CellInfo {
         std::int16_t earthId = 0, buildingId = 0;
-        const std::string *effectData = nullptr;
         bool blocked = false;
         CharInfo *charInfo = nullptr;
         std::uint8_t insideMovingArea = 0;
@@ -84,7 +89,7 @@ public:
     inline void setGetExpOnLose(bool b) { getExpOnLose_ = b; }
     inline void setDeadOnLose(bool b) { deadOnLose_ = b; }
     bool getDefaultChars(std::set<std::int16_t> &chars) const;
-    void putChars(const std::vector<std::int16_t> &chars);
+    bool putChars(const std::vector<std::int16_t> &chars);
 
     void render() override;
     void handleKeyInput(Key key) override;
@@ -94,6 +99,15 @@ protected:
 
     void nextAction();
     void autoAction();
+    void autoActionSkill(CharInfo *ch, int actorIndex,
+                         const battle::AiStats &actorAiStats,
+                         const battle::AiResourceState &resourceState,
+                         const std::vector<battle::AiAllyState> &allies,
+                         const battle::AiPowerSummary &allyPower,
+                         bool resumeAutoAttack, bool requestSupport,
+                         bool supportWithoutPosition,
+                         battle::AiResourceAction resourceAction,
+                         battle::RandomSource &resourceRandom);
     void recalcKnowledge();
     void playerMenu();
     void maskSelectableArea(int steps, int ranges, bool zoecheck = false);
@@ -108,6 +122,14 @@ protected:
     void endWar();
     void clearActionState(bool clearPopupNumbers);
     void popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index);
+    void syncBattleParticipantsToWorking() noexcept;
+    void syncBattleParticipantsFromWorking() noexcept;
+    void discardBattleSession() noexcept;
+    void commitBattleBag() noexcept;
+    [[nodiscard]] std::optional<battle::ParticipantId> participantIndex(
+        const CharInfo *character) const noexcept;
+    [[nodiscard]] battle::InventorySnapshot battleInventorySnapshot() const;
+    bool recordBattleAction(const battle::BattleAction &action);
 
 private:
     std::int16_t warId_ = -1;
@@ -117,6 +139,12 @@ private:
     std::set<std::int16_t> warMapLoaded_;
 
     std::vector<CharInfo> chars_;
+    std::vector<std::unique_ptr<battle::BattleParticipant>> battleParticipants_;
+    battle::GameRandom battleGameRandom_;
+    battle::RecordingRandom battleRandom_;
+    battle::BattleEngine battleEngine_;
+    ::hojy::world::state::Bag battleBag_;
+    bool battleBagActive_ = false;
     std::vector<CharInfo*> turnOrder_;
     std::vector<CharInfo*> charQueue_;
     CharInfo *currentActor_ = nullptr;
@@ -133,6 +161,7 @@ private:
     /* -3poison -2depoison -1medic 0~skillId */
     std::int16_t actIndex_ = -1, actId_ = -1, actLevel_ = 0;
     std::int16_t actItemSlot_ = -1;
+    std::vector<battle::ActionTarget> actionTargets_;
     int effectId_ = -1, effectTexIdx_ = -1, fightTexIdx_ = -1, fightTexCount_ = 0, fightFrame_ = 0;
     int attackTimesLeft_ = 0;
     const std::vector<std::string> *fightTex_ = nullptr;

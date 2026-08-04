@@ -21,6 +21,7 @@
 
 #include "renderer.hh"
 
+#include <cstdint>
 #include <vector>
 #include <functional>
 
@@ -47,6 +48,18 @@ public:
     virtual ~Node();
     void add(Node *child);
     void remove(Node *child);
+
+    [[nodiscard]] Node *parent() const { return parent_; }
+    void requestDelete();
+    [[nodiscard]] bool deleteRequested() const { return deleteRequested_; }
+    // Used by an external owner (Window/Map) when this node is the root.
+    bool consumeDeleteRequest();
+    void applyDeferredDeletes();
+
+    void dispatchUpdate() { doUpdate(); }
+    void dispatchRender() { doRender(); }
+    void dispatchKeyInput(Key key) { doHandleKeyInput(key); }
+    void dispatchTextInput(const std::wstring &str) { doTextInput(str); }
 
     [[nodiscard]] inline int x() const { return x_; }
     [[nodiscard]] inline int y() const { return y_; }
@@ -84,6 +97,13 @@ protected:
     Node *fadeNode_ = nullptr;
     std::function<void()> fadePostAction_;
     bool runFadePostAction_ = false;
+
+    bool deleteRequested_ = false;
+    std::uint32_t dispatchDepth_ = 0;
+    std::vector<Node*> pendingDeletes_;
+
+    Node *rootNode();
+    const Node *rootNode() const;
 };
 
 }

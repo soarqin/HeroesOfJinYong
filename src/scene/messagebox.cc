@@ -27,10 +27,35 @@
 namespace hojy::scene {
 
 void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align align) {
+    if (!layoutReady_) {
+        frameX_ = x_;
+        frameY_ = y_;
+        frameWidth_ = width_;
+        frameHeight_ = height_;
+    }
+    x_ = frameX_;
+    y_ = frameY_;
+    width_ = frameWidth_;
+    height_ = frameHeight_;
     text_ = text;
     type_ = type;
     align_ = align;
+    layoutReady_ = false;
+    if (type_ != YesNo && menu_) {
+        menu_->requestDelete();
+        menu_ = nullptr;
+    }
     setDirty();
+}
+
+void MessageBox::update() {
+    if (!layoutReady_) {
+        layoutText();
+    }
+    if (type_ == YesNo) {
+        ensureYesNoMenu();
+    }
+    NodeWithCache::update();
 }
 
 void MessageBox::handleKeyInput(Node::Key key) {
@@ -39,13 +64,13 @@ void MessageBox::handleKeyInput(Node::Key key) {
         switch (type_) {
         case PressToCloseThis: {
             auto fn = std::move(closeHandler_);
-            delete this;
+            requestDelete();
             if (fn) { fn(); }
             break;
         }
         case PressToCloseParent: {
             auto fn = std::move(closeHandler_);
-            delete parent_;
+            if (parent_) { parent_->requestDelete(); }
             if (fn) { fn(); }
             break;
         }
@@ -64,13 +89,13 @@ void MessageBox::handleKeyInput(Node::Key key) {
     }
 }
 
-void MessageBox::makeCache() {
+void MessageBox::layoutText() {
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
     auto windowBorder = core::config.windowBorder();
 
-    std::vector<std::wstring> lines;
-    size_t widthMax = width_ - windowBorder * 2;
+    lines_.clear();
+    const int widthMax = std::max(0, frameWidth_ - windowBorder * 2);
     int textW = 0, textH;
     for (auto &l: text_) {
         size_t w = 0;
@@ -84,65 +109,76 @@ void MessageBox::makeCache() {
             w += width;
             if (w > widthMax) {
                 textW = std::max(textW, int(w - width));
-                lines.emplace_back(l.substr(idx, i - idx));
+                lines_.emplace_back(l.substr(idx, i - idx));
                 idx = i;
                 w = width;
             }
         }
         if (idx < len) {
             textW = std::max(textW, int(w));
-            lines.emplace_back(l.substr(idx));
+            lines_.emplace_back(l.substr(idx));
         }
     }
     textW += windowBorder * 2;
-    textH = rowHeight * int(lines.size()) + windowBorder * 2 - TextLineSpacing;
+    textH = rowHeight * int(lines_.size()) + windowBorder * 2 - TextLineSpacing;
+    textWidth_ = textW;
+    textHeight_ = textH;
+    x_ = frameX_;
+    y_ = frameY_;
+    width_ = frameWidth_;
+    height_ = frameHeight_;
     if (align_ == Center) {
-        x_ += (width_ - textW) / 2;
-        y_ += (height_ - textH) / 2;
+        x_ += (frameWidth_ - textW) / 2;
+        y_ += (frameHeight_ - textH) / 2;
     }
     width_ = textW;
     height_ = textH;
+    layoutReady_ = true;
+}
+
+void MessageBox::ensureYesNoMenu() {
+    if (menu_ != nullptr || type_ != YesNo) { return; }
+    auto *m = new MenuYesNo(this, x_ + textWidth_ + 5, y_,
+                            gWindow->width() - (x_ + textWidth_ + 5),
+                            gWindow->height() - y_);
+    m->enableHorizonal(true);
+    m->popupWithYesNo();
+    m->setHandler([this]{
+        if (yesHandler_) {
+            yesHandler_();
+        } else {
+            gWindow->endPopup(true, true);
+        }
+    }, [this] {
+        if (noHandler_) {
+            noHandler_();
+        } else {
+            gWindow->endPopup(true, false);
+        }
+    });
+    menu_ = m;
+}
+
+void MessageBox::makeCache() {
+    if (!layoutReady_) {
+        layoutText();
+    }
+    auto *ttf = renderer_->ttf();
+    int rowHeight = ttf->fontSize() + TextLineSpacing;
+    auto windowBorder = core::config.windowBorder();
 
     cacheBegin();
     renderer_->clear(0, 0, 0, 0);
     int x = windowBorder;
     int y = windowBorder;
-    renderer_->fillRoundedRect(0, 0, textW, textH, windowBorder, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, textW, textH, windowBorder, 224, 224, 224, 255);
+    renderer_->fillRoundedRect(0, 0, textWidth_, textHeight_, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, textWidth_, textHeight_, windowBorder, 224, 224, 224, 255);
     ttf->setColor(236, 200, 40);
-    for (auto &l: lines) {
+    for (auto &l: lines_) {
         ttf->render(l, x, y, true);
         y += rowHeight;
     }
     cacheEnd();
-    text_.clear();
-
-    switch (type_) {
-    case YesNo:
-        if (menu_ == nullptr) {
-            auto mx = x_ + textW + 5, my = y_;
-            auto *m = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - my);
-            m->enableHorizonal(true);
-            m->popupWithYesNo();
-            m->setHandler([this]{
-                if (yesHandler_) {
-                    yesHandler_();
-                } else {
-                    gWindow->endPopup(true, true);
-                }
-            }, [this] {
-                if (noHandler_) {
-                    noHandler_();
-                } else {
-                    gWindow->endPopup(true, false);
-                }
-            });
-            menu_ = m;
-        }
-        break;
-    default:
-        break;
-    }
 }
 
 }

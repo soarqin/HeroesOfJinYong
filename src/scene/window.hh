@@ -23,7 +23,10 @@
 #include "texture.hh"
 #include "mapwithevent.hh"
 #include "messagebox.hh"
+#include "app/input.hh"
 
+#include <deque>
+#include <functional>
 #include <map>
 #include <string>
 #include <cstdint>
@@ -41,6 +44,7 @@ public:
 
     [[nodiscard]] inline int width() const { return width_; }
     [[nodiscard]] inline int height() const { return height_; }
+    [[nodiscard]] bool ready() const noexcept { return ready_; }
 
     [[nodiscard]] std::uint64_t currTime() { return currTime_; }
 
@@ -52,10 +56,18 @@ public:
 
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
 
-    bool processEvents();
+    void dispatchInput(const app::InputEvent &event);
+    void updateFixed();
+    void compatibilityUpdate();
     void update();
     void render();
     bool flush();
+
+    [[nodiscard]] bool quitRequested() const { return quitRequested_; }
+    void requestQuit() { quitRequested_ = true; }
+    void setSimulationTime(std::uint64_t timestamp) { currTime_ = timestamp; }
+    void defer(std::function<void()> command);
+    void applyDeferredCommands();
 
     void playMusic(int idx);
     void playAtkSound(int idx);
@@ -104,9 +116,15 @@ private:
     Texture *itemTexture_ = nullptr;
     int itemTexW_ = 0, itemTexH_ = 0, itemWCount_ = 0, itemHCount_ = 0;
 
-    std::uint64_t currTime_ = 0, freq_ = 0;
-    std::map<int, std::pair<std::uint64_t, Node::Key>> pressedKeys_;
+    std::uint64_t currTime_ = 0;
+    bool ready_ = true;
+    bool quitRequested_ = false;
+    bool processingStage_ = false;
+    bool applyingDeferred_ = false;
+    std::deque<std::function<void()>> deferredCommands_;
     int playingMusic_ = -1;
+
+    void applyDeferredNodes();
 };
 
 extern Window *gWindow;

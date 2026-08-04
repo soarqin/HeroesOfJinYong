@@ -21,14 +21,14 @@
 
 #include "messagebox.hh"
 #include "window.hh"
-#include "mem/strings.hh"
-#include "mem/savedata.hh"
+#include "world/strings.hh"
+#include "world/savedata.hh"
 #include "core/config.hh"
 #include <fmt/xchar.h>
 
 namespace hojy::scene {
 
-std::int16_t getValueFromType(const mem::CharacterData *info, CharListMenu::ValueType t) {
+std::int16_t getValueFromType(const ::hojy::world::state::CharacterData *info, CharListMenu::ValueType t) {
     switch (t) {
     case CharListMenu::LEVEL:
         return info->level;
@@ -91,7 +91,7 @@ void listNamesFromTypeList(const std::vector<std::int16_t> &charIdList,
                            std::vector<std::wstring> &names, std::vector<std::wstring> &values) {
     names.clear();
     for (auto id: charIdList) {
-        auto *charInfo = mem::gSaveData.charInfo[std::abs(id)];
+        auto *charInfo = ::hojy::world::state::gSaveData.charInfo[std::abs(id)];
         if (!charInfo) { continue; }
         if (id < 0) {
             names.emplace_back(L'\x0F' + GETCHARNAME(-id));
@@ -162,7 +162,7 @@ void CharListMenu::init(const std::vector<std::wstring> &title, const std::vecto
     if (!valueTypes.empty() && filterFunc) {
         charIdList_.clear();
         for (auto id: charIds) {
-            auto *charInfo = mem::gSaveData.charInfo[id];
+            auto *charInfo = ::hojy::world::state::gSaveData.charInfo[id];
             if (!charInfo) { continue; }
             bool add = true;
             for (auto t: valueTypes) {
@@ -215,7 +215,7 @@ void CharListMenu::initWithTeamMembers(const std::vector<std::wstring> &title, c
                                        const std::function<bool()> &cancelHandler,
                                        const std::function<bool(ValueType, std::int16_t)> &filterFunc) {
     std::vector<std::int16_t> charIds;
-    for (auto id: mem::gSaveData.baseInfo->members) {
+    for (auto id: ::hojy::world::state::gSaveData.baseInfo->members) {
         if (id >= 0) {
             charIds.emplace_back(id);
         }

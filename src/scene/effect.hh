@@ -29,7 +29,7 @@ class Renderer;
 
 class Effect {
 public:
-    void load(const std::string &filename);
+    [[nodiscard]] bool load(const std::string &filename);
     const std::vector<std::string> &operator[](std::int16_t index) const;
     void clear() { effectTexData_.clear(); }
 

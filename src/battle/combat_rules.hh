@@ -1,9 +1,9 @@
 #pragma once
 
 #include "battle/random.hh"
-#include "mem/character.hh"
-#include "mem/iteminfo.hh"
-#include "mem/skillinfo.hh"
+#include "world/character.hh"
+#include "world/iteminfo.hh"
+#include "world/skillinfo.hh"
 
 namespace hojy::battle {
 
@@ -19,20 +19,20 @@ struct AiSkillLevels {
     std::int16_t execution = 0;
 };
 
-bool isDrainSkill(const mem::SkillData &skill) noexcept;
+bool isDrainSkill(const ::hojy::world::state::SkillData &skill) noexcept;
 int attackCount(int doubleAttack) noexcept;
 std::int16_t mergeBattleMaxMpGrowth(std::int16_t persistentEntryMaxMp,
                                     std::int16_t battleEntryMaxMp,
                                     std::int16_t battleFinalMaxMp) noexcept;
 
 /* Out-of-range levels are defensively clamped to the skill damage table. */
-std::int16_t calcRealAttack(const mem::CharacterData &character,
+std::int16_t calcRealAttack(const ::hojy::world::state::CharacterData &character,
                             std::int16_t knowledge,
-                            const mem::SkillData &skill,
+                            const ::hojy::world::state::SkillData &skill,
                             std::int16_t level,
                             std::int16_t equipmentAttack = 0,
                             std::int16_t skillWeaponBonus = 0);
-std::int16_t calcRealDefense(const mem::CharacterData &character, std::int16_t knowledge);
+std::int16_t calcRealDefense(const ::hojy::world::state::CharacterData &character, std::int16_t knowledge);
 std::int16_t calcPredictDamage(std::int16_t attack, std::int16_t defence,
                                std::int16_t stamina, std::int16_t hurt,
                                std::int16_t distance);
@@ -47,27 +47,27 @@ AiSkillLevels resolveAiSkillLevels(std::int16_t reqMp,
                                    std::int16_t currentMp) noexcept;
 int calcTechniqueRange(int ability);
 
-DamageResult applyDamage(mem::CharacterData &attacker, mem::CharacterData &defender,
+DamageResult applyDamage(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                          std::int16_t attackerKnowledge, std::int16_t defenderKnowledge,
-                          int distance, const mem::SkillData &skill, std::int16_t level,
+                          int distance, const ::hojy::world::state::SkillData &skill, std::int16_t level,
                           RandomSource &random,
                           std::int16_t equipmentAttack = 0,
                           std::int16_t skillWeaponBonus = 0,
                           std::int16_t storedSkillLevel = -1);
 
-std::int16_t applyPoison(mem::CharacterData &attacker, mem::CharacterData &defender,
+std::int16_t applyPoison(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                          std::int16_t stamina);
-void finishUtilityAction(mem::CharacterData &actor, std::uint16_t &experience);
-std::int16_t applyMedic(mem::CharacterData &attacker, mem::CharacterData &defender,
+void finishUtilityAction(::hojy::world::state::CharacterData &actor, std::uint16_t &experience);
+std::int16_t applyMedic(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                         std::int16_t stamina, RandomSource &random);
-std::int16_t applyDepoison(mem::CharacterData &attacker, mem::CharacterData &defender,
+std::int16_t applyDepoison(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                            std::int16_t stamina, RandomSource &random);
-std::int16_t applyThrow(mem::CharacterData &attacker, mem::CharacterData &defender,
-                        const mem::ItemData &item, std::int16_t stamina,
+std::int16_t applyThrow(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
+                        const ::hojy::world::state::ItemData &item, std::int16_t stamina,
                         RandomSource &random, bool &dead);
-std::int16_t applyPoisonDamage(mem::CharacterData &character);
-std::int16_t applyRoundEndDamage(mem::CharacterData &character);
-void applyRest(mem::CharacterData &character, RandomSource &random,
+std::int16_t applyPoisonDamage(::hojy::world::state::CharacterData &character);
+std::int16_t applyRoundEndDamage(::hojy::world::state::CharacterData &character);
+void applyRest(::hojy::world::state::CharacterData &character, RandomSource &random,
                int remainingSteps = -1);
 
 }

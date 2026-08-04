@@ -26,7 +26,7 @@
  * docs/reverse/battle-evidence.md.
  */
 
-#include "mem/character.hh"
+#include "world/character.hh"
 
 #include <vector>
 
@@ -69,19 +69,19 @@ struct AiStats {
  * fields directly; planning must not accidentally use the post-equipment
  * presentation/calculation values.
  */
-AiStats snapshotAiStats(const mem::CharacterData &info) noexcept;
+AiStats snapshotAiStats(const ::hojy::world::state::CharacterData &info) noexcept;
 
 /* Record only the static AI properties contributed by the effective
  * equipment copy.  Keeping this delta lets battle-time mutations remain
  * visible without feeding equipment bonuses back into AI planning. */
 AiStats captureAiEquipmentBonuses(const AiStats &entry,
-                                  const mem::CharacterData &effective) noexcept;
+                                  const ::hojy::world::state::CharacterData &effective) noexcept;
 
 /* Reconstruct current runtime AI properties from the entry snapshot, the
  * static equipment delta, and the mutable battle copy. */
 AiStats resolveAiRuntimeStats(const AiStats &entry,
                               const AiStats &equipmentBonus,
-                              const mem::CharacterData &effective) noexcept;
+                              const ::hojy::world::state::CharacterData &effective) noexcept;
 
 struct AiParticipant {
     AiStats stats;

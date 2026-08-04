@@ -33,7 +33,7 @@ class LEImageTests(unittest.TestCase):
         self.assertEqual(image.read(0x31DAC, 5), b"\x68\x3c\x8a\x05\x00")
 
     def test_skill_weapon_binding_table_matches_the_data_loader(self):
-        # src/data/factors.cc reads this table at file offset 0x4F538.
+        # src/content/factors.cc reads this table at file offset 0x4F538.
         image = _image()
         self.assertEqual(0x55B38 - 0x6600, 0x4F538)
         self.assertEqual(image.find_string("fight000.grp"), 0x55B62)

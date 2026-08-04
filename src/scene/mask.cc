@@ -22,21 +22,36 @@
 #include "window.hh"
 #include "core/config.hh"
 
+#include <algorithm>
+
 namespace hojy::scene {
+
+namespace {
+
+std::uint64_t microsPerAlpha(int interval) {
+    const auto speed = core::config.fadeSpeed();
+    if (speed <= 0.f) { return 1; }
+    const auto value = static_cast<std::uint64_t>(float(4000 * interval) / 3.f / speed);
+    return std::max<std::uint64_t>(1, value);
+}
+
+}
 
 Mask::Mask(Node *parent, Mask::Type type, int interval):
     Node(parent, parent->x(), parent->y(), parent->width(), parent->height()),
-    type_(type), interval_(interval), start_(gWindow->currTime()) {
+    timeline_(gWindow->currTime(), microsPerAlpha(interval), type == FadeIn) {
+}
+
+void Mask::update() {
+    timeline_.advance(gWindow->currTime());
+    if (timeline_.completed() && !completionSignalled_) {
+        completionSignalled_ = true;
+        if (parent_) { parent_->fadeEnd(); }
+    }
 }
 
 void Mask::render() {
-    auto alpha = (gWindow->currTime() - start_) / std::uint64_t(float(4000 * interval_) / 3.f / core::config.fadeSpeed());
-    if (alpha > 255) {
-        alpha = 255;
-        parent_->fadeEnd();
-    }
-    if (type_ == FadeIn) alpha = 255 - alpha;
-    renderer_->fillRect(x_, y_, width_, height_, 0, 0, 0, alpha);
+    renderer_->fillRect(x_, y_, width_, height_, 0, 0, 0, timeline_.alpha());
 }
 
 }

@@ -16,7 +16,7 @@
 
 - `src/scene/warfield.cc`：约 1,839 行，同时承担资源加载、地图状态、输入、渲染、动画、回合、寻路、AI、行动执行和战后结算。
 - `src/scene/warfield.hh`：战斗瞬时状态与场景状态混合存放。
-- `src/mem/action.cc`：包含战斗数值函数，也包含装备、物品、升级和队伍操作等非战斗职责。
+- `src/world/action.cc`：包含战斗数值函数，也包含装备、物品、升级和队伍操作等非战斗职责。
 
 项目当前没有自有测试目标。`cmake-build-release` 使用 Ninja 与 MinGW，可作为现有 Release 构建基线。`build` 与 `build64` 仍绑定旧路径和已不存在的 Visual Studio 2019，不作为本次验证入口，也不在本次工作中清理。
 

@@ -30,14 +30,16 @@ public:
     ~NodeWithCache() override;
 
     inline void setDirty() { cacheDirty_ = true; }
-    inline void forceUpdate() { cacheDirty_ = false; makeCache(); }
+    inline void forceUpdate() { rebuildCache(); }
 
+    void update() override;
     void makeCenter(int w, int h, int x, int y) override;
     void close() override;
     void render() override;
 
 protected:
     virtual void makeCache() = 0;
+    void rebuildCache();
     void cacheBegin();
     void cacheEnd();
 

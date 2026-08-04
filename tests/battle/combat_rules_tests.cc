@@ -1,14 +1,14 @@
 #include "battle/combat_rules.hh"
 #include "battle/random.hh"
-#include "data/consts.hh"
+#include "content/constants.hh"
 #include "test_support.hh"
 
 #include <iostream>
 
 namespace {
 
-hojy::mem::CharacterData makeCharacter() {
-    hojy::mem::CharacterData c{};
+hojy::world::state::CharacterData makeCharacter() {
+    hojy::world::state::CharacterData c{};
     c.maxHp = c.hp = 100;
     c.maxMp = c.mp = 100;
     c.stamina = 100;
@@ -18,8 +18,8 @@ hojy::mem::CharacterData makeCharacter() {
     return c;
 }
 
-hojy::mem::SkillData makeSkill() {
-    hojy::mem::SkillData skill{};
+hojy::world::state::SkillData makeSkill() {
+    hojy::world::state::SkillData skill{};
     skill.id = 1;
     skill.damageType = 0;
     skill.reqMp = 10;
@@ -28,9 +28,9 @@ hojy::mem::SkillData makeSkill() {
 }
 
 void testSkillLevelDowngrade() {
-    HOJY_CHECK_EQ(hojy::data::SkillLevelMax, 900);
-    HOJY_CHECK_EQ(hojy::data::SkillLevelStoreMax, 999);
-    HOJY_CHECK_EQ(hojy::data::ExpMax, 60000);
+    HOJY_CHECK_EQ(hojy::content::SkillLevelMax, 900);
+    HOJY_CHECK_EQ(hojy::content::SkillLevelStoreMax, 999);
+    HOJY_CHECK_EQ(hojy::content::ExpMax, 60000);
     HOJY_CHECK_EQ(hojy::battle::calcRealSkillLevel(10, 5, 24), 4);
     HOJY_CHECK_EQ(hojy::battle::calcRealSkillLevel(10, 5, 9), -1);
     HOJY_CHECK_EQ(hojy::battle::calcRealSkillLevel(10, 0, 0), -1);
@@ -76,7 +76,7 @@ void testBattleMaxMpMergePersistsOnlyGrowthBeyondEntryBonus() {
     HOJY_CHECK_EQ(hojy::battle::mergeBattleMaxMpGrowth(100, 120, 128), 108);
     HOJY_CHECK_EQ(hojy::battle::mergeBattleMaxMpGrowth(100, 120, 110), 100);
     HOJY_CHECK_EQ(hojy::battle::mergeBattleMaxMpGrowth(32760, 32760, 32767),
-                  hojy::data::MaxMpMax);
+                  hojy::content::MaxMpMax);
 }
 
 void testDoubleAttackRequiresExactOriginalFlag() {
@@ -300,7 +300,7 @@ void testThrowUsesOriginalPoisonAndHurtUpdates() {
     auto defender = makeCharacter();
     attacker.throwing = 0;
     defender.poisoned = 0;
-    hojy::mem::ItemData item{};
+    hojy::world::state::ItemData item{};
     item.addHp = -60;
     item.addPoisoned = 20;
     bool dead = false;

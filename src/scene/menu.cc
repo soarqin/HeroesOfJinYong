@@ -20,7 +20,7 @@
 #include "menu.hh"
 
 #include "window.hh"
-#include "mem/strings.hh"
+#include "world/strings.hh"
 #include "core/config.hh"
 
 namespace hojy::scene {
@@ -217,7 +217,7 @@ void MenuTextList::onOK() {
 
 void MenuTextList::onCancel() {
     if (!cancelHandler_ || cancelHandler_()) {
-        delete this;
+        requestDelete();
     }
 }
 
@@ -309,7 +309,7 @@ void MenuOption::handleKeyInput(Node::Key key) {
         if (handler_) {
             handler_(0);
         }
-        delete this;
+        requestDelete();
         return;
     default:
         break;

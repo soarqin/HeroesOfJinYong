@@ -22,16 +22,17 @@
 #include "window.hh"
 #include "menu.hh"
 #include "colorpalette.hh"
-#include "mem/savedata.hh"
-#include "mem/action.hh"
-#include "mem/strings.hh"
-#include "data/factors.hh"
-#include "data/grpdata.hh"
+#include "world/savedata.hh"
+#include "world/action.hh"
+#include "world/strings.hh"
+#include "content/factors.hh"
+#include "content/grpdata.hh"
 #include "core/config.hh"
 #include "util/random.hh"
 #include "util/file.hh"
 #include "util/conv.hh"
 #include "util/math.hh"
+#include <algorithm>
 #include <cstring>
 
 namespace hojy::scene {
@@ -49,10 +50,22 @@ void Title::init() {
     renderer_->enableLinear(false);
 
     std::vector<std::string> dset;
-    if (data::GrpData::loadData("TITLE", dset)) {
+    if (::hojy::content::GrpData::loadData("TITLE", dset)) {
         titleTextureMgr_.loadFromRLE(dset);
     }
     setDirty();
+}
+
+bool Title::prepareNewGame() {
+    if (!::hojy::world::state::gSaveData.newGame()) { return false; }
+    if (!::hojy::world::state::gSaveData.charInfo[0]) { return false; }
+    if (::hojy::content::gFactors.initSubMapId < 0
+        || !::hojy::world::state::gSaveData.subMapInfo[
+            ::hojy::content::gFactors.initSubMapId]) {
+        return false;
+    }
+    doRandomBaseInfo();
+    return true;
 }
 
 void Title::handleKeyInput(Node::Key key) {
@@ -72,9 +85,13 @@ void Title::handleKeyInput(Node::Key key) {
             case 0:
                 if (core::config.noNameInput()) {
                     mainCharName_ = core::config.defaultName();
+                    if (!prepareNewGame()) {
+                        mainCharName_.clear();
+                        auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
+                        msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
+                        break;
+                    }
                     mode_ = 3;
-                    mem::gSaveData.newGame();
-                    doRandomBaseInfo();
                 } else {
                     mainCharName_.clear();
                     mode_ = 2;
@@ -107,9 +124,15 @@ void Title::handleKeyInput(Node::Key key) {
         case 2:
             if (key == KeyOK) {
                 Window::endInput();
+                if (!prepareNewGame()) {
+                    currSel_ = 0;
+                    mode_ = 0;
+                    auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
+                    msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
+                    setDirty();
+                    break;
+                }
                 mode_ = 3;
-                mem::gSaveData.newGame();
-                doRandomBaseInfo();
                 setDirty();
             }
             break;
@@ -158,6 +181,66 @@ void Title::handleTextInput(const std::wstring &str) {
     }
 }
 
+void Title::update() {
+    NodeWithCache::update();
+    if (mode_ == 3 && menu_ == nullptr) {
+        ensureConfirmationMenu();
+    }
+}
+
+void Title::ensureConfirmationMenu() {
+    if (menu_ != nullptr || mode_ != 3) { return; }
+    auto *ttf = renderer_->ttf();
+    const auto windowBorder = core::config.windowBorder();
+    const auto lineheight = ttf->fontSize() + TextLineSpacing;
+    const int oy = height_ - lineheight * 5;
+    const int colwidth = ttf->fontSize() * 21 / 4;
+    const int ox = (width_ - colwidth * 4 + 20) / 2;
+    const auto askText = L'\2' + mainCharName_ + L"  \1" + GETTEXT(100);
+    const int mx = ox + ttf->stringWidth(askText) + windowBorder * 2;
+    const int my = oy - windowBorder;
+    auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - oy);
+    menu->enableHorizonal(true);
+    menu->popupWithYesNo();
+    menu->setHandler([this] {
+        auto big5Name = util::big5Conv.fromUnicode(mainCharName_);
+        while (big5Name.length() > 8) {
+            mainCharName_.pop_back();
+            big5Name = util::big5Conv.fromUnicode(mainCharName_);
+        }
+        auto *charInfo = ::hojy::world::state::gSaveData.charInfo[0];
+        auto *subMap = ::hojy::world::state::gSaveData.subMapInfo[
+            ::hojy::content::gFactors.initSubMapId];
+        if (!charInfo || !subMap) {
+            auto *failedMenu = menu_;
+            menu_ = nullptr;
+            mode_ = 0;
+            currSel_ = 0;
+            if (failedMenu) { failedMenu->requestDelete(); }
+            auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
+            msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
+            setDirty();
+            return;
+        }
+        memset(charInfo->name, 0, 10);
+        memcpy(charInfo->name, big5Name.data(), big5Name.length());
+        auto tailName = util::big5Conv.fromUnicode(GETTEXT(110));
+        memset(subMap->name, 0, 10);
+        memcpy(subMap->name, big5Name.data(), big5Name.length());
+        const auto tailLength = std::min<std::size_t>(
+            tailName.length(), 10 - big5Name.length());
+        memcpy(subMap->name + big5Name.length(), tailName.data(), tailLength);
+        fadeOut([] {
+            gWindow->closePopup();
+            gWindow->newGame();
+        });
+    }, [this] {
+        doRandomBaseInfo();
+        setDirty();
+    });
+    menu_ = menu;
+}
+
 void Title::makeCache() {
     cacheBegin();
     renderer_->clear(0, 0, 0, 255);
@@ -201,16 +284,14 @@ void Title::makeCache() {
         break;
     }
     case 3: {
-        auto windowBorder = core::config.windowBorder();
         auto ttf = renderer_->ttf();
         int lineheight = ttf->fontSize() + TextLineSpacing;
         y = height_ - lineheight * 5;
         int hh = lineheight - 2 - TextLineSpacing / 4;
         int colwidth = ttf->fontSize() * 21 / 4;
         x = (width_ - colwidth * 4 + 20) / 2;
-        int ox = x, oy = y;
         auto askText = L'\2' + mainCharName_ + L"  \1" + GETTEXT(100);
-        auto *data = mem::gSaveData.charInfo[0];
+        auto *data = ::hojy::world::state::gSaveData.charInfo[0];
         ttf->setColor(236, 236, 236);
         ttf->setAltColor(2, 224, 180, 32);
         ttf->render(askText, x, y, false);
@@ -233,43 +314,13 @@ void Title::makeCache() {
             drawProperty(GETTEXT(29), data->potential, 100, x + colwidth * 4, y, hh);
         }
         cacheEnd();
-        if (menu_ == nullptr) {
-            int mx = ox + ttf->stringWidth(askText) + windowBorder * 2;
-            int my = oy - windowBorder;
-            auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - y);
-            menu->enableHorizonal(true);
-            menu->popupWithYesNo();
-            menu->setHandler([this] {
-                auto big5Name = util::big5Conv.fromUnicode(mainCharName_);
-                while (big5Name.length() > 8) {
-                    mainCharName_.pop_back();
-                    big5Name = util::big5Conv.fromUnicode(mainCharName_);
-                }
-                auto *charInfo = mem::gSaveData.charInfo[0];
-                memset(charInfo->name, 0, 10);
-                memcpy(charInfo->name, big5Name.data(), big5Name.length());
-                auto *subMap = mem::gSaveData.subMapInfo[data::gFactors.initSubMapId];
-                auto tailName = util::big5Conv.fromUnicode(GETTEXT(110));
-                memset(subMap->name, 0, 10);
-                memcpy(subMap->name, big5Name.data(), big5Name.length());
-                memcpy(subMap->name + big5Name.length(), tailName.data(), tailName.length());
-                fadeOut([] {
-                    gWindow->closePopup();
-                    gWindow->newGame();
-                });
-            }, [this] {
-                doRandomBaseInfo();
-                setDirty();
-            });
-            menu_ = menu;
-        }
     }
     }
 }
 
 void Title::doRandomBaseInfo() {
     (void)this;
-    auto *data = mem::gSaveData.charInfo[0];
+    auto *data = ::hojy::world::state::gSaveData.charInfo[0];
     data->maxHp = util::gRandom(25, 50);
     data->hp = data->maxHp;
     data->maxMp = util::gRandom(25, 50);
@@ -300,7 +351,7 @@ void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int1
     }
     if (mpType >= 0) {
         std::uint8_t r, g, b;
-        std::tie(r, g, b) = mem::calcColorForMpType(mpType);
+        std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(mpType);
         ttf->setColor(r, g, b);
     } else {
         if (value >= maxValue) {

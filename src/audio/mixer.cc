@@ -25,6 +25,12 @@
 #include "core/config.hh"
 #include <SDL.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <limits>
+#include <new>
+
 namespace hojy::audio {
 
 Mixer gMixer;
@@ -34,10 +40,15 @@ void Mixer::ChannelInfo::reset() {
     volume = 0;
     fadeInStart = fadeIn = 0;
     fadeOutStart = fadeOut = 0;
+    fadeOutVolumeStart = 0;
     chNext.reset();
     volumeNext = 0;
-    filenameNext.clear();
+    fadeInNext = 0;
     repeatNext = false;
+    ended = false;
+    sourceEnded = false;
+    readyPos = 0;
+    readySize = 0;
 }
 
 Mixer::~Mixer() {
@@ -52,17 +63,6 @@ bool Mixer::init(int channels) {
         SDL_Log("Unable to initialize audio: %s", SDL_GetError());
         return false;
     }
-    if (audioDevice_ != 0) {
-        SDL_PauseAudioDevice(audioDevice_, SDL_TRUE);
-        SDL_CloseAudioDevice(audioDevice_);
-        audioDevice_ = 0;
-    }
-    std::scoped_lock lk(playMutex_);
-    sampleRate_ = 0;
-    format_ = 0;
-    channels_.clear();
-    cache_.clear();
-
     SDL_AudioFormat format;
 #if defined(USE_SOXR)
     switch (core::config.sampleFormat()) {
@@ -87,34 +87,51 @@ bool Mixer::init(int channels) {
     desired.callback = callback;
     desired.userdata = this;
     SDL_AudioSpec obtained{};
-    audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
-    if (audioDevice_ == 0) {
-        audioDevice_ = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained,
-                                           SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+    auto newDevice = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (newDevice == 0) {
+        newDevice = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained,
+                                        SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
     }
-    if (audioDevice_ == 0) {
+    if (newDevice == 0) {
         SDL_Log("Unable to open audio device: %s", SDL_GetError());
         return false;
     }
     if (obtained.channels != 2 || convertDataType(obtained.format) == InvalidType
         || obtained.freq <= 0 || obtained.size == 0) {
         SDL_Log("Unsupported audio format returned by device");
-        SDL_CloseAudioDevice(audioDevice_);
-        audioDevice_ = 0;
+        SDL_CloseAudioDevice(newDevice);
         return false;
     }
-    sampleRate_ = obtained.freq;
-    format_ = obtained.format;
-    channels_.resize(channels);
-    cache_.resize(obtained.size);
+    std::vector<ChannelInfo> newChannels;
+    std::vector<std::uint8_t> newCache;
+    try {
+        newChannels.resize(static_cast<std::size_t>(channels));
+        newCache.assign(static_cast<std::size_t>(obtained.size), 0);
+    } catch (const std::bad_alloc &) {
+        SDL_CloseAudioDevice(newDevice);
+        return false;
+    }
+    {
+        std::scoped_lock lk(playMutex_);
+        if (audioDevice_ != 0) {
+            SDL_PauseAudioDevice(audioDevice_, SDL_TRUE);
+            SDL_CloseAudioDevice(audioDevice_);
+        }
+        audioDevice_ = newDevice;
+        sampleRate_ = obtained.freq;
+        format_ = obtained.format;
+        channels_.swap(newChannels);
+        cache_.swap(newCache);
+    }
     return true;
 }
 
 void Mixer::play(size_t channelId, Channel *ch, int volume, std::uint32_t fadeOutMs, std::uint32_t fadeInMs) {
+    std::scoped_lock lk(playMutex_);
     if (channelId >= channels_.size()) {
+        delete ch;
         return;
     }
-    std::scoped_lock lk(playMutex_);
     auto &chi = channels_[channelId];
     if (ch) {
         if (!ch->ok()) {
@@ -123,31 +140,38 @@ void Mixer::play(size_t channelId, Channel *ch, int volume, std::uint32_t fadeOu
         }
         if (fadeOutMs && chi.ch) {
             chi.chNext.reset(ch);
-            chi.filenameNext.clear();
             chi.volumeNext = volume;
+            chi.fadeInNext = fadeInMs;
+            chi.fadeOutVolumeStart = chi.volume;
             auto now = SDL_GetTicks();
             chi.fadeOutStart = now;
             chi.fadeOut = fadeOutMs;
             chi.fadeInStart = chi.fadeIn = 0;
         } else {
-            chi = {std::unique_ptr<Channel>(ch), volume};
+            chi.reset();
+            chi.ch.reset(ch);
+            chi.volume = fadeInMs ? 0 : volume;
+            chi.volumeNext = volume;
             ch->start();
-        }
-        if (fadeInMs) {
-            auto now = SDL_GetTicks();
-            chi.fadeInStart = now;
-            chi.fadeIn = fadeInMs;
+            prepareChannelLocked(chi);
+            fillChannelLocked(chi);
+            if (fadeInMs) {
+                const auto now = SDL_GetTicks();
+                chi.fadeInStart = now;
+                chi.fadeIn = fadeInMs;
+            }
         }
     } else {
         if (fadeOutMs && chi.ch) {
             chi.chNext.reset();
-            chi.filenameNext.clear();
+            chi.fadeInNext = 0;
+            chi.fadeOutVolumeStart = chi.volume;
             auto now = SDL_GetTicks();
             chi.fadeOutStart = now;
             chi.fadeOut = fadeOutMs;
             chi.fadeInStart = chi.fadeIn = 0;
         } else {
-            chi = {nullptr, VolumeMax};
+            chi.reset();
         }
     }
 }
@@ -161,79 +185,124 @@ bool iequals(const std::string &a, const std::string &b) {
 }
 
 void Mixer::play(size_t channelId, const std::string &filename, bool repeat, int volume, std::uint32_t fadeOutMs, std::uint32_t fadeInMs) {
+    std::scoped_lock lk(playMutex_);
     if (channelId >= channels_.size()) {
         return;
     }
-    std::scoped_lock lk(playMutex_);
     auto &chi = channels_[channelId];
     if (fadeOutMs && chi.ch) {
-        chi.chNext.reset();
-        chi.filenameNext = filename;
+        std::unique_ptr<Channel> candidate = createChannelLocked(filename);
+        if (!candidate) {
+            return;
+        }
+        candidate->start();
+        candidate->setRepeat(repeat);
+        chi.chNext = std::move(candidate);
         chi.volumeNext = volume;
         chi.repeatNext = repeat;
+        chi.fadeInNext = fadeInMs;
+        chi.fadeOutVolumeStart = chi.volume;
         auto now = SDL_GetTicks();
         chi.fadeOutStart = now;
         chi.fadeOut = fadeOutMs;
         chi.fadeInStart = chi.fadeIn = 0;
     } else {
-        auto pos = filename.find_last_of('.');
-        if (pos == std::string::npos) {
-            return;
+        if (!loadFilenameLocked(chi, filename, repeat, volume)) { return; }
+        if (fadeInMs) {
+            const auto now = SDL_GetTicks();
+            chi.volume = 0;
+            chi.fadeInStart = now;
+            chi.fadeIn = fadeInMs;
         }
-        auto ext = filename.substr(pos + 1);
-        int type = -1;
-        if (iequals(ext, "MID") || iequals(ext, "XMI")) {
-            type = 0;
-            if (!dynamic_cast<ChannelMIDI*>(chi.ch.get())) {
-                chi.ch.reset();
-            }
-        } else if (iequals(ext, "WAV")) {
-            type = 1;
-            if (!dynamic_cast<ChannelWav*>(chi.ch.get())) {
-                chi.ch.reset();
-            }
-        }
-        if (!chi.ch) {
-            Channel *ch;
-            switch (type) {
-            case 0:
-                ch = new(std::nothrow) ChannelMIDI(this, filename);
-                break;
-            case 1:
-                ch = new(std::nothrow) ChannelWav(this, filename);
-                break;
-            default:
-                return;
-            }
-            if (!ch) { return; }
-            if (!ch->ok()) {
-                delete ch;
-                return;
-            }
-            chi = {std::unique_ptr<Channel>(ch), volume};
-            chi.ch->start();
-        } else {
-            chi.ch->load(filename);
-            if (!chi.ch->ok()) {
-                chi.reset();
-                return;
-            }
-            chi.volume = volume;
-            chi.ch->start();
-        }
-        chi.ch->setRepeat(repeat);
-    }
-    if (fadeInMs) {
-        auto now = SDL_GetTicks();
-        chi.fadeInStart = now;
-        chi.fadeIn = fadeInMs;
     }
 }
 
 void Mixer::pause(bool on) const {
+    std::scoped_lock lk(playMutex_);
     if (audioDevice_ != 0) {
         SDL_PauseAudioDevice(audioDevice_, on ? SDL_TRUE : SDL_FALSE);
     }
+}
+
+std::unique_ptr<Channel> Mixer::createChannelLocked(const std::string &filename) {
+    const auto pos = filename.find_last_of('.');
+    if (pos == std::string::npos) {
+        return nullptr;
+    }
+    const auto ext = filename.substr(pos + 1);
+    std::unique_ptr<Channel> channel;
+    if (iequals(ext, "MID") || iequals(ext, "XMI")) {
+        channel = std::make_unique<ChannelMIDI>(this, filename);
+    } else if (iequals(ext, "WAV")) {
+        channel = std::make_unique<ChannelWav>(this, filename);
+    }
+    if (!channel || !channel->ok()) {
+        return nullptr;
+    }
+    return channel;
+}
+
+bool Mixer::loadFilenameLocked(ChannelInfo &chi, const std::string &filename,
+                                bool repeat, int volume) {
+    std::unique_ptr<Channel> candidate = createChannelLocked(filename);
+    if (!candidate) { return false; }
+    candidate->start();
+    candidate->setRepeat(repeat);
+    chi.reset();
+    chi.ch = std::move(candidate);
+    chi.volume = volume;
+    chi.volumeNext = volume;
+    chi.ended = false;
+    prepareChannelLocked(chi);
+    fillChannelLocked(chi);
+    return true;
+}
+
+void Mixer::prepareChannelLocked(ChannelInfo &channel) {
+    if (!channel.ch) {
+        return;
+    }
+    const auto chunk = std::max<std::size_t>(cache_.size(), 4096);
+    const auto capacity = chunk > std::numeric_limits<std::size_t>::max() / 4
+        ? std::numeric_limits<std::size_t>::max()
+        : chunk * 4;
+    if (capacity == std::numeric_limits<std::size_t>::max()) {
+        return;
+    }
+    if (channel.ready.size() < capacity) {
+        channel.ready.resize(capacity);
+    }
+}
+
+void Mixer::fillChannelLocked(ChannelInfo &channel) {
+    if (!channel.ch || channel.sourceEnded || channel.ready.empty()) {
+        return;
+    }
+    if (channel.readyPos > 0
+        && (channel.readySize == 0
+            || channel.readyPos + channel.readySize == channel.ready.size())) {
+        if (channel.readySize > 0) {
+            std::memmove(channel.ready.data(), channel.ready.data() + channel.readyPos,
+                         channel.readySize);
+        }
+        channel.readyPos = 0;
+    }
+    const auto freeSize = channel.ready.size() - channel.readyPos - channel.readySize;
+    if (freeSize == 0) {
+        return;
+    }
+    auto *destination = channel.ready.data() + channel.readyPos + channel.readySize;
+    const auto readSize = std::max<std::size_t>(cache_.size(), 4096);
+    const auto request = std::min(freeSize, readSize);
+    const auto received = channel.ch->readData(destination, request);
+    if (received == 0) {
+        channel.sourceEnded = true;
+        if (channel.readySize == 0) {
+            channel.ended = true;
+        }
+        return;
+    }
+    channel.readySize += std::min(received, request);
 }
 
 void Mixer::setVolume(size_t channelId, int volume) {
@@ -242,6 +311,51 @@ void Mixer::setVolume(size_t channelId, int volume) {
     auto &chi = channels_[channelId];
     if (!chi.ch) { return; }
     chi.volume = chi.volumeNext = volume;
+}
+
+void Mixer::service() {
+    std::scoped_lock lk(playMutex_);
+    const auto now = SDL_GetTicks();
+    for (auto &chi : channels_) {
+        if (chi.ended) {
+            chi.reset();
+            continue;
+        }
+        if (chi.fadeOut) {
+            const auto delta = std::uint32_t(std::int32_t(now - chi.fadeOutStart));
+            if (delta >= chi.fadeOut) {
+                if (chi.chNext) {
+                    chi.ch = std::move(chi.chNext);
+                    chi.volume = chi.fadeInNext ? 0 : chi.volumeNext;
+                    chi.fadeInStart = chi.fadeInNext ? now : 0;
+                    chi.fadeIn = chi.fadeInNext;
+                    chi.fadeInNext = 0;
+                    chi.ch->setRepeat(chi.repeatNext);
+                    chi.ended = false;
+                    chi.sourceEnded = false;
+                    chi.readyPos = chi.readySize = 0;
+                    prepareChannelLocked(chi);
+                    fillChannelLocked(chi);
+                } else {
+                    chi.reset();
+                }
+                chi.fadeOutStart = chi.fadeOut = 0;
+            } else {
+                chi.volume = int(chi.fadeOutVolumeStart
+                                  * (chi.fadeOut - delta) / chi.fadeOut);
+                continue;
+            }
+        }
+        if (chi.fadeIn) {
+            const auto delta = std::uint32_t(std::int32_t(now - chi.fadeInStart));
+            if (delta >= chi.fadeIn) {
+                chi.fadeInStart = chi.fadeIn = 0;
+            } else {
+                chi.volume = int(chi.volumeNext * delta / chi.fadeIn);
+            }
+        }
+        fillChannelLocked(chi);
+    }
 }
 
 Mixer::DataType Mixer::convertDataType(std::uint16_t type) {
@@ -285,93 +399,32 @@ size_t Mixer::dataTypeToSize(Mixer::DataType type) {
 
 void Mixer::callback(void *userdata, std::uint8_t *stream, int len) {
     auto *mixer = static_cast<Mixer*>(userdata);
+    if (!mixer || !stream || len <= 0) { return; }
     std::scoped_lock lk(mixer->playMutex_);
-    auto &cache = mixer->cache_;
     auto &channels = mixer->channels_;
-    if (len <= 0 || cache.size() < static_cast<size_t>(len) || channels.empty()) {
-        if (len > 0) { memset(stream, 0, static_cast<size_t>(len)); }
+    if (channels.empty()) {
+        memset(stream, 0, static_cast<size_t>(len));
         return;
     }
     memset(stream, 0, len);
     for (auto &chi: channels) {
-        if (!chi.ch) { continue; }
-        auto rsize = chi.ch->readData(cache.data(), len);
-        if (rsize) {
-            if (chi.fadeOut) {
-                auto delta = std::uint32_t(std::int32_t(SDL_GetTicks() - chi.fadeOutStart));
-                if (delta >= chi.fadeOut) {
-                    if (chi.chNext) {
-                        chi.ch = std::move(chi.chNext);
-                        chi.volume = chi.volumeNext;
-                    } else if (!chi.filenameNext.empty()) {
-                        auto filename = std::move(chi.filenameNext);
-                        auto pos = filename.find_last_of('.');
-                        if (pos == std::string::npos) {
-                            continue;
-                        }
-                        auto ext = filename.substr(pos + 1);
-                        int type = -1;
-                        if (iequals(ext, "MID") || iequals(ext, "XMI")) {
-                            type = 0;
-                            if (!dynamic_cast<ChannelMIDI*>(chi.ch.get())) {
-                                chi.ch.reset();
-                            }
-                        } else if (iequals(ext, "WAV")) {
-                            type = 1;
-                            if (!dynamic_cast<ChannelWav*>(chi.ch.get())) {
-                                chi.ch.reset();
-                            }
-                        }
-                        if (!chi.ch) {
-                            Channel *ch;
-                            switch (type) {
-                            case 0:
-                                ch = new(std::nothrow) ChannelMIDI(mixer, filename);
-                                break;
-                            case 1:
-                                ch = new(std::nothrow) ChannelWav(mixer, filename);
-                                break;
-                            default:
-                                continue;
-                            }
-                            if (!ch) { continue; }
-                            if (!ch->ok()) {
-                                delete ch;
-                                continue;
-                            }
-                            chi = {std::unique_ptr<Channel>(ch), chi.volumeNext};
-                        } else {
-                            chi.ch->load(filename);
-                            if (!chi.ch->ok()) {
-                                chi.reset();
-                                continue;
-                            }
-                            chi.volume = chi.volumeNext;
-                        }
-                        chi.ch->start();
-                        chi.ch->setRepeat(chi.repeatNext);
-                    }
-                    chi.fadeOutStart = chi.fadeOut = 0;
-                    chi.ch->start();
-                } else {
-                    int volume = int(chi.volume * (chi.fadeOut - delta) / chi.fadeOut);
-                    if (volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume); }
-                    continue;
-                }
+        if (!chi.ch || chi.ended) { continue; }
+        const auto rsize = std::min<std::size_t>(chi.readySize,
+                                                 static_cast<std::size_t>(len));
+        if (rsize && chi.volume) {
+            SDL_MixAudioFormat(stream, chi.ready.data() + chi.readyPos,
+                               mixer->format_, rsize, chi.volume);
+        }
+        chi.readyPos += rsize;
+        chi.readySize -= rsize;
+        if (chi.readySize == 0) {
+            chi.readyPos = 0;
+            if (chi.sourceEnded) {
+                chi.ended = true;
             }
-            if (chi.fadeIn) {
-                auto delta = std::uint32_t(std::int32_t(SDL_GetTicks() - chi.fadeInStart));
-                if (delta >= chi.fadeIn) {
-                    chi.fadeInStart = chi.fadeIn = 0;
-                } else {
-                    int volume = int(chi.volume * delta / chi.fadeIn);
-                    if (volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, volume); }
-                    continue;
-                }
-            }
-            if (chi.volume) { SDL_MixAudioFormat(stream, cache.data(), mixer->format_, rsize, chi.volume); }
-        } else {
-            chi.reset();
+        }
+        if (rsize == 0 && chi.sourceEnded) {
+            chi.ended = true;
         }
     }
 }

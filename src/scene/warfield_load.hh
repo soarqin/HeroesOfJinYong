@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data/grpdata.hh"
+#include "content/grpdata.hh"
 
 #include <array>
 #include <cstdint>
@@ -8,11 +8,23 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace hojy::scene::detail {
 
+inline bool validateUniqueWarfieldCharacterIds(
+        const std::vector<std::int16_t> &ids) {
+    std::set<std::int16_t> seen;
+    for (const auto id: ids) {
+        if (id >= 0 && !seen.insert(id).second) {
+            return false;
+        }
+    }
+    return true;
+}
+
 struct WarfieldTextureLoad {
-    data::GrpData::DataSet textures;
+    ::hojy::content::GrpData::DataSet textures;
     bool shared = false;
     std::uint16_t cellWidth = 0;
     std::uint16_t cellHeight = 0;
@@ -21,7 +33,7 @@ struct WarfieldTextureLoad {
 };
 
 inline const std::string &warfieldTextureAt(
-    const data::GrpData::DataSet &textures, int index) {
+    const ::hojy::content::GrpData::DataSet &textures, int index) {
     static const std::string empty;
     if (index < 0 || static_cast<std::size_t>(index) >= textures.size()) {
         return empty;
@@ -45,7 +57,7 @@ inline bool validateWarfieldTextureIds(
 }
 
 inline bool readWarfieldTextureHeader(
-    const data::GrpData::DataSet &textures,
+    const ::hojy::content::GrpData::DataSet &textures,
     WarfieldTextureLoad &result) {
     if (textures.empty() || textures[0].size() < sizeof(std::uint16_t) * 4) {
         return false;
@@ -65,7 +77,7 @@ bool loadWarfieldTextures(const std::string &specificIndex,
                           const std::string &specificGroup,
                           Loader &&loader,
                           WarfieldTextureLoad &result) {
-    data::GrpData::DataSet textures;
+    ::hojy::content::GrpData::DataSet textures;
     const bool shared = loader("WDX", "WMP", textures);
     if (!shared) {
         textures.clear();

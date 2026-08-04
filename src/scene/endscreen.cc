@@ -21,7 +21,7 @@
 
 #include "colorpalette.hh"
 #include "window.hh"
-#include "data/grpdata.hh"
+#include "content/grpdata.hh"
 
 namespace hojy::scene {
 
@@ -31,14 +31,14 @@ enum {
 };
 
 void EndScreen::init() {
-    data::GrpData::DataSet dset;
-    if (data::GrpData::loadData("ENDWORD.IDX", "ENDWORD.GRP", dset)) {
+    ::hojy::content::GrpData::DataSet dset;
+    if (::hojy::content::GrpData::loadData("ENDWORD.IDX", "ENDWORD.GRP", dset)) {
         wordTexMgr_.setRenderer(renderer_);
         wordTexMgr_.setPalette(gEndPalette);
         wordTexMgr_.loadFromRLE(dset);
     }
     dset.clear();
-    if (data::GrpData::loadData("KEND.IDX", "KEND.GRP", dset)) {
+    if (::hojy::content::GrpData::loadData("KEND.IDX", "KEND.GRP", dset)) {
         imgTexMgr_.setRenderer(renderer_);
         imgTexMgr_.setPalette(gEndPalette);
         imgTexMgr_.loadFromRAW(dset, OrigWidth, OrigHeight);
@@ -54,7 +54,7 @@ void EndScreen::handleKeyInput(Node::Key key) {
             if (frame_ + 1 < frameTotal_) { break; }
             stage_ = 3;
             frame_ = 0;
-            frameTotal_ = 60000;
+            frameTotal_ = stage3FrameTotal();
             y_ = height_;
             setDirty();
             break;
@@ -68,14 +68,7 @@ void EndScreen::handleKeyInput(Node::Key key) {
     }
 }
 
-void EndScreen::render() {
-    if (cacheDirty_) {
-        makeCache();
-        cacheDirty_ = false;
-    }
-    renderer_->clear(0, 0, 0, 255);
-    renderer_->renderTexture(cache_, x_, y_, w_, h_, 0, 0, tw_, th_, true);
-
+void EndScreen::update() {
     switch (stage_) {
     case 0:
         if (frame_ < frameTotal_) {
@@ -112,6 +105,36 @@ void EndScreen::render() {
         }
         break;
     }
+    NodeWithCache::update();
+}
+
+void EndScreen::render() {
+    renderer_->clear(0, 0, 0, 255);
+    if (cache_) {
+        renderer_->renderTexture(cache_, x_, y_, w_, h_, 0, 0, tw_, th_, true);
+    }
+}
+
+int EndScreen::stage3FrameTotal() const {
+    const auto *last = wordTexMgr_[22];
+    if (!last) { return 1; }
+    int w = width_, h = width_ * OrigHeight / OrigWidth;
+    if (h > height_) {
+        h = height_;
+        w = height_ * OrigWidth / OrigHeight;
+    }
+    int cy = 0;
+    int tw = 0;
+    for (int i = 3; i <= 22; ++i) {
+        const auto *tex = wordTexMgr_[i];
+        if (!tex) { continue; }
+        tw = std::max(tw, int(tex->width()) + (i == 22 ? 10 : 20));
+        cy += (i >= 20 ? 100 : 15) + tex->height();
+    }
+    cy -= 85;
+    const int scaledHeight = cy * h / OrigHeight;
+    const int visibleBottom = (height_ - last->height() * h / OrigHeight) / 2;
+    return std::max(1, (scaledHeight + visibleBottom) / 2);
 }
 
 void EndScreen::makeCache() {
@@ -167,7 +190,6 @@ void EndScreen::makeCache() {
     }
     case 3: {
         int cy = 0;
-        int lh = wordTexMgr_[22]->height();
         tw_ = 0;
         for (int i = 3; i <= 22; ++i) {
             const auto *tex = wordTexMgr_[i];
@@ -180,7 +202,6 @@ void EndScreen::makeCache() {
         w_ = tw_ * w / OrigWidth;
         h_ = th_ * h / OrigHeight;
         x_ = x + (w - w_) / 2;
-        frameTotal_ = (h_ + (height_ - lh * h / OrigHeight) / 2) / 2;
         break;
     }
     }

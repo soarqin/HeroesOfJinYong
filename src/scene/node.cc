@@ -19,8 +19,6 @@
 
 #include "node.hh"
 
-#include "mask.hh"
-
 #include <algorithm>
 
 namespace hojy::scene {
@@ -34,7 +32,65 @@ Node::~Node() {
     removeAllChildren();
 }
 
+Node *Node::rootNode() {
+    auto *root = this;
+    while (root->parent_) { root = root->parent_; }
+    return root;
+}
+
+const Node *Node::rootNode() const {
+    auto *root = this;
+    while (root->parent_) { root = root->parent_; }
+    return root;
+}
+
+void Node::requestDelete() {
+    if (deleteRequested_) { return; }
+    deleteRequested_ = true;
+    auto *root = rootNode();
+    root->pendingDeletes_.push_back(this);
+}
+
+bool Node::consumeDeleteRequest() {
+    if (!deleteRequested_) { return false; }
+    deleteRequested_ = false;
+    return true;
+}
+
+void Node::applyDeferredDeletes() {
+    auto *root = rootNode();
+    if (root != this) {
+        root->applyDeferredDeletes();
+        return;
+    }
+    if (dispatchDepth_ != 0 || pendingDeletes_.empty()) { return; }
+
+    auto pending = std::move(pendingDeletes_);
+    pendingDeletes_.clear();
+    std::vector<Node*> candidates;
+    candidates.reserve(pending.size());
+    for (auto *node : pending) {
+        if (!node || node == this) { continue; }
+        bool covered = false;
+        for (auto *ancestor : pending) {
+            if (!ancestor || ancestor == node || ancestor == this) { continue; }
+            for (auto *parent = node->parent_; parent; parent = parent->parent_) {
+                if (parent == ancestor) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (covered) { break; }
+        }
+        if (!covered) { candidates.push_back(node); }
+    }
+    for (auto *node : candidates) {
+        delete node;
+    }
+}
+
 void Node::add(Node *child) {
+    if (!child || child == this) { return; }
     child->parent_ = this;
     child->renderer_ = renderer_;
     children_.push_back(child);
@@ -51,59 +107,104 @@ void Node::fadeEnd() {
     runFadePostAction_ = true;
 }
 
-void Node::fadeIn(const std::function<void()> &postAction) {
-    fadePostAction_ = postAction;
-    fadeNode_ = new Mask(this, Mask::FadeIn, 3);
-}
-
-void Node::fadeOut(const std::function<void()> &postAction) {
-    fadePostAction_ = postAction;
-    fadeNode_ = new Mask(this, Mask::FadeOut, 3);
-}
-
 void Node::makeCenter(int w, int h, int x, int y) {
     x_ = x + (w - width_) / 2;
     y_ = y + (h - height_) / 2;
 }
 
 void Node::doUpdate() {
-    update();
-    for (auto *node : children_) {
-        node->doUpdate();
+    auto *root = rootNode();
+    ++root->dispatchDepth_;
+    try {
+        const bool runFadePostAction = runFadePostAction_;
+        if (runFadePostAction) { runFadePostAction_ = false; }
+        update();
+        const auto children = children_;
+        for (auto *node : children) {
+            if (node && node->parent_ == this && !node->deleteRequested_) {
+                node->doUpdate();
+            }
+        }
+        if (runFadePostAction) {
+            auto fn = std::move(fadePostAction_);
+            if (fadeNode_) {
+                fadeNode_->requestDelete();
+                fadeNode_ = nullptr;
+            }
+            if (fn) { fn(); }
+        }
+    } catch (...) {
+        --root->dispatchDepth_;
+        throw;
     }
-    if (runFadePostAction_) {
-        runFadePostAction_ = false;
-        auto fn = std::move(fadePostAction_);
-        delete fadeNode_;
-        fadeNode_ = nullptr;
-        if (fn) { fn(); }
-    }
+    --root->dispatchDepth_;
 }
 
 void Node::doRender() {
-    render();
-    for (auto *node : children_) {
-        node->doRender();
+    auto *root = rootNode();
+    ++root->dispatchDepth_;
+    try {
+        render();
+        const auto children = children_;
+        for (auto *node : children) {
+            if (node && node->parent_ == this && !node->deleteRequested_) {
+                node->doRender();
+            }
+        }
+    } catch (...) {
+        --root->dispatchDepth_;
+        throw;
     }
+    --root->dispatchDepth_;
 }
 
 void Node::doHandleKeyInput(Node::Key key) {
-    if (children_.empty()) {
-        handleKeyInput(key);
-        return;
+    auto *root = rootNode();
+    ++root->dispatchDepth_;
+    try {
+        if (children_.empty()) {
+            handleKeyInput(key);
+        } else {
+            auto *child = children_.back();
+            if (child && child->parent_ == this && !child->deleteRequested_) {
+                child->doHandleKeyInput(key);
+            }
+        }
+    } catch (...) {
+        --root->dispatchDepth_;
+        throw;
     }
-    children_.back()->doHandleKeyInput(key);
+    --root->dispatchDepth_;
 }
 
 void Node::doTextInput(const std::wstring &str) {
-    if (children_.empty()) {
-        handleTextInput(str);
-        return;
+    auto *root = rootNode();
+    ++root->dispatchDepth_;
+    try {
+        if (children_.empty()) {
+            handleTextInput(str);
+        } else {
+            auto *child = children_.back();
+            if (child && child->parent_ == this && !child->deleteRequested_) {
+                child->doTextInput(str);
+            }
+        }
+    } catch (...) {
+        --root->dispatchDepth_;
+        throw;
     }
-    children_.back()->doTextInput(str);
+    --root->dispatchDepth_;
 }
 
 void Node::removeAllChildren() {
+    auto *root = rootNode();
+    if (root->dispatchDepth_ != 0) {
+        const auto children = children_;
+        for (auto *n : children) {
+            if (n) { n->requestDelete(); }
+        }
+        return;
+    }
     for (auto *n: children_) {
         n->parent_ = nullptr;
         delete n;

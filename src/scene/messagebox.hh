@@ -38,7 +38,10 @@ public:
     };
 
 public:
-    using NodeWithCache::NodeWithCache;
+    MessageBox(Node *parent, int x, int y, int width, int height):
+        NodeWithCache(parent, x, y, width, height) {}
+    MessageBox(Renderer *renderer, int x, int y, int width, int height):
+        NodeWithCache(renderer, x, y, width, height) {}
 
     inline void setCloseHandler(const std::function<void()> &closeHandler) {
         closeHandler_ = closeHandler;
@@ -48,10 +51,13 @@ public:
         noHandler_ = noHandler;
     }
     void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
+    void update() override;
     void handleKeyInput(Key key) override;
 
 protected:
     void makeCache() override;
+    void layoutText();
+    void ensureYesNoMenu();
 
 protected:
     std::vector<std::wstring> text_;
@@ -59,6 +65,10 @@ protected:
     Type type_ = Normal;
     Align align_ = Center;
     std::function<void()> closeHandler_, yesHandler_, noHandler_;
+    bool layoutReady_ = false;
+    int frameX_ = 0, frameY_ = 0, frameWidth_ = 0, frameHeight_ = 0;
+    std::vector<std::wstring> lines_;
+    int textWidth_ = 0, textHeight_ = 0;
 };
 
 }

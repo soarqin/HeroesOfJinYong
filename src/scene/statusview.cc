@@ -20,9 +20,9 @@
 #include "statusview.hh"
 
 #include "window.hh"
-#include "mem/savedata.hh"
-#include "mem/action.hh"
-#include "mem/strings.hh"
+#include "world/savedata.hh"
+#include "world/action.hh"
+#include "world/strings.hh"
 #include "core/config.hh"
 #include "util/math.hh"
 #include <fmt/xchar.h>
@@ -30,21 +30,21 @@
 
 namespace hojy::scene {
 
-void StatusView::show(const mem::CharacterData *data, bool calcEquip, bool simpleMode) {
+void StatusView::show(const ::hojy::world::state::CharacterData *data, bool calcEquip, bool simpleMode) {
     if (!data) { return; }
     data_ = *data;
     simpleMode_ = simpleMode;
-    if (calcEquip) { mem::addUpPropFromEquipToChar(&data_); }
+    if (calcEquip) { ::hojy::world::state::addUpPropFromEquipToChar(&data_); }
 }
 
 void StatusView::show(std::int16_t charId) {
-    show(mem::gSaveData.charInfo[charId], true);
+    show(::hojy::world::state::gSaveData.charInfo[charId], true);
 }
 
 void StatusView::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
-        delete this;
+        requestDelete();
         break;
     default:
         break;
@@ -87,7 +87,7 @@ void StatusView::makeCache() {
         ttf->render(name, (w - ttf->stringWidth(name)) / 2, y, true);
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(data::StaminaMax)), x1, y, true);
+        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(25), x0, y, true);
         wchar_t c1 = L'\2', c2 = L'\3';
@@ -105,7 +105,7 @@ void StatusView::makeCache() {
         y += lineheight;
         ttf->render(L"\3" + GETTEXT(26), x0, y, true);
         std::uint8_t r, g, b;
-        std::tie(r, g, b) = mem::calcColorForMpType(data_.mpType);
+        std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(data_.mpType);
         ttf->setAltColor(16, r, g, b);
         ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
         cacheEnd();
@@ -181,14 +181,14 @@ void StatusView::makeCache() {
     y += lineheight;
     ttf->render(L"\3" + GETTEXT(26), x0, y, true);
     std::uint8_t r, g, b;
-    std::tie(r, g, b) = mem::calcColorForMpType(data_.mpType);
+    std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(data_.mpType);
     ttf->setAltColor(16, r, g, b);
     ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
     ttf->render(GETTEXT(16), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.sword), x3, y, true);
     y += lineheight;
     ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-    ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(data::StaminaMax)), x1, y, true);
+    ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
     ttf->render(GETTEXT(17), x2, y, true);
     ttf->render(fmt::format(L"\2{:>3}", data_.blade), x3, y, true);
     y += lineheight;
@@ -198,7 +198,7 @@ void StatusView::makeCache() {
     ttf->render(fmt::format(L"\2{:>3}", data_.special), x3, y, true);
     y += lineheight;
     ttf->render(L"\3" + GETTEXT(28), x0, y, true);
-    auto exp = mem::getExpForLevelUp(data_.level);
+    auto exp = ::hojy::world::state::getExpForLevelUp(data_.level);
     if (exp) {
         ttf->render(fmt::format(L"\2{:>5}", exp), x1, y, true);
     } else {
@@ -226,9 +226,9 @@ void StatusView::makeCache() {
     ttf->render(L"\3" + GETTEXT(30), x4, y, true);
     std::int16_t learningSkillId = -1, learningLevel = 0;
     if (data_.learningItem >= 0) {
-        learningSkillId = mem::gSaveData.itemInfo[data_.learningItem]->skillId;
+        learningSkillId = ::hojy::world::state::gSaveData.itemInfo[data_.learningItem]->skillId;
     }
-    for (int i = 0; i < data::LearnSkillCount; ++i) {
+    for (int i = 0; i < ::hojy::content::LearnSkillCount; ++i) {
         y += lineheight;
         if (data_.skillId[i] <= 0) { continue; }
         ttf->render(L'\2' + GETSKILLNAME(data_.skillId[i]), x4, y, true);
@@ -252,7 +252,7 @@ void StatusView::makeCache() {
         ttf->render(L'\2' + GETITEMNAME(data_.equip[1]), x2, y, true);
     }
     if (data_.learningItem >= 0) {
-        std::uint16_t expForItem = mem::getExpForSkillLearn(data_.learningItem, learningLevel - 1, data_.potential);
+        std::uint16_t expForItem = ::hojy::world::state::getExpForSkillLearn(data_.learningItem, learningLevel - 1, data_.potential);
         ttf->render(L'\2' + fmt::format(L"{:>5}/{:>5}", data_.expForItem, expForItem), x4, y, true);
     }
     cacheEnd();

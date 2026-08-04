@@ -17,7 +17,7 @@
 | `0x34C47` | `sub_34C47` | 统计正武功 ID 数量后均匀选择槽位，按目标策略检查施术范围和移动 | `battle::chooseOriginalSkillSlot`、`battle::chooseAiTarget` |
 | `0x3505B` | `sub_3505B` | integrity、potential 和随机门槛决定攻击最高、最低、能力或最近目标；同值保留首槽 | `battle::chooseAiTarget` |
 | `0x3598C` | `sub_3598C` | 处理物品与暗器造成的生命、受伤和中毒变化 | `battle::applyThrow`；暗器状态写入已按 `BATTLE-ACT-THROW` 同步 |
-| `0x36133` | `sub_36133` | NPC 物品耗尽后逐个移动 16 位物品与数量槽，并清空末槽 | `mem::compactCarryItemSlots` |
+| `0x36133` | `sub_36133` | NPC 物品耗尽后逐个移动 16 位物品与数量槽，并清空末槽 | `world::state::compactCarryItemSlots` |
 | `0x361AC` | `sub_361AC` | 行动代码 8 的请求者可先接近医疗提供者，再直接进入普通武功选择；代码 8 保留 | `battle::chooseApproachPosition`、`battle::actionCodeForSkill` |
 | `0x36209` | `sub_36209` | 行动代码 9 复用请求者接近与普通武功选择流程；代码 9 保留 | `battle::chooseApproachPosition`、`battle::actionCodeForSkill` |
 | `0x36210` | `sub_36210` | 医疗距离为 `medic / 15 + 1`；距离不足时沿可达路径移动，无法进入范围时按攻击值与己方平均值选择休息或武功分支 | `battle::chooseSupportPosition`、`chooseUnreachableSupportFallback`、`Warfield::autoAction` |
@@ -26,7 +26,7 @@
 | `0x37734` | `sub_37734` | 统计可用武功，读取熟练度和范围，验证目标与移动路径；内力消耗为 `reqMp * ((level + 1) / 2)` | `Warfield::tryUseSkill`、`battle::calcRealSkillLevel`、`battle::getSelectableArea` |
 | `0x38999` | `sub_38999` | 按四个方向逐格枚举直线攻击目标，记录命中格和距离 | `Warfield::startActAction` 的直线与十字分支 |
 | `0x39188` | `sub_39188` | 计算武功伤害、受伤增长和附加中毒；主要波动使用 `random(20)`，负值修正使用 `random(4)`，武功附毒采用 1 基等级 | `battle::applyDamage` |
-| `0x3B6BE` | `sub_3B6BE` | 升级时按潜能和随机值增加属性，生命、内力、体力恢复到上限 | `mem::actLevelup`，仍需补充逐字段回归样本 |
+| `0x3B6BE` | `sub_3B6BE` | 升级时按潜能和随机值增加属性，生命、内力、体力恢复到上限 | `world::state::actLevelup`，仍需补充逐字段回归样本 |
 | `0x3C563` | `sub_3C563` | 回合收束时扣除 `hurt / 20` 与 `poisoned / 10`，生命最低保留 1 | `battle::applyRoundEndDamage` |
 | `0x3D612` | `sub_3D612` | 上界在 2..30000 时返回随机值模上界；其他上界返回 0 且不消费随机值 | `battle::GameRandom::next(int)`、`battle::SequenceRandom::next(int)` 复刻边界，`battle::originalRandom` 作为公式包装层 |
 
@@ -35,7 +35,7 @@
 - 已迁移到 `hojy_battle` 的算法均通过固定随机序列测试，测试覆盖随机调用顺序和状态写入结果。
 - `Warfield` 仍负责动画、菜单、弹窗和资源生命周期；这些表现层逻辑没有进入纯战斗库。
 - 原版 AI 的资源门槛、随机消费顺序、行动代码 `8/9`、队友支援目标、请求者接近移动和不可达回退判定已提取到 `battle::ai_policy` 与 `Warfield::autoAction`。
-- `mem::tryUseNpcItem` 与 `mem::tryUseBagItem` 已拆出 `battle::chooseFirstResourceItem`；按来源顺序返回首个属性方向合格的治疗、内力、体力或解毒物品，不按数值差值排序，也不额外消费随机值。
+- `world::state::tryUseNpcItem` 与 `world::state::tryUseBagItem` 已拆出 `battle::chooseFirstResourceItem`；按来源顺序返回首个属性方向合格的治疗、内力、体力或解毒物品，不按数值差值排序，也不额外消费随机值。
 - 场景适配的 `CharInfo::actionCode` 中，`8/9` 表示请求医疗或解毒，接近提供者后仍保留，供同回合后续队友读取；纯 AI 门面使用的 `AiRequest` 会在适配层映射到这两个值。行动代码 `4/5` 表示直接支援动作，不可达时进入休息或武功回退并继续保留。`battle::actionCodeForSkill` 只在这些续行动路径保留当前标记。
 - 支援回退比较使用 `putChars()` 保存的基础攻击值；装备攻击只在伤害计算中叠加。
 - 暗器、武功和行动 11 的原版优先级已由 `BATTLE-AI-FOLLOWUP`、`BATTLE-AI-RANDOM-SKILL`、`BATTLE-AI-RETREAT` 和 `BATTLE-AI-TARGET-STRATEGY` 确认；C++ 场景已完成对应接入。

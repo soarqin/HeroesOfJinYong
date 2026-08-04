@@ -21,7 +21,7 @@
 
 #include "window.hh"
 #include "colorpalette.hh"
-#include "mem/strings.hh"
+#include "world/strings.hh"
 #include "core/config.hh"
 #include "util/file.hh"
 #include <fmt/xchar.h>
@@ -42,7 +42,7 @@ void Dead::init() {
 void Dead::handleKeyInput(Node::Key key) {
     switch (key) {
     case KeySpace: case KeyOK: case KeyCancel:
-        delete this;
+        requestDelete();
         gWindow->title();
         break;
     default:

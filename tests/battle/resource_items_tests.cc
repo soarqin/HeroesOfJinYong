@@ -1,13 +1,13 @@
 #include "battle/resource_items.hh"
-#include "data/consts.hh"
-#include "mem/bag.hh"
-#include "mem/item_slots.hh"
-#include "mem/savedata.hh"
+#include "content/constants.hh"
+#include "world/bag.hh"
+#include "world/item_slots.hh"
+#include "world/savedata.hh"
 #include "test_support.hh"
 
 #include <iostream>
 
-namespace hojy::mem {
+namespace hojy::world::state {
 SaveData gSaveData;
 }
 
@@ -41,38 +41,52 @@ void testSelectionReturnsEmptyWhenNoQualifyingItemExists() {
 }
 
 void testBagKeepsSaveSlotOrderForBattleScans() {
-    for (int i = 0; i < hojy::data::BagItemCount; ++i) {
-        hojy::mem::gSaveData.baseInfo->items[i] = {-1, 0};
+    for (int i = 0; i < hojy::content::BagItemCount; ++i) {
+        hojy::world::state::gSaveData.baseInfo->items[i] = {-1, 0};
     }
-    hojy::mem::gSaveData.baseInfo->items[0] = {80, 1};
-    hojy::mem::gSaveData.baseInfo->items[1] = {10, 2};
-    hojy::mem::gBag.syncFromSave();
+    hojy::world::state::gSaveData.baseInfo->items[0] = {80, 1};
+    hojy::world::state::gSaveData.baseInfo->items[1] = {10, 2};
+    hojy::world::state::gBag.syncFromSave();
 
-    const auto &ordered = hojy::mem::gBag.orderedItems();
+    const auto &ordered = hojy::world::state::gBag.orderedItems();
     HOJY_CHECK_EQ(ordered.size(), 2U);
     HOJY_CHECK_EQ(ordered[0].first, 80);
     HOJY_CHECK_EQ(ordered[1].first, 10);
 
-    hojy::mem::gBag.add(30, 1);
-    HOJY_CHECK_EQ(hojy::mem::gBag.orderedItems().back().first, 30);
-    hojy::mem::gBag.remove(80, 1);
-    HOJY_CHECK_EQ(hojy::mem::gBag.orderedItems().front().first, 10);
+    hojy::world::state::gBag.add(30, 1);
+    HOJY_CHECK_EQ(hojy::world::state::gBag.orderedItems().back().first, 30);
+    hojy::world::state::gBag.remove(80, 1);
+    HOJY_CHECK_EQ(hojy::world::state::gBag.orderedItems().front().first, 10);
 
-    hojy::mem::gBag.syncToSave();
-    HOJY_CHECK_EQ(hojy::mem::gSaveData.baseInfo->items[0].id, 10);
-    HOJY_CHECK_EQ(hojy::mem::gSaveData.baseInfo->items[1].id, 30);
-    HOJY_CHECK_EQ(hojy::mem::gSaveData.baseInfo->items[2].id, -1);
-    HOJY_CHECK_EQ(hojy::mem::gSaveData.baseInfo->items[2].count, 0);
+    hojy::world::state::gBag.syncToSave();
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->items[0].id, 10);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->items[1].id, 30);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->items[2].id, -1);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->items[2].count, 0);
+}
+
+void testBattleBagCopyAndSwapProvideTransactionalCommit() {
+    auto working = hojy::world::state::gBag;
+    working.add(40, 2);
+    HOJY_CHECK_EQ(working[40], 2);
+    HOJY_CHECK_EQ(hojy::world::state::gBag[40], 0);
+
+    hojy::world::state::gBag.swap(working);
+    HOJY_CHECK_EQ(hojy::world::state::gBag[40], 2);
+    HOJY_CHECK_EQ(working[40], 0);
+
+    hojy::world::state::gBag.swap(working);
+    HOJY_CHECK_EQ(hojy::world::state::gBag[40], 0);
 }
 
 void testCarrySlotCompactionCopiesWholeSlots() {
-    hojy::mem::CharacterData character{};
-    for (int i = 0; i < hojy::data::CarryItemCount; ++i) {
+    hojy::world::state::CharacterData character{};
+    for (int i = 0; i < hojy::content::CarryItemCount; ++i) {
         character.item[i] = static_cast<std::int16_t>(100 + i);
         character.itemCount[i] = static_cast<std::int16_t>(i + 1);
     }
 
-    HOJY_CHECK_EQ(hojy::mem::compactCarryItemSlots(character, 0), true);
+    HOJY_CHECK_EQ(hojy::world::state::compactCarryItemSlots(character, 0), true);
     HOJY_CHECK_EQ(character.item[0], 101);
     HOJY_CHECK_EQ(character.itemCount[0], 2);
     HOJY_CHECK_EQ(character.item[2], 103);
@@ -88,7 +102,7 @@ void testCarrySlotCompactionCopiesWholeSlots() {
     character.itemCount[1] = 2;
     character.itemCount[2] = 3;
     character.itemCount[3] = 4;
-    HOJY_CHECK_EQ(hojy::mem::compactCarryItemSlots(character, 1), true);
+    HOJY_CHECK_EQ(hojy::world::state::compactCarryItemSlots(character, 1), true);
     HOJY_CHECK_EQ(character.item[0], 301);
     HOJY_CHECK_EQ(character.item[1], 303);
     HOJY_CHECK_EQ(character.itemCount[1], 3);
@@ -103,7 +117,7 @@ void testCarrySlotCompactionCopiesWholeSlots() {
     character.itemCount[1] = 2;
     character.itemCount[2] = 3;
     character.itemCount[3] = 4;
-    HOJY_CHECK_EQ(hojy::mem::compactCarryItemSlots(character, 2), true);
+    HOJY_CHECK_EQ(hojy::world::state::compactCarryItemSlots(character, 2), true);
     HOJY_CHECK_EQ(character.item[1], 202);
     HOJY_CHECK_EQ(character.item[2], 204);
     HOJY_CHECK_EQ(character.itemCount[2], 4);
@@ -117,6 +131,7 @@ int main() {
         testSelectionKeepsInputOrderForEachResourceKind();
         testSelectionReturnsEmptyWhenNoQualifyingItemExists();
         testBagKeepsSaveSlotOrderForBattleScans();
+        testBattleBagCopyAndSwapProvideTransactionalCommit();
         testCarrySlotCompactionCopiesWholeSlots();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

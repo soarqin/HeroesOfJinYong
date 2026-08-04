@@ -2,13 +2,13 @@
 
 #include "formulas.hh"
 #include "turn_order.hh"
-#include "data/consts.hh"
+#include "content/constants.hh"
 
 #include <algorithm>
 
 namespace hojy::battle {
 
-bool isDrainSkill(const mem::SkillData &skill) noexcept {
+bool isDrainSkill(const ::hojy::world::state::SkillData &skill) noexcept {
     return skill.damageType > 0;
 }
 
@@ -23,22 +23,22 @@ std::int16_t mergeBattleMaxMpGrowth(std::int16_t persistentEntryMaxMp,
                                     - static_cast<int>(battleEntryMaxMp));
     return static_cast<std::int16_t>(std::clamp(
         static_cast<int>(persistentEntryMaxMp) + growth,
-        0, static_cast<int>(data::MaxMpMax)));
+        0, static_cast<int>(::hojy::content::MaxMpMax)));
 }
 
-std::int16_t calcRealAttack(const mem::CharacterData &character,
+std::int16_t calcRealAttack(const ::hojy::world::state::CharacterData &character,
                             std::int16_t knowledge,
-                            const mem::SkillData &skill,
+                            const ::hojy::world::state::SkillData &skill,
                             std::int16_t level,
                             std::int16_t equipmentAttack,
                             std::int16_t skillWeaponBonus) {
-    level = std::clamp<std::int16_t>(level, 0, data::SkillLevelMaxDiv);
+    level = std::clamp<std::int16_t>(level, 0, ::hojy::content::SkillLevelMaxDiv);
     const int attack = character.attack - equipmentAttack;
     return static_cast<std::int16_t>((attack * 3 + skill.damage[level]) / 2
                                      + equipmentAttack + skillWeaponBonus + knowledge * 2);
 }
 
-std::int16_t calcRealDefense(const mem::CharacterData &character, std::int16_t knowledge) {
+std::int16_t calcRealDefense(const ::hojy::world::state::CharacterData &character, std::int16_t knowledge) {
     return static_cast<std::int16_t>(character.defence + knowledge * 2);
 }
 
@@ -68,7 +68,7 @@ AiSkillLevels resolveAiSkillLevels(std::int16_t reqMp,
                                    std::int16_t storedSkillLevel,
                                    std::int16_t currentMp) noexcept {
     const auto planning = std::clamp<std::int16_t>(
-        storedSkillLevel / 100, 0, data::SkillLevelMaxDiv);
+        storedSkillLevel / 100, 0, ::hojy::content::SkillLevelMaxDiv);
     return AiSkillLevels{
         planning,
         calcForcedSkillLevel(reqMp, planning, currentMp),
@@ -79,18 +79,18 @@ int calcTechniqueRange(int ability) {
     return ability / 15 + 1;
 }
 
-DamageResult applyDamage(mem::CharacterData &attacker, mem::CharacterData &defender,
+DamageResult applyDamage(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                          std::int16_t attackerKnowledge, std::int16_t defenderKnowledge,
-                         int distance, const mem::SkillData &skill, std::int16_t level,
+                         int distance, const ::hojy::world::state::SkillData &skill, std::int16_t level,
                          RandomSource &random, std::int16_t equipmentAttack,
                          std::int16_t skillWeaponBonus,
                          std::int16_t storedSkillLevel) {
     DamageResult result;
-    level = std::clamp<std::int16_t>(level, 0, data::SkillLevelMaxDiv);
+    level = std::clamp<std::int16_t>(level, 0, ::hojy::content::SkillLevelMaxDiv);
     if (isDrainSkill(skill)) {
         const auto rawLevel = std::clamp<std::int16_t>(
             storedSkillLevel >= 0 ? storedSkillLevel / 100 : level,
-            0, data::SkillLevelMaxDiv);
+            0, ::hojy::content::SkillLevelMaxDiv);
         const auto addMp = skill.addMp[rawLevel];
         /* Z.DAT:0x395EC samples the caster fluctuation before the fixed gain. */
         const auto selfDelta = originalRandom(random, 3) - originalRandom(random, 3);
@@ -98,7 +98,7 @@ DamageResult applyDamage(mem::CharacterData &attacker, mem::CharacterData &defen
         attacker.maxMp = std::clamp<std::int16_t>(
             static_cast<std::int16_t>(attacker.maxMp
                 + originalRandom(random, addMp / 2)),
-            0, data::MaxMpMax);
+            0, ::hojy::content::MaxMpMax);
         attacker.mp = static_cast<std::int16_t>(attacker.mp + selfDelta);
         attacker.mp = std::clamp<std::int16_t>(attacker.mp, 0, attacker.maxMp);
         const auto targetDelta = originalRandom(random, 3) - originalRandom(random, 3);
@@ -117,43 +117,43 @@ DamageResult applyDamage(mem::CharacterData &attacker, mem::CharacterData &defen
         DamageInput{attack, defence, attacker.stamina, defender.hurt, distance}, random);
     defender.hp = std::max<std::int16_t>(0, defender.hp - damage);
     defender.hurt = std::clamp<std::int16_t>(
-        defender.hurt + damage / 10, 0, data::HurtMax);
+        defender.hurt + damage / 10, 0, ::hojy::content::HurtMax);
     result.applied = true;
     result.damage = static_cast<std::int16_t>(damage);
     const auto rawLevel = std::clamp<std::int16_t>(
         storedSkillLevel >= 0 ? storedSkillLevel / 100 : level,
-        0, data::SkillLevelMaxDiv);
+        0, ::hojy::content::SkillLevelMaxDiv);
     const auto poison = poisonOnHit(attacker.poisonAmp, rawLevel * 100,
                                     skill.addPoison, defender.antipoison);
     const auto oldPoison = defender.poisoned;
     defender.poisoned = std::clamp<std::int16_t>(
-        static_cast<std::int16_t>(defender.poisoned + poison), 0, data::PoisonedMax);
+        static_cast<std::int16_t>(defender.poisoned + poison), 0, ::hojy::content::PoisonedMax);
     result.poisoned = static_cast<std::int16_t>(defender.poisoned - oldPoison);
     result.dead = defender.hp <= 0;
     return result;
 }
 
-std::int16_t applyPoison(mem::CharacterData &attacker, mem::CharacterData &defender,
+std::int16_t applyPoison(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                          std::int16_t stamina) {
     const auto potential = poisonAmount(attacker.poison, defender.antipoison);
     const auto applied = std::min<int>(potential,
-        std::max(0, data::PoisonedMax - defender.poisoned));
+        std::max(0, ::hojy::content::PoisonedMax - defender.poisoned));
     defender.poisoned = static_cast<std::int16_t>(defender.poisoned + applied);
     if (stamina) {
-        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, data::StaminaMax);
+        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, ::hojy::content::StaminaMax);
     }
     return static_cast<std::int16_t>(applied);
 }
 
-void finishUtilityAction(mem::CharacterData &actor, std::uint16_t &experience) {
+void finishUtilityAction(::hojy::world::state::CharacterData &actor, std::uint16_t &experience) {
     /* Z.DAT:0x399FE-0x39A33 adds one experience and charges two stamina
      * after poison, depoison and medic, independent of the effect result. */
     ++experience;
     actor.stamina = std::clamp<std::int16_t>(
-        static_cast<std::int16_t>(actor.stamina - 2), 0, data::StaminaMax);
+        static_cast<std::int16_t>(actor.stamina - 2), 0, ::hojy::content::StaminaMax);
 }
 
-std::int16_t applyMedic(mem::CharacterData &attacker, mem::CharacterData &defender,
+std::int16_t applyMedic(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                         std::int16_t stamina, RandomSource &random) {
     const auto oldHp = defender.hp;
     const auto medic = std::max(0, static_cast<int>(attacker.medic));
@@ -163,25 +163,25 @@ std::int16_t applyMedic(mem::CharacterData &attacker, mem::CharacterData &defend
     defender.hp = std::clamp<std::int16_t>(
         defender.hp + heal, 0, defender.maxHp);
     defender.hurt = std::clamp<std::int16_t>(
-        defender.hurt - hurtCut, 0, data::HurtMax);
+        defender.hurt - hurtCut, 0, ::hojy::content::HurtMax);
     if (stamina) {
-        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, data::StaminaMax);
+        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, ::hojy::content::StaminaMax);
     }
     return static_cast<std::int16_t>(defender.hp - oldHp);
 }
 
-std::int16_t applyDepoison(mem::CharacterData &attacker, mem::CharacterData &defender,
+std::int16_t applyDepoison(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
                            std::int16_t stamina, RandomSource &random) {
     auto removed = depoisonAmount(attacker.depoison, defender.poisoned, random);
     defender.poisoned = static_cast<std::int16_t>(defender.poisoned - removed);
     if (stamina) {
-        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, data::StaminaMax);
+        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, ::hojy::content::StaminaMax);
     }
     return static_cast<std::int16_t>(removed);
 }
 
-std::int16_t applyThrow(mem::CharacterData &attacker, mem::CharacterData &defender,
-                        const mem::ItemData &item, std::int16_t stamina,
+std::int16_t applyThrow(::hojy::world::state::CharacterData &attacker, ::hojy::world::state::CharacterData &defender,
+                        const ::hojy::world::state::ItemData &item, std::int16_t stamina,
                         RandomSource &random, bool &dead) {
     const auto oldHp = defender.hp;
     const auto hpChange = static_cast<std::int16_t>(
@@ -189,26 +189,26 @@ std::int16_t applyThrow(mem::CharacterData &attacker, mem::CharacterData &defend
     defender.hp = std::clamp<std::int16_t>(
         defender.hp + hpChange, 0, defender.maxHp);
     defender.hurt = std::clamp<std::int16_t>(
-        defender.hurt - hpChange / 4, 0, data::HurtMax);
+        defender.hurt - hpChange / 4, 0, ::hojy::content::HurtMax);
     const auto poisonChange = throwPoison(
         item.addPoisoned, attacker.throwing, defender.antipoison, random);
     defender.poisoned = std::clamp<std::int16_t>(
-        defender.poisoned + poisonChange, 0, data::PoisonedMax);
+        defender.poisoned + poisonChange, 0, ::hojy::content::PoisonedMax);
     if (stamina) {
-        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, data::StaminaMax);
+        attacker.stamina = std::clamp<std::int16_t>(attacker.stamina - stamina, 0, ::hojy::content::StaminaMax);
     }
     dead = defender.hp <= 0;
     return static_cast<std::int16_t>(defender.hp - oldHp);
 }
 
-std::int16_t applyPoisonDamage(mem::CharacterData &character) {
+std::int16_t applyPoisonDamage(::hojy::world::state::CharacterData &character) {
     if (character.hp <= 0 || character.poisoned <= 0) { return 0; }
     const auto oldHp = character.hp;
     character.hp = std::clamp<std::int16_t>(character.hp - character.poisoned / 10, 1, character.maxHp);
     return static_cast<std::int16_t>(character.hp - oldHp);
 }
 
-std::int16_t applyRoundEndDamage(mem::CharacterData &character) {
+std::int16_t applyRoundEndDamage(::hojy::world::state::CharacterData &character) {
     if (character.hp <= 0
         || (character.hurt <= 0
             && !(character.poisoned > 0 && character.stamina > 0))) {
@@ -222,14 +222,14 @@ std::int16_t applyRoundEndDamage(mem::CharacterData &character) {
     return static_cast<std::int16_t>(character.hp - oldHp);
 }
 
-void applyRest(mem::CharacterData &character, RandomSource &random,
+void applyRest(::hojy::world::state::CharacterData &character, RandomSource &random,
                int remainingSteps) {
     const auto initialSteps = calculateMovementSteps(character.speed, character.hurt);
     const bool moved = remainingSteps >= 0 && remainingSteps != initialSteps;
     const auto gain = restGain(character.stamina, moved, random);
     const auto staminaGain = gain.stamina;
     character.stamina = std::clamp<std::int16_t>(
-        character.stamina + staminaGain, 0, data::StaminaMax);
+        character.stamina + staminaGain, 0, ::hojy::content::StaminaMax);
     character.hp = std::clamp<std::int16_t>(character.hp + gain.hp, 0, character.maxHp);
     character.mp = std::clamp<std::int16_t>(character.mp + gain.mp, 0, character.maxMp);
 }

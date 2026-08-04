@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "fade_timeline.hh"
 #include "node.hh"
 
 #include <functional>
@@ -33,12 +34,12 @@ public:
     };
     Mask(Node *parent, Type type, int interval);
 
+    void update() override;
     void render() override;
 
 private:
-    Type type_;
-    int interval_;
-    std::uint64_t start_;
+    FadeTimeline timeline_;
+    bool completionSignalled_ = false;
 };
 
 }

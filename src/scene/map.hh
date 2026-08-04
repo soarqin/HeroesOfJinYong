@@ -48,6 +48,10 @@ public:
 
     void resetFrame();
 
+    // Advances the legacy 15 Hz map animation/logic phase. This is called by
+    // the fixed-step scheduler and is intentionally never called from render.
+    void advanceCompatibilityFrame();
+
     void render() override;
 
 protected:

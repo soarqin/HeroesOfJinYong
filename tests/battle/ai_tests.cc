@@ -1,6 +1,6 @@
 #include "battle/ai.hh"
 #include "battle/random.hh"
-#include "mem/character.hh"
+#include "world/character.hh"
 #include "test_support.hh"
 
 #include <iostream>
@@ -212,7 +212,7 @@ void testTargetAdaptersPreserveTemperamentDistanceAndPoisonFilters() {
 }
 
 void testAiRuntimeSnapshotStaysAtBattleEntryBeforeEquipmentMerge() {
-    hojy::mem::CharacterData entry{};
+    hojy::world::state::CharacterData entry{};
     entry.attack = 31;
     entry.medic = 32;
     entry.poison = 33;

@@ -21,8 +21,8 @@
 
 #include "window.hh"
 #include "charlistmenu.hh"
-#include "mem/savedata.hh"
-#include "mem/strings.hh"
+#include "world/savedata.hh"
+#include "world/strings.hh"
 #include "core/config.hh"
 #include <fmt/xchar.h>
 
@@ -36,9 +36,12 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
     auto windowBorder = core::config.windowBorder();
     inBattle_ = inBattle;
     resultFunc_ = resultFunc;
-    for (auto &p: mem::gBag.items()) {
+    items_.clear();
+    currTop_ = 0;
+    currSel_ = 0;
+    for (auto &p: ::hojy::world::state::gBag.items()) {
         if (inBattle) {
-            const auto *itemInfo = mem::gSaveData.itemInfo[p.first];
+            const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[p.first];
             if (!itemInfo || (itemInfo->itemType != 3 && itemInfo->itemType != 4)) {
                 continue;
             }
@@ -53,35 +56,58 @@ void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resu
     rows_ = (height_ + ItemCellSpacing - windowBorder * 2) / (cellHeight_ + ItemCellSpacing);
     width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + windowBorder * 2;
     height_ = (cellHeight_ + ItemCellSpacing) * rows_ - ItemCellSpacing + windowBorder * 2;
+    normalizeSelection();
+    setDirty();
+}
+
+void ItemView::update() {
+    normalizeSelection();
+    NodeWithCache::update();
+}
+
+void ItemView::normalizeSelection() {
+    if (cols_ <= 0 || rows_ <= 0 || items_.empty()) {
+        currTop_ = 0;
+        currSel_ = 0;
+        return;
+    }
+    const int totalRows = (int(items_.size()) + cols_ - 1) / cols_;
+    const int maxTop = std::max(0, totalRows - rows_);
+    currTop_ = std::clamp(currTop_, 0, maxTop);
+    const int first = currTop_ * cols_;
+    const int visible = std::min(rows_ * cols_, int(items_.size()) - first);
+    currSel_ = std::clamp(currSel_, 0, std::max(0, visible - 1));
 }
 
 void ItemView::handleKeyInput(Node::Key key) {
+    normalizeSelection();
+    if (items_.empty() || cols_ <= 0 || rows_ <= 0) { return; }
     switch (key) {
     case KeyOK: case KeySpace: {
         auto &ipair = items_[currSel_ + currTop_ * cols_];
         std::int16_t id = ipair.first;
-        const auto *itemInfo = mem::gSaveData.itemInfo[id];
+        const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[id];
         if (!itemInfo) { break; }
         if (inBattle_) {
             switch (itemInfo->itemType) {
             case 3: {
-                std::map<mem::PropType, std::int16_t> changes;
-                if (mem::useItem(charInfo_, id, changes)) {
+                std::map<::hojy::world::state::PropType, std::int16_t> changes;
+                if (::hojy::world::state::useItem(charInfo_, id, changes)) {
                     auto fn = std::move(resultFunc_);
                     auto *parent = parent_;
-                    delete this;
+                    requestDelete();
                     auto *msgBox = popupUseResult(parent, id, changes);
                     msgBox->setCloseHandler([fn] {
                         if (fn) { fn(-1); }
                     });
                 } else {
-                    delete this;
+                    requestDelete();
                 }
                 return;
             }
             case 4: {
                 auto fn = std::move(resultFunc_);
-                delete this;
+                requestDelete();
                 if (fn) { fn(id); }
                 return;
             }
@@ -100,14 +126,14 @@ void ItemView::handleKeyInput(Node::Key key) {
                                          if (type == 2 && itemInfo->user >= 0) {
                                              auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
                                              msgBox->setYesNoHandler([this, id, charId, clm]() {
-                                                 if (mem::skillFull(charId)) {
+                                                 if (::hojy::world::state::skillFull(charId)) {
                                                      auto *msgBox = new MessageBox(parent_,
                                                                                    0,
                                                                                    0,
                                                                                    gWindow->width(),
                                                                                    gWindow->height());
                                                      msgBox->popup({GETTEXT(42)}, MessageBox::PressToCloseThis);
-                                                 } else if (!mem::equipItem(charId, id)) {
+                                                 } else if (!::hojy::world::state::equipItem(charId, id)) {
                                                      auto *msgBox = new MessageBox(parent_,
                                                                                    0,
                                                                                    0,
@@ -117,19 +143,19 @@ void ItemView::handleKeyInput(Node::Key key) {
                                                  } else {
                                                      setDirty();
                                                  }
-                                                 delete clm;
+                                                 clm->requestDelete();
                                              }, [clm]() {
-                                                 delete clm;
+                                                 clm->requestDelete();
                                              });
                                              msgBox->popup({GETTEXT(44), GETTEXT(45)}, MessageBox::YesNo);
                                          } else {
-                                             if (!mem::equipItem(charId, id)) {
+                                             if (!::hojy::world::state::equipItem(charId, id)) {
                                                  auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
                                                  msgBox->popup({GETTEXT(46)}, MessageBox::PressToCloseThis);
                                              } else {
                                                  setDirty();
                                              }
-                                             delete clm;
+                                             clm->requestDelete();
                                          }
                                      });
             clm->makeCenter(width_, height_, x_, y_);
@@ -140,16 +166,16 @@ void ItemView::handleKeyInput(Node::Key key) {
             auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
             clm->initWithTeamMembers({GETTEXT(36) + L' ' + GETITEMNAME(id)}, {},
                                      [this, &ipair, id](std::int16_t charId) {
-                                         std::map<mem::PropType, std::int16_t> changes;
-                                         if (ipair.second && mem::useItem(mem::gSaveData.charInfo[charId], id, changes)) {
+                                         std::map<::hojy::world::state::PropType, std::int16_t> changes;
+                                         if (ipair.second && ::hojy::world::state::useItem(::hojy::world::state::gSaveData.charInfo[charId], id, changes)) {
                                              std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
                                              for (auto &c: changes) {
-                                                 messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
+                                                 messages.emplace_back(fmt::format(L"{} {} {}", ::hojy::world::state::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
                                              }
                                              auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
                                              msgBox->popup(messages, MessageBox::PressToCloseParent);
                                          } else {
-                                             delete this;
+                                             requestDelete();
                                          }
                                      });
             return;
@@ -166,7 +192,7 @@ void ItemView::handleKeyInput(Node::Key key) {
     }
     case KeyCancel: {
         auto fn = std::move(closeHandler_);
-        delete this;
+        requestDelete();
         if (fn) { fn(); }
         return;
     }
@@ -189,6 +215,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         } else {
             currSel_ -= cols_;
         }
+        normalizeSelection();
         setDirty();
         break;
     case KeyLeft:
@@ -207,6 +234,7 @@ void ItemView::handleKeyInput(Node::Key key) {
         } else {
             --currSel_;
         }
+        normalizeSelection();
         setDirty();
         break;
     case KeyRight: {
@@ -220,6 +248,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                 currSel_ -= cols_;
             }
         }
+        normalizeSelection();
         setDirty();
         break;
     }
@@ -235,6 +264,7 @@ void ItemView::handleKeyInput(Node::Key key) {
                 currSel_ -= cols_;
             }
         }
+        normalizeSelection();
         setDirty();
         break;
     }
@@ -243,10 +273,10 @@ void ItemView::handleKeyInput(Node::Key key) {
     }
 }
 
-MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<mem::PropType, std::int16_t> &changes) {
+MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<::hojy::world::state::PropType, std::int16_t> &changes) {
     std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
     for (auto &c: changes) {
-        messages.emplace_back(fmt::format(L"{} {} {}", mem::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
+        messages.emplace_back(fmt::format(L"{} {} {}", ::hojy::world::state::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
     }
     auto *msgBox = new MessageBox(parent, 0, 0, gWindow->width(), gWindow->height());
     msgBox->popup(messages, MessageBox::PressToCloseThis);
@@ -262,9 +292,9 @@ void ItemView::makeCache() {
     int x, y = windowBorder;
     int idx = currTop_ * cols_;
     auto totalSz = int(items_.size());
-    if (idx >= totalSz) {
-        idx = 0;
-        currTop_ = 0;
+    if (totalSz == 0) {
+        cacheEnd();
+        return;
     }
     auto *ttf = renderer_->ttf();
     int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
@@ -285,8 +315,12 @@ void ItemView::makeCache() {
     renderer_->drawRoundedRect(sx - 1, sy - 1, cellWidth_ + 2, cellHeight_ + 2, 2, 252, 252, 252, 255);
 
     idx = currTop_ * cols_ + currSel_;
+    if (idx < 0 || idx >= totalSz) {
+        cacheEnd();
+        return;
+    }
     auto itemId = items_[idx].first;
-    const auto *itemInfo = mem::gSaveData.itemInfo[itemId];
+    const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
     if (itemInfo) {
         /* show description */
         std::wstring display;
@@ -296,11 +330,11 @@ void ItemView::makeCache() {
             display = fmt::format(L"{}", GETITEMNAME(itemId), items_[idx].second);
         }
         std::wstring desc;
-        if (items_[idx].first == data::ItemIDCompass) {
+        if (items_[idx].first == ::hojy::content::ItemIDCompass) {
             auto *map = gWindow->globalMap();
             if (core::config.shipLogicEnabled()) {
                 desc = fmt::format(GETTEXT(40), map->currX(), map->currY(),
-                                   mem::gSaveData.baseInfo->shipX, mem::gSaveData.baseInfo->shipY);
+                                   ::hojy::world::state::gSaveData.baseInfo->shipX, ::hojy::world::state::gSaveData.baseInfo->shipY);
             } else {
                 desc = fmt::format(GETTEXT(116), map->currX(), map->currY());
             }
@@ -402,7 +436,7 @@ void ItemView::makeCache() {
         dy += windowBorder;
         dw -= windowBorder * 2;
         ttf->setColor(236, 200, 40);
-        if (itemInfo->user < 0 || mem::gSaveData.charInfo[itemInfo->user] == nullptr) {
+        if (itemInfo->user < 0 || ::hojy::world::state::gSaveData.charInfo[itemInfo->user] == nullptr) {
             ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
         } else {
             ttf->render(display + L"  (" + GETCHARNAME(itemInfo->user) + L')', dx + (dw - ttf->stringWidth(display)) / 2, dy, true);

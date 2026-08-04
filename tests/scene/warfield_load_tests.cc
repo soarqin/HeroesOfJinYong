@@ -10,11 +10,11 @@
 
 namespace {
 
-hojy::data::GrpData::DataSet makeTextures(
+hojy::content::GrpData::DataSet makeTextures(
     std::uint16_t cellWidth, std::uint16_t cellHeight,
     std::uint16_t offsetX, std::uint16_t offsetY) {
     std::uint16_t values[] = {cellWidth, cellHeight, offsetX, offsetY};
-    hojy::data::GrpData::DataSet textures(1);
+    hojy::content::GrpData::DataSet textures(1);
     textures[0].resize(sizeof(values));
     std::memcpy(textures[0].data(), values, sizeof(values));
     return textures;
@@ -29,7 +29,7 @@ void testInvalidTextureHeaderLeavesPreviousResultUntouched() {
     const auto loaded = hojy::scene::detail::loadWarfieldTextures(
         "WDX007", "WMP007",
         [](const std::string &, const std::string &,
-           hojy::data::GrpData::DataSet &textures) {
+           hojy::content::GrpData::DataSet &textures) {
             textures = {std::string(7, '\0')};
             return true;
         },
@@ -49,7 +49,7 @@ void testSpecificTextureFallbackCommitsOnlyValidatedData() {
     const auto loaded = hojy::scene::detail::loadWarfieldTextures(
         "WDX007", "WMP007",
         [&calls](const std::string &idx, const std::string &grp,
-                 hojy::data::GrpData::DataSet &textures) {
+                 hojy::content::GrpData::DataSet &textures) {
             calls.emplace_back(idx, grp);
             if (idx == "WDX") { return false; }
             textures = makeTextures(48, 24, 12, 6);
@@ -77,7 +77,7 @@ void testZeroCellDimensionsAreRejectedWithoutMutation() {
     const auto loaded = hojy::scene::detail::loadWarfieldTextures(
         "WDX007", "WMP007",
         [](const std::string &, const std::string &,
-           hojy::data::GrpData::DataSet &textures) {
+           hojy::content::GrpData::DataSet &textures) {
             textures = makeTextures(0, 0, 0, 0);
             return true;
         },
@@ -100,7 +100,7 @@ void testSpecificTextureCacheOnlyMarksCurrentMap() {
 }
 
 void testTextureLookupRejectsInvalidIndices() {
-    const hojy::data::GrpData::DataSet textures = {"earth", "building"};
+    const hojy::content::GrpData::DataSet textures = {"earth", "building"};
     HOJY_CHECK_EQ(hojy::scene::detail::warfieldTextureAt(textures, 0),
                   std::string("earth"));
     HOJY_CHECK_EQ(hojy::scene::detail::warfieldTextureAt(textures, -1),
@@ -119,7 +119,19 @@ void testLayerTextureIdsMustFitLoadedTextureSet() {
 
     const std::int16_t invalid[] = {-2, 0, 0};
     HOJY_CHECK_EQ(hojy::scene::detail::validateWarfieldTextureIds(
-                      invalid, building, 3, 5), false);
+        invalid, building, 3, 5), false);
+}
+
+void testWarfieldRosterRejectsDuplicateCharacterIds() {
+    HOJY_CHECK_EQ(
+        hojy::scene::detail::validateUniqueWarfieldCharacterIds({1, 2, 3}),
+        true);
+    HOJY_CHECK_EQ(
+        hojy::scene::detail::validateUniqueWarfieldCharacterIds({1, 2, 1}),
+        false);
+    HOJY_CHECK_EQ(
+        hojy::scene::detail::validateUniqueWarfieldCharacterIds({-1, -1, 4}),
+        true);
 }
 
 }
@@ -132,6 +144,7 @@ int main() {
         testSpecificTextureCacheOnlyMarksCurrentMap();
         testTextureLookupRejectsInvalidIndices();
         testLayerTextureIdsMustFitLoadedTextureSet();
+        testWarfieldRosterRejectsDuplicateCharacterIds();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

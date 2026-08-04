@@ -30,11 +30,14 @@ public:
     ~Title() override;
 
     void init();
+    void update() override;
     void handleKeyInput(Key key) override;
     void handleTextInput(const std::wstring &str) override;
 
 private:
     void makeCache() override;
+    void ensureConfirmationMenu();
+    bool prepareNewGame();
     void doRandomBaseInfo();
     void drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType = -1);
     void recalcInputRect();

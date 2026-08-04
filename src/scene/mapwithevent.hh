@@ -21,15 +21,25 @@
 
 #include "map.hh"
 #include "extendednode.hh"
+#include "event/vm.hh"
 
 #include <functional>
 #include <list>
+#include <string>
+#include <vector>
 
 namespace hojy::scene {
 
-class MapWithEvent: public Map {
+class MapWithEvent: public Map,
+                    public event::VmHost,
+                    public event::LegacyVmHost {
 public:
     using Map::Map;
+
+    // Keep the polymorphic key function in the MapWithEvent translation unit.
+    // Without an out-of-line destructor, LTO may emit incompatible implicit
+    // destructor thunks from each split event/navigation translation unit.
+    ~MapWithEvent() override;
 
     void cleanupEvents();
     void continueEvents(bool result);
@@ -45,6 +55,15 @@ public:
 
     void update() override;
     void handleKeyInput(Key key) override;
+    event::VmResult execute(const event::Instruction &instruction,
+                            event::EventMemory &memory) override;
+    bool decodeLegacy(const std::vector<std::int16_t> &program,
+                      std::size_t programCounter,
+                      event::LegacyInstruction &instruction,
+                      std::string &error) const override;
+    event::LegacyHostResult executeLegacy(
+            const event::LegacyInstruction &instruction,
+            event::EventMemory &memory) override;
 
 protected:
     void doInteract();
@@ -143,16 +162,11 @@ private:
     static bool randomShop(MapWithEvent *map);
     static bool playMusic(MapWithEvent *map, std::int16_t musicId);
     static bool playSound(MapWithEvent *map, std::int16_t soundId);
-    static bool runExtendedEvent(MapWithEvent *map, std::int16_t v0, std::int16_t v1, std::int16_t v2,
-                                 std::int16_t v3, std::int16_t v4, std::int16_t v5, std::int16_t v6);
-
 protected:
     bool currEventPaused_ = false;
     std::int16_t currEventId_ = -1;
-    size_t currEventIndex_ = 0, currEventSize_ = 0;
-    size_t currEventAdvTrue_ = 0, currEventAdvFalse_ = 0;
     std::int16_t currEventItem_ = -1;
-    std::vector<std::int16_t> currEventList_;
+    bool pendingSubEventWaiting_ = false;
 
     const Texture *mainCharTex_ = nullptr;
     Direction direction_ = DirUp;
@@ -169,7 +183,7 @@ protected:
     bool movingChar_ = false;
 
     ExtendedNode *extendedNode_ = nullptr;
-    static std::int16_t extendedRAMBlock_[0x10000], *extendedRAM_;
+    event::Vm eventVm_;
 };
 
 }

@@ -21,7 +21,7 @@
 
 #include "window.hh"
 #include "colorpalette.hh"
-#include "mem/strings.hh"
+#include "world/strings.hh"
 #include "core/config.hh"
 #include <fmt/xchar.h>
 
@@ -66,14 +66,12 @@ void Map::resetFrame() {
     resetTime();
 }
 
-void Map::render() {
+void Map::advanceCompatibilityFrame() {
     ++frames_;
-    auto now = gWindow->currTime();
-    if (now >= nextFrameTime_) {
-        nextFrameTime_ += eachFrameTime_;
-        if (nextFrameTime_ < now) { nextFrameTime_ = now; }
-        frameUpdate();
-    }
+    frameUpdate();
+}
+
+void Map::render() {
 }
 
 Map::Direction Map::calcDirection(int fx, int fy, int tx, int ty) {

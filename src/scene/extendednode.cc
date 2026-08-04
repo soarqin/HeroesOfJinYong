@@ -58,7 +58,7 @@ void ExtendedNode::addTexture(int x, int y, const Texture *tex, std::pair<int, i
 void ExtendedNode::checkTimeout() {
     if (closeType_ == 0 && gWindow->currTime() >= closeDeadline_) {
         if (handler_) { handler_(); }
-        delete this;
+        requestDelete();
     }
 }
 
@@ -66,7 +66,7 @@ void ExtendedNode::handleKeyInput(Node::Key key) {
     if (closeType_ != 0) { return; }
     keyPressed_ = key;
     if (handler_) { handler_(); }
-    delete this;
+    requestDelete();
 }
 
 void ExtendedNode::makeCache() {

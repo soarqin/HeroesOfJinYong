@@ -20,26 +20,44 @@
 #include "effect.hh"
 
 #include "colorpalette.hh"
-#include "data/grpdata.hh"
-#include "data/factors.hh"
+#include "content/grpdata.hh"
+#include "content/factors.hh"
+
+#include <cstddef>
+#include <new>
+#include <utility>
 
 namespace hojy::scene {
 
 Effect gEffect;
 
-void Effect::load(const std::string &filename) {
-    data::GrpData::DataSet dset;
-    if (!data::GrpData::loadData(filename, dset)) {
-        return;
-    }
-    auto effectSz = data::gFactors.effectFrames.size();
-    effectTexData_.resize(effectSz);
-    size_t index = 0;
-    for (size_t i = 0; i < effectSz; ++i) {
-        auto &data = effectTexData_[i];
-        size_t sz = data::gFactors.effectFrames[i];
-        data.assign(dset.begin() + index, dset.begin() + index + sz);
-        index += sz;
+bool Effect::load(const std::string &filename) {
+    try {
+        ::hojy::content::GrpData::DataSet dset;
+        if (!::hojy::content::GrpData::loadData(filename, dset)) {
+            return false;
+        }
+        auto effectSz = ::hojy::content::gFactors.effectFrames.size();
+        std::vector<std::vector<std::string>> loaded(effectSz);
+        size_t index = 0;
+        for (size_t i = 0; i < effectSz; ++i) {
+            auto &data = loaded[i];
+            const auto frameCount = ::hojy::content::gFactors.effectFrames[i];
+            if (frameCount < 0
+                || static_cast<std::size_t>(frameCount) > dset.size() - index) {
+                return false;
+            }
+            data.assign(dset.begin() + static_cast<std::ptrdiff_t>(index),
+                        dset.begin() + static_cast<std::ptrdiff_t>(index + frameCount));
+            index += static_cast<std::size_t>(frameCount);
+        }
+        if (index != dset.size()) {
+            return false;
+        }
+        effectTexData_ = std::move(loaded);
+        return true;
+    } catch (const std::bad_alloc &) {
+        return false;
     }
 }
 

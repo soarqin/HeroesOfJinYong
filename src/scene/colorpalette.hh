@@ -27,7 +27,7 @@ namespace hojy::scene {
 
 class ColorPalette final {
 public:
-    void load(const std::string &name);
+    [[nodiscard]] bool load(const std::string &name);
     void create(const std::array<std::uint32_t, 256> &colors);
     [[nodiscard]] constexpr size_t size() const { return palette_.size(); }
     [[nodiscard]] const std::uint32_t *colors() const { return palette_.data(); }

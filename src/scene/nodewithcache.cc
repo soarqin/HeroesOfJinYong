@@ -27,11 +27,18 @@ NodeWithCache::~NodeWithCache() {
     delete cache_;
 }
 
+void NodeWithCache::update() {
+    rebuildCache();
+}
+
+void NodeWithCache::rebuildCache() {
+    if (!cacheDirty_) { return; }
+    makeCache();
+    cacheDirty_ = false;
+}
+
 void NodeWithCache::makeCenter(int w, int h, int x, int y) {
-    if (cacheDirty_) {
-        makeCache();
-        cacheDirty_ = false;
-    }
+    rebuildCache();
     Node::makeCenter(w, h, x, y);
 }
 
@@ -42,10 +49,7 @@ void NodeWithCache::close() {
 }
 
 void NodeWithCache::render() {
-    if (cacheDirty_) {
-        makeCache();
-        cacheDirty_ = false;
-    }
+    if (!cache_) { return; }
     renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
 }
 

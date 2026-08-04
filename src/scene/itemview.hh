@@ -21,7 +21,7 @@
 
 #include "nodewithcache.hh"
 #include "messagebox.hh"
-#include "mem/action.hh"
+#include "world/action.hh"
 
 #include <vector>
 #include <functional>
@@ -33,16 +33,18 @@ class ItemView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    inline void setCharInfo(mem::CharacterData *charInfo) { charInfo_ = charInfo; }
+    inline void setCharInfo(::hojy::world::state::CharacterData *charInfo) { charInfo_ = charInfo; }
     inline void setCloseHandler(const std::function<void()> &func) { closeHandler_ = func; }
     void show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc);
+    void update() override;
     void handleKeyInput(Key key) override;
 
     static MessageBox *popupUseResult(Node *parent, std::int16_t id,
-                                      const std::map<mem::PropType, std::int16_t> &changes);
+                                      const std::map<::hojy::world::state::PropType, std::int16_t> &changes);
 
 protected:
     void makeCache() override;
+    void normalizeSelection();
 
 protected:
     std::vector<std::pair<std::int16_t, std::int16_t>> items_;
@@ -50,7 +52,7 @@ protected:
     int cols_ = 0, rows_ = 0;
     int scale_ = 1, cellWidth_ = 0, cellHeight_ = 0;
     int currTop_ = 0, currSel_ = 0;
-    mem::CharacterData *charInfo_ = nullptr;
+    ::hojy::world::state::CharacterData *charInfo_ = nullptr;
     std::function<void(std::int16_t)> resultFunc_;
     std::function<void()> closeHandler_;
 };

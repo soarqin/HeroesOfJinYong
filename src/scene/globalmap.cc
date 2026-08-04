@@ -21,8 +21,8 @@
 
 #include "colorpalette.hh"
 #include "window.hh"
-#include "data/grpdata.hh"
-#include "mem/savedata.hh"
+#include "content/grpdata.hh"
+#include "world/savedata.hh"
 #include "util/file.hh"
 #include "util/random.hh"
 #include "core/config.hh"
@@ -45,10 +45,10 @@ GlobalMap::GlobalMap(Renderer *renderer, int ix, int iy, int width, int height, 
     mapHeight_ = GlobalMapHeight;
     cloudTexMgr_.setRenderer(renderer_);
     cloudTexMgr_.setPalette(gNormalPalette);
-    data::GrpData::loadData("MMAP", texData_);
+    ::hojy::content::GrpData::loadData("MMAP", texData_);
     renderer_->enableLinear();
-    data::GrpData::DataSet dset;
-    if (data::GrpData::loadData("CLOUD", dset)) {
+    ::hojy::content::GrpData::DataSet dset;
+    if (::hojy::content::GrpData::loadData("CLOUD", dset)) {
         cloudTexMgr_.loadFromRLE(dset);
     }
     renderer_->enableLinear(false);
@@ -160,9 +160,9 @@ void GlobalMap::load() {
             pixels[mmoff - pitch] = c;
         }
     }
-    auto subMapSz = mem::gSaveData.subMapInfo.size();
+    auto subMapSz = ::hojy::world::state::gSaveData.subMapInfo.size();
     for (size_t i = 0; i < subMapSz; ++i) {
-        const auto &smi = mem::gSaveData.subMapInfo[i];
+        const auto &smi = ::hojy::world::state::gSaveData.subMapInfo[i];
         auto ex = smi->globalEnterX1;
         auto ey = smi->globalEnterY1;
         subMapEntries_[std::make_pair(ex, ey)] = i;
@@ -206,6 +206,18 @@ void GlobalMap::update() {
             cloudStartX_[i] = cameraX_; cloudStartY_[i] = cameraY_;
             cloudX_[i] = -width_ * 3 / 5;
             cloudY_[i] = int(util::gRandom(int(auxHeight_) + height_ / 10) + height_ / 20);
+        }
+    }
+    for (int i = 0; i < 3; ++i) {
+        if (!cloud_[i]) { continue; }
+        ++cloudX_[i];
+        const int cellDiffX = cellWidth_ / 2;
+        const int cloudcx = cloudStartX_[i] - cameraX_;
+        const int cloudcy = cloudStartY_[i] - cameraY_;
+        const int cloudx = (cloudcx - cloudcy) * cellDiffX * scale_.first / scale_.second
+            + cloudX_[i] / 2;
+        if (cloudx > width_ * 5 / 2) {
+            cloud_[i] = nullptr;
         }
     }
 }
@@ -308,24 +320,20 @@ void GlobalMap::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int cloudcx = cloudStartX_[i] - cameraX_, cloudcy = cloudStartY_[i] - cameraY_;
-        int cloudx = (cloudcx - cloudcy) * cellDiffX * scale_.first / scale_.second + cloudX_[i]++ / 2;
+        int cloudx = (cloudcx - cloudcy) * cellDiffX * scale_.first / scale_.second + cloudX_[i] / 2;
         int cloudy = (cloudcx + cloudcy) * cellDiffY * scale_.first / scale_.second + cloudY_[i];
-        if (cloudx > width_ * 5 / 2) {
-            c = nullptr;
-        } else {
-            renderer_->renderTexture(c, cloudx, cloudy, scale_);
-        }
+        renderer_->renderTexture(c, cloudx, cloudy, scale_);
     }
     showMiniPanel();
 }
 
 void GlobalMap::showShip(bool show) {
-    int shipX0 = mem::gSaveData.baseInfo->shipX;
-    int shipY0 = mem::gSaveData.baseInfo->shipY;
+    int shipX0 = ::hojy::world::state::gSaveData.baseInfo->shipX;
+    int shipY0 = ::hojy::world::state::gSaveData.baseInfo->shipY;
     auto &ci = cellInfo_[shipY0 * mapWidth_ + shipX0];
     if (show) {
-        int shipX1 = mem::gSaveData.baseInfo->shipX1;
-        int shipY1 = mem::gSaveData.baseInfo->shipY1;
+        int shipX1 = ::hojy::world::state::gSaveData.baseInfo->shipX1;
+        int shipY1 = ::hojy::world::state::gSaveData.baseInfo->shipY1;
         ci.buildingId = 3715 + int(calcDirection(shipX1, shipY1, shipX0, shipY0)) * 4;
         ci.buildingDeltaY = 0;
     } else {
@@ -336,16 +344,16 @@ void GlobalMap::showShip(bool show) {
 bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     auto ite = subMapEntries_.find(std::make_pair(std::int16_t(x), std::int16_t(y)));
     if (ite != subMapEntries_.end()) {
-        auto *subMapInfo = mem::gSaveData.subMapInfo[ite->second];
+        auto *subMapInfo = ::hojy::world::state::gSaveData.subMapInfo[ite->second];
         if (subMapInfo->enterCondition == 1) {
             return true;
         }
         if (subMapInfo->enterCondition == 2) {
             bool allow = false;
-            for (auto id: mem::gSaveData.baseInfo->members) {
+            for (auto id: ::hojy::world::state::gSaveData.baseInfo->members) {
                 if (id < 0) { continue; }
                 /* TODO: get this limit value from Z.DAT? */
-                auto *charInfo = mem::gSaveData.charInfo[id];
+                auto *charInfo = ::hojy::world::state::gSaveData.charInfo[id];
                 if (charInfo && charInfo->speed >= 70) {
                     allow = true;
                     break;
@@ -374,17 +382,17 @@ bool GlobalMap::tryMove(int x, int y, bool checkEvent) {
     bool lastOnShip = onShip_;
     if (cellInfo_[offset].type == 1) {
         if (core::config.shipLogicEnabled() && !lastOnShip) {
-            if (mem::gSaveData.baseInfo->shipX != x ||
-                mem::gSaveData.baseInfo->shipY != y) {
+            if (::hojy::world::state::gSaveData.baseInfo->shipX != x ||
+                ::hojy::world::state::gSaveData.baseInfo->shipY != y) {
                 return true;
             }
         }
         onShip_ = true;
         currMainCharFrame_ = (currMainCharFrame_ + 1) % 4;
-        mem::gSaveData.baseInfo->shipX = x;
-        mem::gSaveData.baseInfo->shipY = y;
-        mem::gSaveData.baseInfo->shipX1 = currX_;
-        mem::gSaveData.baseInfo->shipY1 = currY_;
+        ::hojy::world::state::gSaveData.baseInfo->shipX = x;
+        ::hojy::world::state::gSaveData.baseInfo->shipY = y;
+        ::hojy::world::state::gSaveData.baseInfo->shipX1 = currX_;
+        ::hojy::world::state::gSaveData.baseInfo->shipY1 = currY_;
     } else {
         onShip_ = false;
         currMainCharFrame_ = currMainCharFrame_ % 6 + 1;

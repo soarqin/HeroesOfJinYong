@@ -39,10 +39,16 @@ class Mixer final {
         int volume = 0;
         std::uint32_t fadeInStart = 0, fadeIn = 0;
         std::uint32_t fadeOutStart = 0, fadeOut = 0;
+        int fadeOutVolumeStart = 0;
         std::unique_ptr<Channel> chNext;
         int volumeNext = 0;
-        std::string filenameNext;
+        std::uint32_t fadeInNext = 0;
         bool repeatNext = false;
+        bool ended = false;
+        bool sourceEnded = false;
+        std::vector<std::uint8_t> ready;
+        std::size_t readyPos = 0;
+        std::size_t readySize = 0;
 
         void reset();
     };
@@ -63,6 +69,8 @@ public:
     [[nodiscard]] inline std::uint32_t sampleRate() const { return sampleRate_; }
     [[nodiscard]] inline DataType dataType() const { return convertDataType(format_); }
     void setVolume(size_t channelId, int volume);
+    // Main-thread maintenance for fades, file loading and channel cleanup.
+    void service();
 
     static DataType convertDataType(std::uint16_t type);
     static std::uint16_t convertType(DataType);
@@ -70,6 +78,11 @@ public:
 
 private:
     static void callback(void *userdata, std::uint8_t *stream, int len);
+    void prepareChannelLocked(ChannelInfo &channel);
+    void fillChannelLocked(ChannelInfo &channel);
+    std::unique_ptr<Channel> createChannelLocked(const std::string &filename);
+    bool loadFilenameLocked(ChannelInfo &channel, const std::string &filename,
+                            bool repeat, int volume);
 
 private:
     std::uint32_t audioDevice_ = 0;
@@ -77,7 +90,7 @@ private:
     std::uint16_t format_ = 0;
     std::vector<ChannelInfo> channels_;
     std::vector<std::uint8_t> cache_;
-    std::mutex playMutex_;
+    mutable std::mutex playMutex_;
 };
 
 extern Mixer gMixer;

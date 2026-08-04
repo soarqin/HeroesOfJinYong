@@ -19,7 +19,7 @@
 
 #include "config.hh"
 
-#include "mem/strings.hh"
+#include "world/strings.hh"
 #include "resourcemgr.hh"
 #include "util/file.hh"
 #include "util/math.hh"

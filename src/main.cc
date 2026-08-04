@@ -24,9 +24,9 @@
 #endif
 
 #include "core/config.hh"
-#include "data/loader.hh"
-#include "mem/strings.hh"
-#include "scene/window.hh"
+#include "app/application.hh"
+#include "content/loader.hh"
+#include "world/strings.hh"
 
 #include <cstdlib>
 #include <filesystem>
@@ -41,22 +41,12 @@ int main(int argc, char *argv[]) {
         core::config.load(optionsFile);
     }
     if (!core::config.postLoad()) { return EXIT_FAILURE; }
-    if (!mem::gStrings.load("strings.toml")) { return EXIT_FAILURE; }
+    if (!::hojy::world::state::gStrings.load("strings.toml")) { return EXIT_FAILURE; }
     core::config.fixOnTextLoaded();
-    if (!data::loadData()) { return EXIT_FAILURE; }
-    scene::Window win(core::config.windowWidth(), core::config.windowHeight());
-    for (;;) {
-        win.update();
-        win.render();
-eventStart:
-        if (!win.processEvents()) {
-            break;
-        }
-        if (!win.flush()) {
-            goto eventStart;
-        }
-    }
-    return 0;
+    if (!::hojy::content::loadData()) { return EXIT_FAILURE; }
+    app::Application application(core::config.windowWidth(), core::config.windowHeight(),
+                                 core::config.animationSpeed());
+    return application.run();
 }
 
 #ifdef _MSC_VER

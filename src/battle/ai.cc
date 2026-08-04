@@ -212,7 +212,7 @@ AiPathDistance contextDistance(const AiContext &context) {
 
 }
 
-AiStats snapshotAiStats(const mem::CharacterData &info) noexcept {
+AiStats snapshotAiStats(const ::hojy::world::state::CharacterData &info) noexcept {
     AiStats stats;
     stats.hp = info.hp;
     stats.maxHp = info.maxHp;
@@ -233,7 +233,7 @@ AiStats snapshotAiStats(const mem::CharacterData &info) noexcept {
 }
 
 AiStats captureAiEquipmentBonuses(const AiStats &entry,
-                                  const mem::CharacterData &effective) noexcept {
+                                  const ::hojy::world::state::CharacterData &effective) noexcept {
     const auto current = snapshotAiStats(effective);
     AiStats bonus;
     bonus.attack = current.attack - entry.attack;
@@ -249,7 +249,7 @@ AiStats captureAiEquipmentBonuses(const AiStats &entry,
 
 AiStats resolveAiRuntimeStats(const AiStats &entry,
                               const AiStats &equipmentBonus,
-                              const mem::CharacterData &effective) noexcept {
+                              const ::hojy::world::state::CharacterData &effective) noexcept {
     auto current = snapshotAiStats(effective);
     const auto resolve = [](int entryValue, int equipmentValue,
                             int currentValue) {

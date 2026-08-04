@@ -26,18 +26,24 @@ namespace hojy::scene {
 
 ColorPalette gNormalPalette, gEndPalette, gMaskPalette;
 
-void ColorPalette::load(const std::string &name) {
+bool ColorPalette::load(const std::string &name) {
     auto ifs = util::File::open(core::config.dataFilePath(name + ".COL"));
-    std::uint8_t c[4] = {0, 0, 0, 0xFF};
+    if (!ifs) { return false; }
+    std::array<std::uint32_t, 256> loaded{};
     for (size_t i = 0; i < 256; ++i) {
-        ifs.read(c, 3);
-        for (int j = 0; j < 3; ++j) {
-            c[j] = std::uint8_t(std::uint32_t(c[j]) * 4);
+        std::uint8_t c[3]{};
+        if (ifs.read(c, sizeof(c)) != sizeof(c)) {
+            return false;
         }
-        std::swap(c[0], c[2]);
-        palette_[i] = *reinterpret_cast<std::uint32_t*>(c);
+        const auto red = std::uint32_t(c[2]) * 4U;
+        const auto green = std::uint32_t(c[1]) * 4U;
+        const auto blue = std::uint32_t(c[0]) * 4U;
+        // Preserve the original byte order after its explicit BGR swap.
+        loaded[i] = 0xFF000000U | (blue << 16U) | (green << 8U) | red;
     }
-    palette_[0] = 0;
+    loaded[0] = 0;
+    palette_ = loaded;
+    return true;
 }
 
 void ColorPalette::create(const std::array<std::uint32_t, 256> &colors) {

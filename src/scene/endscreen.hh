@@ -30,11 +30,13 @@ public:
     using NodeWithCache::NodeWithCache;
 
     void init();
+    void update() override;
     void render() override;
     void handleKeyInput(Key key) override;
 
 private:
     void makeCache() override;
+    [[nodiscard]] int stage3FrameTotal() const;
 
 private:
     TextureMgr wordTexMgr_, imgTexMgr_;

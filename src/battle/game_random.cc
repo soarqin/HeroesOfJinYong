@@ -2,6 +2,7 @@
 
 #include "util/random.hh"
 
+#include <cstdint>
 #include <stdexcept>
 
 namespace hojy::battle {
@@ -18,7 +19,12 @@ int GameRandom::next(int minimum, int maximum) {
     if (minimum > maximum) {
         throw std::invalid_argument("minimum must not exceed maximum");
     }
-    return static_cast<int>(util::gRandom(minimum, maximum));
+    const auto width = static_cast<std::int64_t>(maximum)
+        - static_cast<std::int64_t>(minimum) + 1;
+    const auto normalized = util::gRandom()
+        % static_cast<util::Random::IntType>(width);
+    return static_cast<int>(static_cast<std::int64_t>(minimum)
+                            + static_cast<std::int64_t>(normalized));
 }
 
 }
