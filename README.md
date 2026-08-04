@@ -18,25 +18,23 @@ A reimplementation of the DOS game `The legend of Jin Yong Heroes(金庸群侠�
 |USE_STATIC_CRT|OFF|Use static C runtime|
 |USE_FREETYPE|OFF|Use freetype instead of stb_truetype|
 |USE_SOXR|OFF|Use soxr instead of zita-resampler(better quality with more cpu use)|
-|BUILD_TOOLS|OFF|Build tools(`mergepic`)|
+|BUILD_TOOLS|OFF|Build data preparation tools (`makedata` and `mergepic`)|
   
 # How to use compiled binaries
 1. Get original game files (you can download from [here](https://dos.zczc.cz/games/金庸群侠传/download))
-2. Copy compiled `bin/hojy.exe` and maybe other dll/so's to your own game root folder
-3. Copy `src/config.toml` to root folder
-4. Create a subfolder `data` in game root folder
-5. Copy `src/strings.toml` to `data` folder
-6. Create a subfolder `font` in `data` folder
-7. Copy a chinese ttf/otf to `font` folder (config.tml: fonts = "data/font/chinese.otf" )
-8. Extract downloaded game into `data` (do not create any 2nd-level subfolder)
-9. Run `hojy.exe` and enjoy!
+2. Configure CMake with `-DBUILD_TOOLS=ON` and build the project.
+3. Run `makedata <original-game-path> <target-path> <font-file>`. The tool creates `data`, copies the required game resources and font, merges the submap and warfield pictures, copies `strings.toml`, and generates `config.toml`.
+4. Copy compiled `bin/hojy.exe` and any required DLLs/shared libraries to the target path.
+5. Run `hojy.exe` and enjoy!
 
 ## How to merge Submap and Warfield pictures/textures
-1. Add `-DBUILD_TOOL=ON` to `cmake` command and build the whole project, you will get `mergepic` in `bin` folder
+`makedata` performs these merges automatically. The standalone compatibility tool is still available:
+
+1. Add `-DBUILD_TOOLS=ON` to the `cmake` command and build the whole project; `mergepic` is generated in the `bin` folder.
 2. Run `mergepic` in original game data folder using following commands to generate 4 files: `SDX`, `SMP`, `WDX`, `WMP`:
    1. `mergepic SDX SMP`
    2. `mergepic WDX WMP`
-3. Once done, you can remove all `SDX???`, `SMP???`, `SDX???`, `WMP???` files from resource folder
+3. Once done, you can remove all `SDX???`, `SMP???`, `WDX???`, `WMP???` files from the resource folder.
 
 # Documentation
 * [Battle logic — mathematical specification](docs/battle-math.md): pure-mathematics description of the battle formulas and AI decision logic (no code/address details)

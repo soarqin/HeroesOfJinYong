@@ -244,6 +244,16 @@ add_test(
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+if(TARGET makedata)
+    add_test(
+        NAME makedata_tests
+        COMMAND "${Python3_EXECUTABLE}"
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/makedata_tests.py
+                $<TARGET_FILE:makedata>)
+    set_tests_properties(makedata_tests PROPERTIES
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+endif()
+
 # IDA Pro 9.4 ships Python extension modules that must be loaded by the
 # matching CPython runtime.  Keep the regular Python interpreter as the
 # default, while allowing reverse-engineering tests to select the IDA

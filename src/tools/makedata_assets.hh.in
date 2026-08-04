@@ -1,0 +1,10 @@
+#pragma once
+
+#include <string_view>
+
+namespace hojy::tools::assets {
+
+inline constexpr std::string_view ConfigToml = R"HOJY_CONFIG(@MAKEDATA_CONFIG_TOML@)HOJY_CONFIG";
+inline constexpr std::string_view StringsToml = R"HOJY_STRINGS(@MAKEDATA_STRINGS_TOML@)HOJY_STRINGS";
+
+}// namespace hojy::tools::assets

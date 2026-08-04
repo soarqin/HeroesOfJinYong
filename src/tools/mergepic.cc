@@ -19,6 +19,7 @@
 
 #include "util/file.hh"
 
+#include <limits>
 #include <string>
 
 using namespace hojy;
@@ -30,24 +31,37 @@ bool loadGrp(const std::string &idx, const std::string &grp, std::vector<std::st
     if (!ifs || !ifs2) {
         return false;
     }
+    if (ifs.size() % sizeof(std::uint32_t) != 0
+        || ifs2.size() > std::numeric_limits<std::uint32_t>::max()) {
+        return false;
+    }
     size_t count = ifs.size() / sizeof(std::uint32_t);
     size_t fileSize = ifs2.size();
     dset.resize(count);
     std::uint32_t offset = 0;
+    bool reachedEnd = false;
     for (size_t i = 0; i < count; ++i) {
         std::uint32_t endoffset;
-        ifs.read(&endoffset, sizeof(endoffset));
+        if (ifs.read(&endoffset, sizeof(endoffset)) != sizeof(endoffset)) {
+            return false;
+        }
         if (endoffset == 0) {
+            reachedEnd = true;
             endoffset = fileSize;
+        } else if (reachedEnd || endoffset < offset || endoffset > fileSize) {
+            return false;
         }
         if (endoffset > offset) {
             dset[i].resize(endoffset - offset);
             ifs2.seek(offset);
-            ifs2.read(dset[i].data(), endoffset - offset);
+            if (ifs2.read(dset[i].data(), endoffset - offset)
+                != endoffset - offset) {
+                return false;
+            }
             offset = endoffset;
         }
     }
-    return true;
+    return offset == fileSize;
 }
 
 bool saveGrp(const std::string &idx, const std::string &grp, const std::vector<std::string> &dset) {
@@ -57,11 +71,18 @@ bool saveGrp(const std::string &idx, const std::string &grp, const std::vector<s
     if (!ifs || !ifs2) {
         return false;
     }
-    std::uint32_t offset = 0;
-    for (auto &d: dset) {
+    std::uint64_t offset = 0;
+    for (auto &d : dset) {
+        if (d.size() > std::numeric_limits<std::uint32_t>::max() - offset
+            || offset + d.size() > std::numeric_limits<std::uint32_t>::max()) {
+            return false;
+        }
         offset += d.size();
-        ifs2.write(d.data(), d.size());
-        ifs.write(&offset, sizeof(std::uint32_t));
+        const auto endoffset = static_cast<std::uint32_t>(offset);
+        if (ifs2.write(d.data(), d.size()) != d.size()
+            || ifs.write(&endoffset, sizeof(endoffset)) != sizeof(endoffset)) {
+            return false;
+        }
     }
     return true;
 }
@@ -81,12 +102,14 @@ int main(int argc, char *argv[]) {
         }
         for (size_t j = 0; j < single.size(); ++j) {
             if (single[j].empty()) { continue; }
-            if (merged[j].empty()) { merged[j] = single[j]; continue; }
+            if (merged[j].empty()) {
+                merged[j] = single[j];
+                continue;
+            }
             if (merged[j].size() != single[j].size()) {
                 fprintf(stderr, "size mismatch: %d %zd %zu != %zu\n", i, j, merged[j].size(), single[j].size());
             }
         }
     }
-    saveGrp(argv[1], argv[2], merged);
-    return 0;
+    return saveGrp(argv[1], argv[2], merged) ? 0 : -1;
 }

@@ -79,7 +79,44 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(${PROJECT_NAME} stdc++fs)
 endif()
 if(BUILD_TOOLS)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/config.toml
+        ${CMAKE_CURRENT_SOURCE_DIR}/strings.toml)
     add_executable(mergepic tools/mergepic.cc util/file.cc util/file.hh)
-    set_target_properties(mergepic PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    set_target_properties(mergepic PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(mergepic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    file(READ ${CMAKE_CURRENT_SOURCE_DIR}/config.toml MAKEDATA_CONFIG_TOML)
+    file(READ ${CMAKE_CURRENT_SOURCE_DIR}/strings.toml MAKEDATA_STRINGS_TOML)
+    configure_file(
+        tools/makedata_assets.hh.in
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/makedata_assets.hh
+        @ONLY)
+
+    add_executable(makedata
+        tools/makedata.cc
+        content/atomic_file.cc
+        content/atomic_file.hh)
+    set_target_properties(makedata PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_include_directories(makedata PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}/generated)
+    set(HOJY_TOOL_NEEDS_STDCXXFS OFF)
+    if(CMAKE_COMPILER_IS_GNUCXX)
+        set(HOJY_TOOL_NEEDS_STDCXXFS ON)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        list(FIND CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "stdc++" HOJY_STDCXX_INDEX)
+        if(HOJY_STDCXX_INDEX GREATER -1)
+            set(HOJY_TOOL_NEEDS_STDCXXFS ON)
+        endif()
+    endif()
+    if(HOJY_TOOL_NEEDS_STDCXXFS)
+        target_link_libraries(makedata stdc++fs)
+    endif()
 endif()
