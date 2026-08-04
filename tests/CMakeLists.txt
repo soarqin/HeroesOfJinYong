@@ -10,6 +10,14 @@ target_link_libraries(input_event_contract_tests PRIVATE hojy_scene_logic)
 set_target_properties(input_event_contract_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME input_event_contract_tests COMMAND input_event_contract_tests)
 
+add_executable(scene_input_port_tests scene/input_port_tests.cc)
+target_include_directories(scene_input_port_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_input_port_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_input_port_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_input_port_tests COMMAND scene_input_port_tests)
+
 add_executable(battle_random_tests
     battle/random_tests.cc
     ${PROJECT_SOURCE_DIR}/src/util/random.cc)
