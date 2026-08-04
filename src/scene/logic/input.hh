@@ -1,6 +1,9 @@
 #pragma once
 
+#include "core/input_event.hh"
+
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <string>
@@ -23,6 +26,12 @@ enum class InputKey {
 class KeyIntent;
 class TextIntent;
 
+struct InputIntentMetadata {
+    std::uint64_t timestamp = 0;
+    core::InputDevice device = core::InputDevice::Keyboard;
+    std::uint64_t sequence = 0;
+};
+
 class InputConsumer {
 public:
     virtual ~InputConsumer() = default;
@@ -32,13 +41,36 @@ public:
 
 class SceneInputIntent {
 public:
+    explicit SceneInputIntent(InputIntentMetadata metadata = {})
+        : metadata_(metadata) {}
     virtual ~SceneInputIntent() = default;
+
     virtual void deliver(InputConsumer &consumer) const = 0;
+
+    [[nodiscard]] const InputIntentMetadata &metadata() const {
+        return metadata_;
+    }
+    [[nodiscard]] std::uint64_t timestamp() const {
+        return metadata_.timestamp;
+    }
+    [[nodiscard]] core::InputDevice device() const {
+        return metadata_.device;
+    }
+    [[nodiscard]] std::uint64_t sequence() const {
+        return metadata_.sequence;
+    }
+
+private:
+    InputIntentMetadata metadata_;
 };
 
 class KeyIntent final : public SceneInputIntent {
 public:
-    explicit KeyIntent(InputKey key): key_(key) {}
+    explicit KeyIntent(InputKey key, InputIntentMetadata metadata = {})
+        : SceneInputIntent(metadata), key_(key) {}
+    KeyIntent(InputKey key, std::uint64_t timestamp, core::InputDevice device,
+              std::uint64_t sequence)
+        : KeyIntent(key, {timestamp, device, sequence}) {}
 
     [[nodiscard]] InputKey key() const { return key_; }
     void deliver(InputConsumer &consumer) const override { consumer.consume(*this); }
@@ -49,7 +81,11 @@ private:
 
 class TextIntent final : public SceneInputIntent {
 public:
-    explicit TextIntent(std::wstring text): text_(std::move(text)) {}
+    explicit TextIntent(std::wstring text, InputIntentMetadata metadata = {})
+        : SceneInputIntent(metadata), text_(std::move(text)) {}
+    TextIntent(std::wstring text, std::uint64_t timestamp,
+               core::InputDevice device, std::uint64_t sequence)
+        : TextIntent(std::move(text), {timestamp, device, sequence}) {}
 
     [[nodiscard]] const std::wstring &text() const { return text_; }
     void deliver(InputConsumer &consumer) const override { consumer.consume(*this); }

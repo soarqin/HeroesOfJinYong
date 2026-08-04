@@ -38,11 +38,23 @@ void testQueuedInputPortPreservesIntentOrder() {
     HOJY_CHECK_EQ(port.deliverNext(consumer), false);
 }
 
+void testIntentsRetainSourceMetadata() {
+    const hojy::scene::InputIntentMetadata metadata{
+        123, hojy::core::InputDevice::Controller, 7};
+    const hojy::scene::KeyIntent intent(hojy::scene::InputKey::Accept,
+                                        metadata);
+
+    HOJY_CHECK_EQ(intent.timestamp(), 123ULL);
+    HOJY_CHECK_EQ(intent.device(), hojy::core::InputDevice::Controller);
+    HOJY_CHECK_EQ(intent.sequence(), 7ULL);
+}
+
 }
 
 int main() {
     try {
         testQueuedInputPortPreservesIntentOrder();
+        testIntentsRetainSourceMetadata();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;
