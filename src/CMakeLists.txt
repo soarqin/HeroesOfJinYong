@@ -33,7 +33,7 @@ target_include_directories(hojy_battle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(hojy_scene STATIC ${SCENE_FILES})
 set_target_properties(hojy_scene PROPERTIES CXX_STANDARD 17)
 target_link_libraries(hojy_scene PUBLIC
-    hojy_event hojy_battle hojy_world hojy_content SDL2_gfx)
+    hojy_event hojy_battle hojy_world hojy_content SDL2_gfx fmt::fmt)
 target_include_directories(hojy_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(hojy_app STATIC ${APP_FILES})
@@ -51,7 +51,10 @@ add_executable(${PROJECT_NAME} WIN32 main.cc
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 17
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-    RUNTIME_OUTPUT_NAME hojy)
+    RUNTIME_OUTPUT_NAME hojy
+    # MSVC's /GL produces an insufficiently probed stack frame while compiling
+    # util/conv.cc's generated conversion tables.
+    HOJY_DISABLE_MSVC_LTO TRUE)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE SDL_MAIN_HANDLED HOJY_VERSION="${${PROJECT_NAME}_VERSION_STRING_FULL}")
 if(USE_FREETYPE)

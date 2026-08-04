@@ -40,8 +40,9 @@ Strings gStrings;
 
 bool Strings::load(const std::string &filename) {
     toml::table tbl;
+    const auto content = util::File::getFileContent(core::config.dataFilePath(filename));
     try {
-        tbl = toml::parse(util::File::getFileContent(core::config.dataFilePath(filename)));
+        tbl = toml::parse(content);
     } catch (const toml::parse_error &err) {
         std::cerr << "Parsing failed: " << err << std::endl;
         return false;

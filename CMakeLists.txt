@@ -57,9 +57,11 @@ endif()
 if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+    add_compile_options(/EHsc)
+    add_compile_definitions(NOMINMAX)
 endif()
 add_compile_options(
-    $<$<AND:$<NOT:$<COMPILE_LANGUAGE:ASM_NASM>>,$<OR:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>>:/GL>
+    $<$<AND:$<NOT:$<COMPILE_LANGUAGE:ASM_NASM>>,$<OR:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>,$<NOT:$<BOOL:$<TARGET_PROPERTY:HOJY_DISABLE_MSVC_LTO>>>>:/GL>
     $<$<AND:$<NOT:$<COMPILE_LANGUAGE:ASM_NASM>>,$<OR:$<C_COMPILER_ID:GNU>,$<C_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>,$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>>:-flto>
 )
 add_link_options(
