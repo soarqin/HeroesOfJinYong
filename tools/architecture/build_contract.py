@@ -21,4 +21,5 @@ def required_targets() -> set[str]:
         "hojy_event",
         "hojy_battle",
         "hojy_scene",
+        "hojy_scene_logic",
     }

@@ -2,6 +2,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_executable(input_event_contract_tests app/input_event_contract_tests.cc)
+target_include_directories(input_event_contract_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(input_event_contract_tests PRIVATE hojy_scene_logic)
+set_target_properties(input_event_contract_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME input_event_contract_tests COMMAND input_event_contract_tests)
+
 add_executable(battle_random_tests
     battle/random_tests.cc
     ${PROJECT_SOURCE_DIR}/src/util/random.cc)

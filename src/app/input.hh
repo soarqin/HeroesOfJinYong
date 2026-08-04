@@ -6,36 +6,13 @@
 #include <string>
 #include <vector>
 
+#include "core/input_event.hh"
+
 namespace hojy::app {
 
-enum class InputDevice {
-    Keyboard,
-    Controller,
-    Text,
-    System,
-};
-
-enum class InputAction {
-    Up,
-    Down,
-    Left,
-    Right,
-    Accept,
-    Cancel,
-    Space,
-    Backspace,
-    Text,
-    Quit,
-};
-
-struct InputEvent {
-    std::uint64_t timestamp = 0;
-    InputDevice device = InputDevice::Keyboard;
-    InputAction action = InputAction::Accept;
-    int value = 0;
-    std::wstring text;
-    std::uint64_t sequence = 0;
-};
+using core::InputAction;
+using core::InputDevice;
+using core::InputEvent;
 
 class InputQueue final {
 public:

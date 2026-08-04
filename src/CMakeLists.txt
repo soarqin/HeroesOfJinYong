@@ -8,6 +8,8 @@ file(GLOB AUDIO_FILES audio/*.cc audio/*.hh)
 file(GLOB UTIL_FILES  util/*.cc  util/*.hh)
 file(GLOB APP_FILES CONFIGURE_DEPENDS app/*.cc app/*.hh)
 file(GLOB EVENT_FILES CONFIGURE_DEPENDS event/*.cc event/*.hh)
+file(GLOB SCENE_LOGIC_FILES CONFIGURE_DEPENDS
+    scene/logic/*.cc scene/logic/*.hh)
 
 # Stable domain targets are introduced before implementation files migrate.
 add_library(hojy_content STATIC ${CONTENT_FILES})
@@ -30,10 +32,31 @@ add_library(hojy_battle STATIC ${BATTLE_FILES})
 set_target_properties(hojy_battle PROPERTIES CXX_STANDARD 17)
 target_include_directories(hojy_battle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(SCENE_LOGIC_FILES)
+    add_library(hojy_scene_logic STATIC ${SCENE_LOGIC_FILES})
+else()
+    # Keep the target available while the first pure-logic source is being
+    # migrated; CMake does not permit an empty STATIC target.
+    add_library(hojy_scene_logic INTERFACE)
+endif()
+set_target_properties(hojy_scene_logic PROPERTIES CXX_STANDARD 17)
+if(SCENE_LOGIC_FILES)
+    target_link_libraries(hojy_scene_logic PUBLIC
+        hojy_event hojy_battle hojy_world hojy_content)
+    target_include_directories(hojy_scene_logic PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR})
+else()
+    target_link_libraries(hojy_scene_logic INTERFACE
+        hojy_event hojy_battle hojy_world hojy_content)
+    target_include_directories(hojy_scene_logic INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 add_library(hojy_scene STATIC ${SCENE_FILES})
 set_target_properties(hojy_scene PROPERTIES CXX_STANDARD 17)
 target_link_libraries(hojy_scene PUBLIC
-    hojy_event hojy_battle hojy_world hojy_content SDL2_gfx fmt::fmt)
+    hojy_scene_logic hojy_event hojy_battle hojy_world hojy_content
+    SDL2_gfx fmt::fmt)
 target_include_directories(hojy_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(hojy_app STATIC ${APP_FILES})
