@@ -9,6 +9,7 @@ namespace {
 void testApplicationUsesTheDocumentedFixedTickPeriod() {
     HOJY_CHECK_EQ(hojy::app::Application::FixedTickMicros, 16666ULL);
     HOJY_CHECK_EQ(hojy::app::Application::CompatibilityDivisor, 4U);
+    HOJY_CHECK_EQ(hojy::app::Application::LegacyLogicRateHz, 18.2065);
 }
 
 }

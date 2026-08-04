@@ -14,6 +14,8 @@ class Application final {
 public:
     static constexpr std::uint64_t FixedTickMicros = 16666;
     static constexpr std::uint32_t CompatibilityDivisor = 4;
+    // The original map loop waits on the BIOS PIT tick at 0x046C.
+    static constexpr double LegacyLogicRateHz = 18.2065;
 
     Application(int width, int height, double animationSpeed = 1.0);
     Application(const Application &) = delete;

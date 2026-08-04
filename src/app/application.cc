@@ -9,7 +9,7 @@ namespace hojy::app {
 Application::Application(int width, int height, double animationSpeed):
     window_(width, height),
     scheduler_(FixedTickMicros, CompatibilityDivisor),
-    compatibilityScheduler_(60.0, 15.0 * std::max(0.0, animationSpeed)) {
+    compatibilityScheduler_(60.0, LegacyLogicRateHz * std::max(0.0, animationSpeed)) {
     simulationTime_ = window_.currTime();
     lastWallTime_ = wallTimeMicros();
     window_.setSimulationTime(simulationTime_);
