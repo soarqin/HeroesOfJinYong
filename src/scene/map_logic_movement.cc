@@ -84,6 +84,14 @@ void MapWithEvent::setPosition(int x, int y, bool checkEvent) {
     updateMainCharSpriteId();
 }
 
+void MapWithEvent::resetMainCharStance() {
+    currMainCharFrame_ = 0;
+    resting_ = false;
+    resetTime();
+    updateMainCharSpriteId();
+    markWorldChanged();
+}
+
 void MapWithEvent::move(Map::Direction direction) {
     if (direction < Map::DirUp || direction > Map::DirDown
         || !validMapCoordinate(currX_, currY_)) {

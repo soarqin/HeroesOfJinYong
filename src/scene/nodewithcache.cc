@@ -76,6 +76,10 @@ void NodeWithCache::prepareRender() {
         height_ = oldHeight;
         onPrepareFailed();
     } else {
+        if (layoutCenterRequested_) {
+            Node::makeCenter(layoutCenterWidth_, layoutCenterHeight_,
+                             layoutCenterX_, layoutCenterY_);
+        }
         preparedPresentationRevision_ = requestedPresentationRevision;
     }
 }
@@ -133,7 +137,11 @@ bool NodeWithCache::rebuildCache() {
 }
 
 void NodeWithCache::makeCenter(int w, int h, int x, int y) {
-    Node::makeCenter(w, h, x, y);
+    layoutCenterRequested_ = true;
+    layoutCenterWidth_ = w;
+    layoutCenterHeight_ = h;
+    layoutCenterX_ = x;
+    layoutCenterY_ = y;
     requestPresentationRefresh();
 }
 

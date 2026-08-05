@@ -25,9 +25,10 @@ void testPreviewSnapshotOwnsFormattedValuesAndColors() {
     character.potential = 99;
 
     const auto snapshot = hojy::scene::buildTitlePreviewSnapshot(
-        L"令狐冲", character, true, 1, 42);
+        L"令狐冲", character, true, 6, 1, 42);
     HOJY_CHECK_EQ(snapshot.generation, 42ULL);
     HOJY_CHECK_EQ(snapshot.confirmationIndex, 1);
+    HOJY_CHECK_EQ(snapshot.windowBorder, 6);
     HOJY_CHECK_EQ(snapshot.choices.size(), 2U);
     HOJY_CHECK_EQ(snapshot.properties.size(), 13U);
     HOJY_CHECK_EQ(snapshot.properties.at(0).row, 0);

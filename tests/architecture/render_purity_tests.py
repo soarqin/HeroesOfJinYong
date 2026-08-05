@@ -99,6 +99,14 @@ class RenderPurityTests(unittest.TestCase):
         self.assertNotIn("new MenuYesNo", title_body)
         self.assertNotIn("text_.clear", message_body)
 
+    def test_load_menu_does_not_redraw_the_main_title(self) -> None:
+        body = function_body("src/scene/title_render.cc", "void Title::makeCache()")
+        start = body.index("TitleLoadMenuSnapshot")
+        end = body.index("TitleNameEntrySnapshot", start)
+        load_branch = body[start:end]
+        self.assertIn("renderTexture(load", load_branch)
+        self.assertNotIn("renderTexture(logo", load_branch)
+
     def test_render_does_not_commit_scene_commands(self) -> None:
         body = function_body("src/scene/window.cc", "void Window::render()")
         self.assertNotIn("applyDeferredNodes", body)

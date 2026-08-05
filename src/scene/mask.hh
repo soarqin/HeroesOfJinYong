@@ -34,8 +34,6 @@ public:
     };
     Mask(Node *parent, Type type, int interval);
 
-    [[nodiscard]] bool acceptsInput() const noexcept override { return false; }
-
     void update() override;
     void render() const override;
 

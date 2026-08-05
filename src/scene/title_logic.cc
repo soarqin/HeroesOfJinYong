@@ -163,6 +163,7 @@ void Title::executeSelectConfirmation(int index) {
 
 void Title::executeActivateConfirmation() {
     if (!std::holds_alternative<TitlePreviewSnapshot>(snapshot_)) { return; }
+    if (confirmationIndex_ < 0 || confirmationIndex_ > 1) { return; }
     if (confirmationIndex_ == 0) {
         queueCandidateActivation();
     } else {
@@ -175,13 +176,12 @@ void Title::executeRerollCandidate() {
         showInputFailure();
         return;
     }
-    confirmationIndex_ = 0;
     enterPreview();
 }
 
 void Title::enterMainMenu() {
     selection_ = 0;
-    confirmationIndex_ = 0;
+    confirmationIndex_ = -1;
     inputMode_ = std::make_unique<TitleMainMenuInputMode>();
     snapshot_ = TitleMainMenuSnapshot{};
     requestPresentationRefresh();
@@ -212,7 +212,7 @@ void Title::enterPreview() {
     ++snapshotGeneration_;
     snapshot_ = buildTitlePreviewSnapshot(
         mainCharName_, character, core::config.showPotential(),
-        confirmationIndex_, snapshotGeneration_);
+        core::config.windowBorder(), confirmationIndex_, snapshotGeneration_);
     requestPresentationRefresh();
 }
 

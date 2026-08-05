@@ -95,7 +95,6 @@ void Title::makeCache() {
                             * layout.scale.first / layout.scale.second) / 2;
             const auto y = height_ - 65 * layout.scale.first / layout.scale.second;
             const auto offsets = detail::titleMenuSelectionOffsets(y, layout.scale);
-            renderer_->renderTexture(logo, x, y, layout.scale);
             renderer_->renderTexture(load, x, y, layout.scale);
             renderer_->renderTexture(
                 selection, x, offsets[static_cast<std::size_t>(snapshot.selectedIndex)],
@@ -136,19 +135,38 @@ void Title::makeCache() {
                 ttf->renderPrepared(
                     property.displayText, x, propertyY, property.shadow);
             }
-            const auto choicesY = y + lineHeight * 3;
+            const auto windowBorder = snapshot.windowBorder;
+            const std::array<int, 2> choiceWidths{
+                ttf->preparedStringWidth(snapshot.choices[0]),
+                ttf->preparedStringWidth(snapshot.choices[1]),
+            };
+            const auto confirmation = detail::titleConfirmationLayout(
+                baseX, height_ - lineHeight * 5,
+                ttf->preparedStringWidth(snapshot.prompt), ttf->fontSize(),
+                windowBorder, choiceWidths);
+            renderer_->fillRoundedRect(
+                confirmation.panelX, confirmation.panelY,
+                confirmation.panelWidth, confirmation.panelHeight,
+                windowBorder, 64, 64, 64, 208);
+            renderer_->drawRoundedRect(
+                confirmation.panelX, confirmation.panelY,
+                confirmation.panelWidth, confirmation.panelHeight,
+                windowBorder, 224, 224, 224, 255);
             for (std::size_t index = 0; index < snapshot.choices.size(); ++index) {
                 const auto &choice = snapshot.choices[index];
-                ttf->setColor(
-                    index == static_cast<std::size_t>(snapshot.confirmationIndex)
-                        ? 252 : 236,
-                    index == static_cast<std::size_t>(snapshot.confirmationIndex)
-                        ? 236 : 236,
-                    index == static_cast<std::size_t>(snapshot.confirmationIndex)
-                        ? 132 : 236);
+                if (static_cast<int>(index) == snapshot.confirmationIndex) {
+                    ttf->setColor(236, 236, 236);
+                    renderer_->fillRoundedRect(
+                        confirmation.choiceX[index] - 2,
+                        confirmation.choiceY - 2,
+                        choiceWidths[index] + 4, ttf->fontSize() + 4,
+                        2, 96, 96, 96, 192);
+                } else {
+                    ttf->setColor(252, 148, 16);
+                }
                 ttf->renderPrepared(
-                    choice, baseX + colWidth * static_cast<int>(index), choicesY,
-                    false);
+                    choice, confirmation.choiceX[index], confirmation.choiceY,
+                    true);
             }
         }
     }, snapshot_);

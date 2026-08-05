@@ -77,6 +77,7 @@ public:
     [[nodiscard]] MapWithEvent *globalMap() const { return globalMap_; }
 
     void dispatchInput(const core::InputEvent &event);
+    void updateInput();
     void updateFixed();
     void compatibilityUpdate();
     void update();
@@ -178,6 +179,7 @@ private:
     bool deferredPopupOwned_ = false;
     bool ownsVideoSubsystem_ = false;
     bool ownsControllerSubsystem_ = false;
+    std::deque<core::InputEvent> sampledInputEvents_;
     std::deque<core::InputEvent> pendingInputEvents_;
     QueuedInputPort inputPort_;
     SceneCommandQueue deferredCommands_;

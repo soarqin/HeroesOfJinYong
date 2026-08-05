@@ -224,8 +224,8 @@ void ItemView::prepareRender() {
     itemTexH_ = atlasHeight;
 
     const auto windowBorder = core::config.windowBorder();
-    const int scale0 = rootWidth() / 320;
-    const int scale1 = rootHeight() / 200;
+    const int scale0 = (viewportWidth_ > 0 ? viewportWidth_ : rootWidth()) / 320;
+    const int scale1 = (viewportHeight_ > 0 ? viewportHeight_ : rootHeight()) / 200;
     const int nextScale = std::max(1, std::min(scale0, scale1));
     const int nextCellWidth = itemTexW_ * nextScale;
     const int nextCellHeight = itemTexH_ * nextScale;
@@ -260,21 +260,23 @@ void ItemView::prepareRender() {
 
 bool ItemView::prepareTextResources() {
     auto *ttf = renderer_->ttf();
-    bool ready = true;
+    // Item descriptions contain optional text from the data files.  Match
+    // the original lazy glyph rendering: an unsupported glyph is skipped,
+    // but it must not make the entire item panel disappear.
     for (const auto &entry: items_) {
-        ready = ttf->prepareText(std::to_wstring(entry.count)) && ready;
-        ready = ttf->prepareText(entry.displayText) && ready;
-        ready = ttf->prepareText(entry.description) && ready;
-        ready = ttf->prepareText(entry.requirementTitle) && ready;
-        ready = ttf->prepareText(entry.effectTitle) && ready;
+        (void)ttf->prepareText(std::to_wstring(entry.count));
+        (void)ttf->prepareText(entry.displayText);
+        (void)ttf->prepareText(entry.description);
+        (void)ttf->prepareText(entry.requirementTitle);
+        (void)ttf->prepareText(entry.effectTitle);
         for (const auto &line: entry.requirementLines) {
-            ready = ttf->prepareText(line) && ready;
+            (void)ttf->prepareText(line);
         }
         for (const auto &line: entry.effectLines) {
-            ready = ttf->prepareText(line) && ready;
+            (void)ttf->prepareText(line);
         }
     }
-    return ready;
+    return true;
 }
 
 void ItemView::makeCache() {

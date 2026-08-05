@@ -38,6 +38,10 @@ public:
 
     void show(std::vector<ItemEntry> items,
               std::unique_ptr<ItemSelectionController> selectionController);
+    void setViewportSize(int width, int height) noexcept {
+        viewportWidth_ = width;
+        viewportHeight_ = height;
+    }
     void setItems(std::vector<ItemEntry> items);
     void update() override;
     void applyInputLogic() override;
@@ -65,6 +69,7 @@ protected:
     const Texture *itemAtlas_ = nullptr;
     int itemTexW_ = 0, itemTexH_ = 0;
     int layoutBoundsWidth_ = 0, layoutBoundsHeight_ = 0;
+    int viewportWidth_ = 0, viewportHeight_ = 0;
     bool presentationGeometryReady_ = false;
     Key pendingInput_ = KeyNone;
 };

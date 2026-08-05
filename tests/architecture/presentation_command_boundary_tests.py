@@ -124,6 +124,14 @@ class PresentationCommandBoundaryTests(unittest.TestCase):
         self.assertIn("result.accepted", block)
         self.assertGreaterEqual(block.count("messageBox->requestDelete()"), 1)
 
+    def test_system_quit_no_closes_its_confirmation_menu(self) -> None:
+        text = strip_comments(source("src/scene/window_menu.cc"))
+        start = text.index("controller->bind(SystemQuit")
+        end = text.index("subMenu->setSelectionSink", start)
+        block = text[start:end]
+        self.assertIn("choice->bind(1", block)
+        self.assertIn("yesNo->requestDelete()", block)
+
 
 if __name__ == "__main__":
     unittest.main()

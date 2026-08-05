@@ -201,14 +201,17 @@ bool MessageBox::buildLayoutSnapshot() {
 
 void MessageBox::ensureYesNoMenu() {
     if (menu_ != nullptr || type_ != YesNo) { return; }
-    auto *m = new MenuYesNo(this, x_ + layout_.width + 5, y_,
-                            rootWidth() - (x_ + layout_.width + 5),
-                            rootHeight() - y_);
+    const auto menuX = x_ + layout_.width + 5;
+    auto *m = new MenuYesNo(this, menuX, y_,
+                            frameX_ + frameWidth_ - menuX,
+                            frameY_ + frameHeight_ - y_);
     m->enableHorizonal(true);
     m->popupWithYesNo();
     auto controller = std::make_shared<ActionMenuController>();
     controller->bind(0, std::make_unique<MessageBoxChoiceAction>(this, true));
     controller->bind(1, std::make_unique<MessageBoxChoiceAction>(this, false));
+    controller->bindCancel(
+        std::make_unique<MessageBoxChoiceAction>(this, false));
     m->setSelectionSink(std::move(controller));
     menu_ = m;
 }

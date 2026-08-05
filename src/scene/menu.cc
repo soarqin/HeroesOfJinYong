@@ -84,8 +84,11 @@ void Menu::popup(const std::vector<std::wstring> &items,
         entryIds_.push_back(MenuConfirmEntryId);
         entryEnabled_.push_back(true);
     }
-    currIndex_ = std::clamp(
-        defaultIndex, 0, std::max(0, static_cast<int>(items_.size()) - 1));
+    currIndex_ = defaultIndex < 0
+        ? -1
+        : std::clamp(
+              defaultIndex, 0,
+              std::max(0, static_cast<int>(items_.size()) - 1));
     requestPresentationRefresh();
 }
 
@@ -112,8 +115,11 @@ void Menu::popup(const MenuEntries &entries, int defaultIndex) {
         entryIds_.push_back(MenuConfirmEntryId);
         entryEnabled_.push_back(true);
     }
-    currIndex_ = std::clamp(
-        defaultIndex, 0, std::max(0, static_cast<int>(items_.size()) - 1));
+    currIndex_ = defaultIndex < 0
+        ? -1
+        : std::clamp(
+              defaultIndex, 0,
+              std::max(0, static_cast<int>(items_.size()) - 1));
     requestPresentationRefresh();
 }
 
@@ -238,6 +244,9 @@ void Menu::ensureLayout() {
     const auto lines = static_cast<int>(items_.size());
     const auto fontSize = renderer_->fontSize();
     const auto rowHeight = fontSize + TextLineSpacing;
+    const auto hasValueColumn = std::any_of(
+        values_.begin(), values_.end(),
+        [](const auto &value) { return !value.empty(); });
     if (horizonal_) {
         for (const auto &item: items_) {
             w += renderer_->ttf()->preparedStringWidth(item) + windowBorder;
@@ -249,7 +258,7 @@ void Menu::ensureLayout() {
         for (const auto &item: items_) {
             w = std::max(w, renderer_->ttf()->preparedStringWidth(item));
         }
-        if (!values_.empty()) {
+        if (hasValueColumn) {
             for (const auto &value: values_) {
                 w2 = std::max(w2, renderer_->ttf()->preparedStringWidth(value));
             }
@@ -283,6 +292,9 @@ void Menu::makeCache() {
     const auto lines = static_cast<int>(items_.size());
     const auto fontSize = ttf->fontSize();
     const auto rowHeight = fontSize + TextLineSpacing;
+    const auto hasValueColumn = std::any_of(
+        values_.begin(), values_.end(),
+        [](const auto &value) { return !value.empty(); });
     std::vector<std::pair<int, int>> itemsOff;
     bool drawValue = false;
     if (horizonal_) {
@@ -298,7 +310,7 @@ void Menu::makeCache() {
         for (const auto &item: items_) {
             w = std::max(w, ttf->preparedStringWidth(item));
         }
-        if (!values_.empty()) {
+        if (hasValueColumn) {
             drawValue = true;
             x2 = x + w + windowBorder;
             for (const auto &value: values_) {

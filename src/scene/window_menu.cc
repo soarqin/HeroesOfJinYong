@@ -88,7 +88,7 @@ void medicMenu(Window *window, Node *mainMenu) {
         + core::config.windowBorder();
     const auto y = mainMenu->y();
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [window, mainMenu](MenuSelection selection) {
@@ -102,12 +102,12 @@ void medicMenu(Window *window, Node *mainMenu) {
                    {medicProjection(1)}), std::move(controller));
 }
 
-void medicTargetMenu(Window *, Node *mainMenu, std::int16_t charId) {
+void medicTargetMenu(Window *window, Node *mainMenu, std::int16_t charId) {
     const auto x = mainMenu->x() + mainMenu->width()
         + core::config.windowBorder() * 3;
     const auto y = mainMenu->y() + core::config.windowBorder() * 2;
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [mainMenu, charId](MenuSelection selection) {
@@ -126,7 +126,7 @@ void depoisonMenu(Window *window, Node *mainMenu) {
         + core::config.windowBorder();
     const auto y = mainMenu->y();
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [window, mainMenu](MenuSelection selection) {
@@ -140,12 +140,12 @@ void depoisonMenu(Window *window, Node *mainMenu) {
                    {depoisonProjection(1)}), std::move(controller));
 }
 
-void depoisonTargetMenu(Window *, Node *mainMenu, std::int16_t charId) {
+void depoisonTargetMenu(Window *window, Node *mainMenu, std::int16_t charId) {
     const auto x = mainMenu->x() + mainMenu->width()
         + core::config.windowBorder() * 3;
     const auto y = mainMenu->y() + core::config.windowBorder() * 2;
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [mainMenu, charId](MenuSelection selection) {
@@ -165,8 +165,9 @@ void showItems(Window *window, Node *mainMenu) {
     const auto y = mainMenu->y();
     const auto border = core::config.windowBorder();
     auto *view = new ItemView(
-        mainMenu, x, y, mainMenu->rootWidth() - x - border * 4,
-        mainMenu->rootHeight() - y - border * 4);
+        mainMenu, x, y, window->width() - x - border * 4,
+        window->height() - y - border * 4);
+    view->setViewportSize(window->width(), window->height());
     const auto itemSnapshot = ::hojy::world::state::itemSelectionSnapshot();
     std::optional<std::pair<int, int>> compass;
     if (window && window->globalMap()) {
@@ -189,7 +190,7 @@ void statusMenu(Window *window, Node *mainMenu) {
         + core::config.windowBorder();
     const auto y = mainMenu->y();
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [window, mainMenu](MenuSelection selection) {
@@ -208,7 +209,7 @@ void showCharStatus(Window *window, Node *parent, std::int16_t charId) {
         + core::config.windowBorder();
     const auto y = parent->y();
     auto *view = new StatusView(
-        parent, x, y, parent->rootWidth() - x, parent->rootHeight() - y);
+        parent, x, y, window->width() - x, window->height() - y);
     if (window) {
         view->setHeadTextureProvider(
             [window](std::int16_t id) { return window->headTexture(id); });
@@ -222,12 +223,12 @@ void showCharStatus(Window *window, Node *parent, std::int16_t charId) {
     view->show(std::move(*snapshot));
 }
 
-void leaveTeamMenu(Window *, Node *mainMenu) {
+void leaveTeamMenu(Window *window, Node *mainMenu) {
     const auto x = mainMenu->x() + mainMenu->width()
         + core::config.windowBorder();
     const auto y = mainMenu->y();
     auto *menu = new CharListMenu(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto controller = controllerFor(menu);
     controller->bindDefault(makeMenuAction(
         [mainMenu](MenuSelection selection) {
@@ -253,7 +254,7 @@ void systemMenu(Window *window, Node *mainMenu) {
         + core::config.windowBorder();
     const auto y = mainMenu->y();
     auto *subMenu = new MenuTextList(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     auto entries = MenuEntries{
         {SystemLoad, GETTEXT(62), L"", true},
         {SystemSave, GETTEXT(63), L"", true},
@@ -281,12 +282,12 @@ void systemMenu(Window *window, Node *mainMenu) {
                            + core::config.windowBorder(), y);
         }));
     controller->bind(SystemQuit, makeMenuAction(
-        [mainMenu, subMenu, y](MenuSelection) {
+        [window, mainMenu, subMenu, y](MenuSelection) {
             const auto x = subMenu->x() + subMenu->width()
                 + core::config.windowBorder();
             auto *yesNo = new MenuYesNo(
-                mainMenu, x, y, mainMenu->rootWidth() - x,
-                mainMenu->rootHeight() - y);
+                mainMenu, x, y, window->width() - x,
+                window->height() - y);
             yesNo->enableHorizonal(true);
             yesNo->popupWithYesNo();
             auto choice = controllerFor(yesNo);
@@ -296,14 +297,16 @@ void systemMenu(Window *window, Node *mainMenu) {
                         context.forceQuit();
                     });
                 }));
+            choice->bind(1, makeMenuAction(
+                [yesNo](MenuSelection) { yesNo->requestDelete(); }));
             yesNo->setSelectionSink(std::move(choice));
         }));
     subMenu->setSelectionSink(std::move(controller));
 }
 
-void selectSaveSlotMenu(Window *, Node *mainMenu, int x, int y, bool isSave) {
+void selectSaveSlotMenu(Window *window, Node *mainMenu, int x, int y, bool isSave) {
     auto *subMenu = new MenuTextList(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     subMenu->popup(MenuEntries{
         {1, GETTEXT(65), L"", true},
         {2, GETTEXT(66), L"", true},
@@ -330,9 +333,9 @@ void selectSaveSlotMenu(Window *, Node *mainMenu, int x, int y, bool isSave) {
     subMenu->setSelectionSink(std::move(controller));
 }
 
-void optionMenu(Window *, Node *mainMenu, int x, int y) {
+void optionMenu(Window *window, Node *mainMenu, int x, int y) {
     auto *subMenu = new MenuOption(
-        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+        mainMenu, x, y, window->width() - x, window->height() - y);
     subMenu->popup(MenuEntries{
         {OptionMiniPanel, GETTEXT(132), fmt::format(
             L" {:<2}", core::config.showMapMiniPanel()

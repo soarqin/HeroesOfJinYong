@@ -69,19 +69,23 @@ void StatusView::applyInputLogic() {
 
 bool StatusView::prepareTextResources() {
     auto *ttf = renderer_->ttf();
-    bool ready = ttf->prepareText(L"0123456789 +-=/()=");
-    ready = ttf->prepareText(data_.name) && ready;
+    // The original renderer prepared glyphs lazily while drawing.  A missing
+    // optional glyph must not suppress the whole status panel; renderPrepared
+    // will simply skip that glyph and keep the surrounding panel visible.
+    (void)ttf->prepareText(L"0123456789 +-=/()=");
+    (void)ttf->prepareText(data_.name);
     for (const auto &label: data_.labels) {
-        ready = ttf->prepareText(label) && ready;
+        (void)ttf->prepareText(label);
     }
     for (int i = 0; i < ::hojy::content::LearnSkillCount; ++i) {
-        ready = ttf->prepareText(data_.skillNames[static_cast<std::size_t>(i)]) && ready;
+        (void)ttf->prepareText(
+            data_.skillNames[static_cast<std::size_t>(i)]);
     }
     for (const auto &name: data_.equipNames) {
-        ready = ttf->prepareText(name) && ready;
+        (void)ttf->prepareText(name);
     }
-    ready = ttf->prepareText(data_.learningItemName) && ready;
-    return ready;
+    (void)ttf->prepareText(data_.learningItemName);
+    return true;
 }
 
 void StatusView::ensureLayout() {

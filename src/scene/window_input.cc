@@ -7,7 +7,7 @@ namespace {
 }
 
 void Window::dispatchInput(const core::InputEvent &event) {
-    pendingInputEvents_.push_back(event);
+    sampledInputEvents_.push_back(event);
 }
 
 }

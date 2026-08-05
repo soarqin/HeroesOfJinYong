@@ -208,6 +208,7 @@ bool Window::initializeItemAtlas() {
     const auto *colors = gNormalPalette.colors();
     for (int i = 0; i < ::hojy::content::BagItemCount; ++i) {
         const auto &data = globalMap_->texData(::hojy::content::ItemTexIdStart + i);
+        if (data.empty()) { continue; }
         if (!Texture::validateRLE(data)) { return false; }
         std::int16_t header[4]{};
         std::memcpy(header, data.data(), sizeof(header));
@@ -292,9 +293,14 @@ void Window::renderItemTexture(std::int16_t id, int x, int y, int w, int h) {
 }
 
 void Window::updateFixed() {
+    // Direct callers still get the same routing behavior as Application:
+    // popup input is consumed immediately, while map input is staged below.
+    updateInput();
+    if (quitRequested_) { return; }
+
     // Input collection is intentionally side-effect free: platform events
     // are translated to value intents and retained until the fixed-logic
-    // sub-phase below.  No scene consumer runs while this loop is active.
+    // sub-phase below. No scene consumer runs while this loop is active.
     while (!pendingInputEvents_.empty() && !quitRequested_) {
         auto event = std::move(pendingInputEvents_.front());
         pendingInputEvents_.pop_front();
@@ -312,7 +318,7 @@ void Window::updateFixed() {
 
     if (quitRequested_) { return; }
 
-    // Deliver and consume intents only from fixed logic.  Keeping the
+    // Deliver and consume intents only from fixed logic. Keeping the
     // command/node barrier after this sub-phase preserves input ordering while
     // preventing an input event from executing movement or UI work inline.
     if (!inputPort_.empty()) {
@@ -320,7 +326,7 @@ void Window::updateFixed() {
         processingStage_ = true;
         try {
             while (!inputPort_.empty() && !quitRequested_) {
-                // Resolve focus for every intent.  The previous intent may
+                // Resolve focus for every intent. The previous intent may
                 // have closed or replaced the popup during its barrier.
                 auto *target = popup_ ? popup_ : map_;
                 if (!target) { break; }

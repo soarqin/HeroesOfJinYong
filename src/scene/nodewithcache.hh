@@ -61,6 +61,11 @@ protected:
 protected:
     Texture *cache_ = nullptr;
     Texture *buildingCache_ = nullptr;
+    bool layoutCenterRequested_ = false;
+    int layoutCenterWidth_ = 0;
+    int layoutCenterHeight_ = 0;
+    int layoutCenterX_ = 0;
+    int layoutCenterY_ = 0;
     bool cacheDirty_ = true;
     std::uint64_t requestedPresentationRevision_ = 1;
     std::uint64_t preparedPresentationRevision_ = 0;

@@ -299,6 +299,89 @@ class LogicRenderBoundaryTests(unittest.TestCase):
         self.assertNotIn("renderer_->", char_init)
         self.assertIn("setAltColor", char_prepare)
 
+    def test_window_menu_children_use_viewport_not_root_content_bounds(self):
+        menu = strip_comments(source("src/scene/window_menu.cc"))
+        self.assertNotIn("mainMenu->rootWidth()", menu)
+        self.assertNotIn("mainMenu->rootHeight()", menu)
+        self.assertNotIn("parent->rootWidth()", menu)
+        self.assertNotIn("parent->rootHeight()", menu)
+        self.assertIn("window->width() - x", menu)
+        self.assertIn("window->height() - y", menu)
+        self.assertIn("view->setViewportSize(window->width(), window->height())", menu)
+
+        char_init = function_body(
+            "src/scene/charlistmenu.cc", "void CharListMenu::init"
+        )
+        self.assertIn(
+            "new MessageBox(renderer_, x_, y_, width_, height_)", char_init
+        )
+        self.assertNotIn("rootWidth() - x_", char_init)
+
+    def test_nested_selection_and_yes_no_layout_keep_stable_frame_bounds(self):
+        selection = function_body(
+            "src/scene/window_presentation.cc",
+            "void Window::showCharacterSelection",
+        )
+        self.assertIn("width_ - x - border * 2", selection)
+        self.assertIn("height_ - y - border * 2", selection)
+        self.assertIn("menu->makeCenter(width_, height_, 0, 0)", selection)
+        self.assertNotIn("parent->rootWidth()", selection)
+        self.assertNotIn("parent->rootHeight()", selection)
+
+        yes_no = function_body(
+            "src/scene/messagebox.cc", "void MessageBox::ensureYesNoMenu"
+        )
+        self.assertIn("frameX_ + frameWidth_ - menuX", yes_no)
+        self.assertIn("frameY_ + frameHeight_ - y_", yes_no)
+        self.assertNotIn("rootWidth()", yes_no)
+        self.assertNotIn("rootHeight()", yes_no)
+
+    def test_cached_widgets_center_after_content_layout(self):
+        make_center = function_body(
+            "src/scene/nodewithcache.cc", "void NodeWithCache::makeCenter"
+        )
+        prepare = function_body(
+            "src/scene/nodewithcache.cc", "void NodeWithCache::prepareRender"
+        )
+        self.assertIn("layoutCenterRequested_ = true", make_center)
+        self.assertNotIn("Node::makeCenter", make_center)
+        self.assertIn("if (layoutCenterRequested_)", prepare)
+        self.assertIn(
+            "Node::makeCenter(layoutCenterWidth_, layoutCenterHeight_,",
+            prepare,
+        )
+
+    def test_empty_menu_values_do_not_create_a_value_column(self):
+        menu = source("src/scene/menu.cc")
+        ensure = function_body("src/scene/menu.cc", "void Menu::ensureLayout")
+        cache = function_body("src/scene/menu.cc", "void Menu::makeCache")
+        self.assertIn("hasValueColumn", ensure)
+        self.assertIn("if (hasValueColumn)", ensure)
+        self.assertIn("hasValueColumn", cache)
+        self.assertIn("if (hasValueColumn)", cache)
+        self.assertNotIn("if (!values_.empty())", ensure)
+        self.assertNotIn("if (!values_.empty())", cache)
+        self.assertIn("MenuEntries{", source("src/scene/window_menu.cc"))
+
+    def test_status_and_item_panels_keep_rendering_when_optional_glyphs_fail(self):
+        status = function_body(
+            "src/scene/statusview.cc", "bool StatusView::prepareTextResources"
+        )
+        item = function_body(
+            "src/scene/itemview.cc", "bool ItemView::prepareTextResources"
+        )
+        self.assertIn("return true", status)
+        self.assertIn("return true", item)
+        self.assertNotIn("return ready", status)
+        self.assertNotIn("return ready", item)
+
+    def test_item_atlas_skips_unused_empty_slots_like_master(self):
+        window = function_body(
+            "src/scene/window.cc", "bool Window::initializeItemAtlas"
+        )
+        self.assertIn("if (data.empty()) { continue; }", window)
+        self.assertLess(window.index("data.empty()"), window.index("validateRLE(data)"))
+
     def test_item_atlas_is_resolved_by_the_view_during_prepare(self):
         item_view = strip_comments(source("src/scene/itemview.cc")
                                    + source("src/scene/itemview.hh"))

@@ -226,11 +226,13 @@ add_test(NAME scene_node_lifetime_tests COMMAND scene_node_lifetime_tests)
 
 add_executable(scene_node_phase_tests
     scene/node_phase_tests.cc
-    ${PROJECT_SOURCE_DIR}/src/scene/node.cc)
+    ${PROJECT_SOURCE_DIR}/src/scene/node.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/tests/content/config_stub.cc)
 target_include_directories(scene_node_phase_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(scene_node_phase_tests PRIVATE hojy_scene_logic)
+target_link_libraries(scene_node_phase_tests PRIVATE hojy_scene)
 set_target_properties(scene_node_phase_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME scene_node_phase_tests COMMAND scene_node_phase_tests)
 

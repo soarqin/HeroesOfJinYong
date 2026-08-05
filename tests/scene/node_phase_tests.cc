@@ -82,6 +82,42 @@ void testFadeCleanupIsDeferredUntilPreparation() {
     HOJY_CHECK_EQ(root.fadeCleanupRequested(), false);
 }
 
+void deliverKey(hojy::scene::Node &root, hojy::scene::InputKey key) {
+    hojy::scene::QueuedInputPort port;
+    port.enqueue(std::make_unique<hojy::scene::KeyIntent>(key));
+    HOJY_CHECK_EQ(port.deliverNext(root), true);
+    root.dispatchInputLogic();
+}
+
+void testFadeMasksBlockUnderlyingInput() {
+    {
+        LogicProbeNode root;
+        root.fadeOut();
+        deliverKey(root, hojy::scene::InputKey::Right);
+        HOJY_CHECK_EQ(root.consumed, 0);
+        HOJY_CHECK_EQ(root.applied, 0);
+    }
+    {
+        LogicProbeNode root;
+        root.fadeIn();
+        deliverKey(root, hojy::scene::InputKey::Left);
+        HOJY_CHECK_EQ(root.consumed, 0);
+        HOJY_CHECK_EQ(root.applied, 0);
+    }
+}
+
+void testNewFadeSurvivesStaleCleanupFromInactiveMap() {
+    LogicProbeNode root;
+    root.fadeOut();
+    root.requestFadeCleanup();
+    root.fadeIn();
+    root.dispatchPrepareRender();
+
+    deliverKey(root, hojy::scene::InputKey::Up);
+    HOJY_CHECK_EQ(root.consumed, 0);
+    HOJY_CHECK_EQ(root.applied, 0);
+}
+
 void testInputIsConsumedOnlyWhenDelivered() {
     ProbeNode root;
     hojy::scene::QueuedInputPort port;
@@ -181,6 +217,8 @@ int main() {
         testMultipleIntentsPreserveFixedLogicOrder();
         testDeferredDeleteRetargetsNextInputIntent();
         testFadeCleanupIsDeferredUntilPreparation();
+        testFadeMasksBlockUnderlyingInput();
+        testNewFadeSurvivesStaleCleanupFromInactiveMap();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

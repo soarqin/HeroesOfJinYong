@@ -159,6 +159,27 @@ class TransitionLifecycleTests(unittest.TestCase):
         self.assertIn("currX_ = oldX", body)
         self.assertIn("cameraX_ = oldCameraX", body)
 
+    def test_submap_transition_explicitly_restores_standing_pose(self):
+        transition = source("src/scene/window_transition.cc")
+        start = transition.index("void Window::completeSubMapTransition")
+        body = transition[start:transition.index("bool Window::enterWar", start)]
+        self.assertEqual(body.count("resetMainCharStance()"), 2)
+        self.assertLess(
+            body.index("setPosition(request.x, request.y, false)"),
+            body.index("resetMainCharStance()"),
+        )
+        callback_position = body.index("setPosition(x, y)")
+        callback_stance = body.index("resetMainCharStance()", callback_position)
+        self.assertLess(callback_position, callback_stance)
+
+        movement = source("src/scene/map_logic_movement.cc")
+        reset_start = movement.index("void MapWithEvent::resetMainCharStance")
+        reset_body = movement[
+            reset_start:movement.index("void MapWithEvent::move", reset_start)
+        ]
+        self.assertIn("currMainCharFrame_ = 0", reset_body)
+        self.assertIn("updateMainCharSpriteId()", reset_body)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -99,6 +99,11 @@ bool decodeOptionalSubMapAsset(std::int16_t encoded,
     return true;
 }
 
+bool subMapCellBlocksMovement(std::int16_t buildingId,
+                              bool blocked) noexcept {
+    return buildingId != 0 || blocked;
+}
+
 bool translateSubMapAnimationEnd(std::int16_t sourceBegin,
                                  std::int16_t sourceEnd,
                                  std::int16_t targetBegin,

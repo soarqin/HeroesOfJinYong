@@ -35,7 +35,7 @@ def function_body(path: str, signature: str) -> str:
 class InputLogicBoundaryTests(unittest.TestCase):
     def test_window_dispatch_input_is_queue_only(self) -> None:
         body = strip_comments(function_body("src/scene/window_input.cc", "void Window::dispatchInput"))
-        self.assertIn("pendingInputEvents_.push_back(event)", body)
+        self.assertIn("sampledInputEvents_.push_back(event)", body)
         forbidden = (
             "makeIntent", "inputPort_", "deliverNext", "consume", "SDL_",
             "gWindow", "gSaveData", "gBag", "Renderer", "Texture",
@@ -154,10 +154,22 @@ class InputLogicBoundaryTests(unittest.TestCase):
         self.assertNotIn("Renderer", header)
         self.assertNotIn("Texture", header)
 
+    def test_popup_input_is_immediate_and_map_input_remains_fixed(self) -> None:
+        immediate = strip_comments(function_body(
+            "src/scene/window_interaction.cc", "void Window::updateInput"))
+        self.assertIn("auto *target = popup_", immediate)
+        self.assertIn("target->dispatchInputLogic()", immediate)
+        self.assertIn("pendingInputEvents_.push_back", immediate)
+        self.assertNotIn("map_->dispatchInputLogic", immediate)
+
+        fixed = strip_comments(function_body(
+            "src/scene/window.cc", "void Window::updateFixed"))
+        self.assertIn("while (!pendingInputEvents_.empty() && !quitRequested_)", fixed)
+        self.assertIn("auto *target = popup_ ? popup_ : map_", fixed)
+
     def test_quit_is_a_terminal_input_barrier(self) -> None:
-        update = strip_comments(source("src/scene/window.cc"))
-        body = function_body("src/scene/window.cc", "void Window::updateFixed")
-        self.assertIn("while (!pendingInputEvents_.empty() && !quitRequested_)", body)
+        body = function_body("src/scene/window_interaction.cc", "void Window::updateInput")
+        self.assertIn("while (!sampledInputEvents_.empty() && !quitRequested_)", body)
         quit_branch = body[body.index("InputAction::Quit"):]
         self.assertRegex(quit_branch, r"\b(?:break|clear)\s*\(")
         application = strip_comments(source("src/app/application.cc"))

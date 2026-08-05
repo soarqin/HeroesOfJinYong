@@ -42,6 +42,7 @@ struct TitlePreviewSnapshot final {
     std::wstring prompt;
     std::vector<TitlePreviewPropertySnapshot> properties;
     std::array<std::wstring, 2> choices;
+    int windowBorder = 0;
     int confirmationIndex = -1;
     std::uint64_t generation = 0;
 };

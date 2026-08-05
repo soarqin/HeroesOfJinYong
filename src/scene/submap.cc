@@ -301,7 +301,7 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     }
     auto pos = y * mapWidth_ + x;
     auto &ci = cellInfo_[pos];
-    if (ci.buildingId > 0 || ci.blocked) {
+    if (logic::subMapCellBlocksMovement(ci.buildingId, ci.blocked)) {
         return true;
     }
     auto &layers = ::hojy::world::state::gSaveData.subMapLayerInfo[subMapId_]->data;

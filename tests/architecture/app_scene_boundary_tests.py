@@ -43,6 +43,15 @@ class AppSceneBoundaryTests(unittest.TestCase):
         self.assertIn('SdlInputCollector inputCollector_', header)
         self.assertIn('inputCollector_.collect(inputQueue_)', implementation)
 
+        run = function_body("src/app/application.cc", "int Application::run")
+        collect = run.index("inputCollector_.collect(inputQueue_)")
+        dispatch = run.index("window_.dispatchInput", collect)
+        immediate = run.index("window_.updateInput()", dispatch)
+        schedule = run.index("scheduler_.advance", immediate)
+        self.assertLess(collect, dispatch)
+        self.assertLess(dispatch, immediate)
+        self.assertLess(immediate, schedule)
+
     def test_title_prepares_a_world_candidate_and_defers_scene_activation(self):
         header = (ROOT / "src/scene/title.hh").read_text(encoding="utf-8")
         logic = (ROOT / "src/scene/title_logic.cc").read_text(encoding="utf-8")
@@ -58,6 +67,12 @@ class AppSceneBoundaryTests(unittest.TestCase):
         self.assertIn("startNewGame", command)
         self.assertIn("activateNewGameCandidate", persistence)
         self.assertIn("finalize()", persistence)
+
+        self.assertIn("int confirmationIndex_ = -1", header)
+        activation = function_body(
+            "src/scene/title_logic.cc", "void Title::executeActivateConfirmation"
+        )
+        self.assertIn("confirmationIndex_ < 0", activation)
 
         title = (ROOT / "src/scene/title.cc").read_text(encoding="utf-8")
         self.assertNotIn("world/character.hh", title)

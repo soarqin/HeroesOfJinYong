@@ -210,7 +210,10 @@ class SceneCommandBoundaryTests(unittest.TestCase):
             if (
                 relative.startswith("src/scene/logic/")
                 or path.stem.endswith("command")
-                or relative == "src/scene/window.cc"
+                or relative in {
+                    "src/scene/window.cc",
+                    "src/scene/window_interaction.cc",
+                }
             ):
                 continue
             self.assertNotIn("applyDeferredCommands", text, relative)

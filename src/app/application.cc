@@ -28,6 +28,12 @@ int Application::run() {
     running_ = true;
     while (running_ && !window_.quitRequested()) {
         inputCollector_.collect(inputQueue_);
+        while (auto event = inputQueue_.pop()) {
+            window_.dispatchInput(*event);
+        }
+        window_.updateInput();
+
+        if (window_.quitRequested()) { break; }
 
         const auto now = wallTimeMicros();
         const auto elapsed = now >= lastWallTime_ ? now - lastWallTime_ : 0;
@@ -41,9 +47,6 @@ int Application::run() {
                 simulationTime_ += FixedTickMicros;
             }
             window_.setSimulationTime(simulationTime_);
-            for (const auto &event : inputQueue_.drainThrough(simulationTime_)) {
-                window_.dispatchInput(event);
-            }
             window_.updateFixed();
             const auto compatibilityTicks = compatibilityScheduler_.advance();
             for (std::uint32_t compatibilityTick = 0;

@@ -90,7 +90,7 @@ private:
     std::variant<std::monostate, Key, std::wstring> pendingInput_;
 
     int selection_ = 0;
-    int confirmationIndex_ = 0;
+    int confirmationIndex_ = -1;
     std::wstring mainCharName_;
     int fontSize_ = 16;
     std::optional<::hojy::world::state::NewGameCandidate> candidate_;

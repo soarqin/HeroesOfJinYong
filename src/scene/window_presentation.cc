@@ -67,8 +67,8 @@ void Window::showCharacterSelection(CharacterSelectionRequest request) {
     const int border = core::config.windowBorder();
     const int x = request.x >= 0 ? request.x : border * 4;
     const int y = request.y >= 0 ? request.y : border * 4;
-    const int width = request.width > 0 ? request.width : parent->rootWidth() - x - border * 2;
-    const int height = request.height > 0 ? request.height : parent->rootHeight() - y - border * 2;
+    const int width = request.width > 0 ? request.width : width_ - x - border * 2;
+    const int height = request.height > 0 ? request.height : height_ - y - border * 2;
     auto *menu = new CharListMenu(parent, x, y, width, height);
     bindCommandSink(menu);
 
@@ -95,7 +95,7 @@ void Window::showCharacterSelection(CharacterSelectionRequest request) {
             }
         }));
     menu->init(std::move(request.characters), std::move(controller));
-    menu->makeCenter(parent->rootWidth(), parent->rootHeight(), parent->x(), parent->y());
+    menu->makeCenter(width_, height_, 0, 0);
 }
 
 void Window::showItemMessage(ItemMessageRequest request) {

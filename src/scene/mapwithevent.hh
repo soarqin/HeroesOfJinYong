@@ -80,6 +80,7 @@ public:
     [[nodiscard]] Map::Direction direction() const { return direction_; }
     void setDirection(Direction dir);
     void setPosition(int x, int y, bool checkEvent = true);
+    void resetMainCharStance();
     void move(Direction direction);
 
     void update() override;

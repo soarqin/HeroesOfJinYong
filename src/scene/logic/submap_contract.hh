@@ -36,6 +36,9 @@ bool decodeOptionalSubMapAsset(std::int16_t encoded,
                                std::size_t assetCount,
                                std::int16_t &id) noexcept;
 
+bool subMapCellBlocksMovement(std::int16_t buildingId,
+                              bool blocked) noexcept;
+
 bool translateSubMapAnimationEnd(std::int16_t sourceBegin,
                                  std::int16_t sourceEnd,
                                  std::int16_t targetBegin,

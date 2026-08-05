@@ -62,7 +62,7 @@ void CharListMenu::init(
         values.push_back(std::move(row.valueText));
     }
     if (!snapshot.title.empty()) {
-        auto *msgBox = new MessageBox(renderer_, x_, y_, rootWidth() - x_, rootHeight() - y_);
+        auto *msgBox = new MessageBox(renderer_, x_, y_, width_, height_);
         msgBox_ = msgBox;
         msgBox->popup(snapshot.title, MessageBox::Normal, MessageBox::TopLeft);
     }

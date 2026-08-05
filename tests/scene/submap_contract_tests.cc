@@ -116,6 +116,13 @@ void testOptionalTextureSentinelRejectsOtherNegativeValues() {
                       8, 4, decoded), false);
 }
 
+void testMovementBlockingPreservesOriginalBuildingSentinelSemantics() {
+    HOJY_CHECK_EQ(hojy::scene::logic::subMapCellBlocksMovement(-1, false), true);
+    HOJY_CHECK_EQ(hojy::scene::logic::subMapCellBlocksMovement(0, false), false);
+    HOJY_CHECK_EQ(hojy::scene::logic::subMapCellBlocksMovement(1, false), true);
+    HOJY_CHECK_EQ(hojy::scene::logic::subMapCellBlocksMovement(0, true), true);
+}
+
 void testSnapshotBuildIsAtomicAndDerivesEventTextureIds() {
     std::array<SubMapEventRecord, SubMapEventCount> events{};
     events[3] = {0, -1, 6, 6, 6, 0, 1, 2};
@@ -218,6 +225,7 @@ int main() {
         testAnimationClockSlotDoesNotNeedToReferenceAnActiveEvent();
         testLayerReferencesDefineActiveEventsWithoutPrefixOrPositiveXSentinel();
         testOptionalTextureSentinelRejectsOtherNegativeValues();
+        testMovementBlockingPreservesOriginalBuildingSentinelSemantics();
         testSnapshotBuildIsAtomicAndDerivesEventTextureIds();
         testTranslatedAnimationEndRejectsInt16Overflow();
         testFailedEventValidationDoesNotOverwriteActiveBitmap();

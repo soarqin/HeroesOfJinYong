@@ -122,14 +122,18 @@ bool SaveData::load(int num, Bag &bag) {
         return false;
     }
     const auto subMapCount = loaded.subMapInfo.size();
-    if (sinData.size() != subMapCount || defData.size() != subMapCount) {
+    if (sinData.size() < subMapCount || defData.size() < subMapCount) {
         return false;
     }
-    loaded.subMapLayerInfo.resize(subMapCount);
-    loaded.subMapEventInfo.resize(subMapCount);
-    for (size_t i = 0; i < subMapCount; ++i) {
-        if (!loaded.subMapLayerInfo[i].deserialize(sinData[i])
-            || !loaded.subMapEventInfo[i].deserialize(defData[i])) {
+    loaded.subMapLayerInfo.resize(sinData.size());
+    for (size_t i = 0; i < sinData.size(); ++i) {
+        if (!loaded.subMapLayerInfo[i].deserialize(sinData[i])) {
+            return false;
+        }
+    }
+    loaded.subMapEventInfo.resize(defData.size());
+    for (size_t i = 0; i < defData.size(); ++i) {
+        if (!loaded.subMapEventInfo[i].deserialize(defData[i])) {
             return false;
         }
     }
@@ -155,8 +159,8 @@ void SaveData::swap(SaveData &other) noexcept {
 }
 
 bool SaveData::save(int num) {
-    if (subMapLayerInfo.size() != subMapInfo.size()
-        || subMapEventInfo.size() != subMapInfo.size()) {
+    if (subMapLayerInfo.size() < subMapInfo.size()
+        || subMapEventInfo.size() < subMapInfo.size()) {
         return false;
     }
     std::string rangerFile, sinFile, defFile;

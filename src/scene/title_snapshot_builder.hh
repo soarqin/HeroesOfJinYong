@@ -18,6 +18,7 @@ namespace hojy::scene {
     const std::wstring &name,
     const ::hojy::world::state::CharacterData &character,
     bool showPotential,
+    int windowBorder,
     int confirmationIndex,
     std::uint64_t generation);
 

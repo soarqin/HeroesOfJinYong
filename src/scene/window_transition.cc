@@ -193,6 +193,7 @@ void Window::completeSubMapTransition(SubMapTransitionCompletion request) {
         subMap_->setDirection(Map::Direction(request.direction));
     }
     mapWithEvent->setPosition(request.x, request.y, false);
+    mapWithEvent->resetMainCharStance();
 
     auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
     if (!tips) { return; }
@@ -221,6 +222,7 @@ void Window::completeSubMapTransition(SubMapTransitionCompletion request) {
         auto *mapWithEvent = dynamic_cast<MapWithEvent *>(expected);
         if (!mapWithEvent || !mapWithEvent->validMapCoordinate(x, y)) { return; }
         mapWithEvent->setPosition(x, y);
+        mapWithEvent->resetMainCharStance();
         expected->resetFrame();
     });
 }

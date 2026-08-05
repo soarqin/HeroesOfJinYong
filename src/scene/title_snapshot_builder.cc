@@ -50,11 +50,13 @@ TitlePreviewSnapshot buildTitlePreviewSnapshot(
         const std::wstring &name,
         const ::hojy::world::state::CharacterData &character,
         bool showPotential,
+        int windowBorder,
         int confirmationIndex,
         std::uint64_t generation) {
     TitlePreviewSnapshot result;
     result.prompt = L'\2' + name + L"  \1" + GETTEXT(100);
     result.choices = {GETTEXT(78), GETTEXT(79)};
+    result.windowBorder = windowBorder;
     result.confirmationIndex = confirmationIndex;
     result.generation = generation;
     result.properties.reserve(showPotential ? 13 : 12);
