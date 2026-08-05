@@ -12,8 +12,6 @@
 #include "util/math.hh"
 
 #include <algorithm>
-#include <map>
-#include <set>
 
 namespace hojy::scene {
 
@@ -33,8 +31,12 @@ void TalkBox::popup(const std::wstring &text, std::int16_t headId, std::int16_t 
 bool TalkBox::prepareTextResources() {
     if (!renderer_ || !renderer_->ttf()) { return false; }
     auto *ttf = renderer_->ttf();
-    return ttf->prepareText(sourceText_)
-        && ttf->prepareText(L"。，．…* ");
+    // The original renderer treated glyph caching as best-effort.  A cache
+    // or texture preparation failure must not prevent layout and permanently
+    // strand the event VM.
+    (void)ttf->prepareText(sourceText_);
+    (void)ttf->prepareText(L"。，．…* ");
+    return true;
 }
 
 void TalkBox::ensureLayout() {
@@ -54,26 +56,32 @@ void TalkBox::ensureLayout() {
     const auto lineCapacity = (height_ * 2 / 5 - windowBorder * 2
                                + TextLineSpacing)
         / (ttf->fontSize() + TextLineSpacing);
-    std::set<wchar_t> characters(sourceText_.begin(), sourceText_.end());
-    characters.insert(L'。');
-    characters.insert(L'…');
-    std::map<wchar_t, int> advances;
-    bool metricsReady = true;
-    for (const auto ch: characters) {
-        if (ch == L'*' || ch < 32 || ch > 0 && ch < 17) { continue; }
+    const auto metricRequest = logic::collectTalkMetricRequest(sourceText_);
+    logic::TextMetricsSnapshot metrics;
+    for (const auto ch: metricRequest.characters) {
         int advance = 0;
-        if (!ttf->measureCharAdvance(ch, advance)) {
-            metricsReady = false;
-            break;
+        // master gave an unavailable glyph zero width and continued parsing
+        // the legacy '*' separators.  Preserve that behavior so one missing
+        // glyph cannot turn the complete source into an unwrapped raw line.
+        (void)ttf->measureCharAdvance(ch, advance);
+        metrics.advances.emplace(ch, advance);
+    }
+    for (const auto &pair: metricRequest.pairs) {
+        int adjustment = 0;
+        if (ttf->measureKerningAdvance(
+                pair.first, pair.second, adjustment)) {
+            metrics.pairAdjustments.emplace(pair, adjustment);
         }
-        advances.emplace(ch, advance);
     }
     logic::TalkPageModel candidateModel;
-    if (!metricsReady || !logic::buildTalkPageModel(
-            sourceText_, maximumLineWidth, lineCapacity, advances, candidateModel)) {
+    if (!logic::buildTalkPageModel(
+            sourceText_, maximumLineWidth, lineCapacity, metrics, candidateModel)) {
         candidateModel.lines.clear();
         if (!sourceText_.empty()) { candidateModel.lines.push_back(sourceText_); }
         candidateModel.linesPerPage = candidateModel.lines.empty() ? 0 : 1;
+    }
+    for (const auto &line: candidateModel.lines) {
+        (void)ttf->prepareText(line);
     }
     pageModel_ = std::move(candidateModel);
     headTex_ = candidateHead;

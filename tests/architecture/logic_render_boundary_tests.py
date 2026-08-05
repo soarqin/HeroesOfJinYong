@@ -294,6 +294,21 @@ class LogicRenderBoundaryTests(unittest.TestCase):
         for token in ("renderer_->", "ttf()", "headTextureProvider_"):
             self.assertIn(token, talk_prepare, token)
 
+        talk_resources = function_body(
+            "src/scene/talkbox.cc", "bool TalkBox::prepareTextResources"
+        )
+        self.assertIn("(void)ttf->prepareText(sourceText_)", talk_resources)
+        self.assertIn("return true", talk_resources)
+        self.assertNotRegex(
+            talk_resources,
+            r"return\s+ttf->prepareText|prepareText\([^;]+&&",
+        )
+        self.assertIn("layoutReady_ = true", talk_prepare)
+        self.assertIn("(void)ttf->measureCharAdvance(ch, advance)", talk_prepare)
+        self.assertIn("collectTalkMetricRequest", talk_prepare)
+        self.assertIn("measureKerningAdvance", talk_prepare)
+        self.assertNotIn("metricsReady", talk_prepare)
+
         char_init = function_body("src/scene/charlistmenu.cc", "void CharListMenu::init")
         char_prepare = function_body("src/scene/charlistmenu.cc", "void CharListMenu::prepareRender")
         self.assertNotIn("renderer_->", char_init)

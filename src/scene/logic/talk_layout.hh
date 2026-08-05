@@ -1,7 +1,9 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace hojy::scene::logic {
@@ -17,10 +19,26 @@ struct TextBlockLayout final {
     int height = 0;
 };
 
+using GlyphPair = std::pair<wchar_t, wchar_t>;
+
+struct TextMetricRequest final {
+    std::set<wchar_t> characters;
+    std::set<GlyphPair> pairs;
+};
+
+struct TextMetricsSnapshot final {
+    std::map<wchar_t, int> advances;
+    std::map<GlyphPair, int> pairAdjustments;
+};
+
+TextMetricRequest collectTalkMetricRequest(const std::wstring &source);
+TextMetricRequest collectTextMetricRequest(
+    const std::vector<std::wstring> &sourceLines);
+
 bool buildTalkPageModel(const std::wstring &source,
                         int maximumLineWidth,
                         int linesPerPage,
-                        const std::map<wchar_t, int> &glyphAdvances,
+                        const TextMetricsSnapshot &metrics,
                         TalkPageModel &model);
 
 bool buildTextBlockLayout(const std::vector<std::wstring> &sourceLines,
@@ -28,7 +46,7 @@ bool buildTextBlockLayout(const std::vector<std::wstring> &sourceLines,
                           int rowHeight,
                           int lineSpacing,
                           int border,
-                          const std::map<wchar_t, int> &glyphAdvances,
+                          const TextMetricsSnapshot &metrics,
                           TextBlockLayout &layout);
 
 }

@@ -22,6 +22,7 @@
 #include "rectpacker.hh"
 #include "renderer.hh"
 #include "texture.hh"
+#include "logic/font_metrics.hh"
 #include "util/file.hh"
 
 #ifdef USE_FREETYPE
@@ -34,8 +35,10 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <new>
@@ -83,6 +86,15 @@ bool getStbFontOffset(const std::vector<std::uint8_t> &buffer, int index, int &o
 
 namespace hojy::scene {
 
+std::size_t TTF::KerningKeyHash::operator()(const KerningKey &key) const noexcept {
+    auto seed = std::hash<int>{}(key.fontSize);
+    seed ^= std::hash<std::uint32_t>{}(key.left)
+        + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= std::hash<std::uint32_t>{}(key.right)
+        + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    return seed;
+}
+
 TTF::TTF(Renderer *renderer): renderer_(renderer), rectpacker_(new RectPacker(RectPackWidthDefault, RectPackWidthDefault)) {
     ready_ = renderer_ != nullptr && rectpacker_ != nullptr;
 #ifdef USE_FREETYPE
@@ -117,6 +129,7 @@ void TTF::deinit() {
     }
     textures_.clear();
     fontCache_.clear();
+    kerningCache_.clear();
     for (auto &p: fonts_) {
 #ifdef USE_FREETYPE
         FT_Done_Face(p.face);
@@ -235,33 +248,158 @@ bool TTF::measureCharAdvance(std::uint32_t ch, int &advance,
     return false;
 }
 
+bool TTF::findGlyph(std::uint32_t ch, std::size_t &fontIndex,
+                    std::uint32_t &glyphIndex) const noexcept {
+    for (std::size_t index = 0; index < fonts_.size(); ++index) {
+#ifdef USE_FREETYPE
+        const auto glyph = FT_Get_Char_Index(fonts_[index].face, ch);
+#else
+        const auto glyph = stbtt_FindGlyphIndex(
+            static_cast<const stbtt_fontinfo *>(fonts_[index].font), ch);
+#endif
+        if (glyph != 0) {
+            fontIndex = index;
+            glyphIndex = static_cast<std::uint32_t>(glyph);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TTF::measureKerningAdvance(std::uint32_t left, std::uint32_t right,
+                                int &advance, int fontSize) noexcept {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    advance = 0;
+    if (fontSize <= 0) { return false; }
+    const auto prepared = kerningCache_.find(KerningKey{fontSize, left, right});
+    if (prepared != kerningCache_.end()) {
+        advance = prepared->second;
+        return true;
+    }
+    std::size_t leftFont = 0, rightFont = 0;
+    std::uint32_t leftGlyph = 0, rightGlyph = 0;
+    if (!findGlyph(left, leftFont, leftGlyph)
+        || !findGlyph(right, rightFont, rightGlyph)) {
+        return false;
+    }
+    if (monoWidth_ || leftFont != rightFont) { return true; }
+
+    double measured = 0.0;
+#ifdef USE_FREETYPE
+    auto *face = fonts_[leftFont].face;
+    if (!FT_HAS_KERNING(face)) { return true; }
+    if (FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(fontSize))) {
+        return false;
+    }
+    FT_Vector delta{};
+    if (FT_Get_Kerning(face, static_cast<FT_UInt>(leftGlyph),
+                       static_cast<FT_UInt>(rightGlyph),
+                       FT_KERNING_DEFAULT, &delta)) {
+        return false;
+    }
+    measured = static_cast<double>(delta.x) / 64.0;
+#else
+    auto *info = static_cast<const stbtt_fontinfo *>(fonts_[leftFont].font);
+    const auto raw = stbtt_GetGlyphKernAdvance(
+        info, static_cast<int>(leftGlyph), static_cast<int>(rightGlyph));
+    const auto scale = stbtt_ScaleForMappingEmToPixels(
+        info, static_cast<float>(fontSize));
+    measured = static_cast<double>(raw) * static_cast<double>(scale);
+#endif
+    if (!std::isfinite(measured)
+        || measured < static_cast<double>(std::numeric_limits<int>::min())
+        || measured > static_cast<double>(std::numeric_limits<int>::max())) {
+        return false;
+    }
+    advance = static_cast<int>(std::lround(measured));
+    return true;
+}
+
+bool TTF::prepareKerning(std::uint32_t left, std::uint32_t right,
+                         int fontSize) noexcept {
+    const KerningKey key{fontSize, left, right};
+    if (kerningCache_.find(key) != kerningCache_.end()) { return true; }
+    int advance = 0;
+    if (!measureKerningAdvance(left, right, advance, fontSize)) {
+        return false;
+    }
+    try {
+        kerningCache_.emplace(key, advance);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+int TTF::preparedKerningAdvance(std::uint32_t left, std::uint32_t right,
+                                int fontSize) const noexcept {
+    const auto found = kerningCache_.find(KerningKey{fontSize, left, right});
+    return found == kerningCache_.end() ? 0 : found->second;
+}
+
 bool TTF::prepareText(std::wstring_view str, int fontSize) {
     if (fontSize < 0) { fontSize = fontSize_; }
     bool ok = true;
-    for (const auto ch: str) {
-        if (ch < 32 || (ch > 0 && ch < 17)) { continue; }
-        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
-        const auto cached = fontCache_.find(key);
-        if (cached != fontCache_.end()) {
-            if (cached->second.advW == 0) { ok = false; }
+    bool hasPrevious = false;
+    std::uint32_t previous = 0;
+    for (const auto raw: str) {
+        const auto ch = static_cast<std::uint32_t>(raw);
+        if (ch > 0 && ch < 17) { continue; }
+        if (ch < 32) {
+            hasPrevious = false;
             continue;
         }
-        if (!makeCache(static_cast<std::uint32_t>(ch), fontSize)) { ok = false; }
+        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        const auto cached = fontCache_.find(key);
+        bool glyphReady = false;
+        if (cached != fontCache_.end()) {
+            glyphReady = cached->second.advW != 0;
+        } else {
+            glyphReady = makeCache(ch, fontSize) != nullptr;
+        }
+        if (!glyphReady) {
+            ok = false;
+            hasPrevious = false;
+            continue;
+        }
+        if (hasPrevious) {
+            (void)prepareKerning(previous, ch, fontSize);
+        }
+        previous = ch;
+        hasPrevious = true;
     }
     return ok;
 }
 
 int TTF::preparedStringWidth(std::wstring_view str, int fontSize) const {
     if (fontSize < 0) { fontSize = fontSize_; }
-    int result = 0;
-    for (const auto ch: str) {
-        if (ch < 32 || (ch > 0 && ch < 17)) { continue; }
+    std::int64_t result = 0;
+    bool hasPrevious = false;
+    std::uint32_t previous = 0;
+    for (const auto raw: str) {
+        const auto ch = static_cast<std::uint32_t>(raw);
+        if (ch > 0 && ch < 17) { continue; }
+        if (ch < 32) {
+            hasPrevious = false;
+            continue;
+        }
         const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
         const auto ite = fontCache_.find(key);
-        if (ite == fontCache_.end() || ite->second.advW == 0) { continue; }
-        result += monoWidth_ ? std::max<int>(ite->second.advW, monoWidth_) : ite->second.advW;
+        if (ite == fontCache_.end() || ite->second.advW == 0) {
+            hasPrevious = false;
+            continue;
+        }
+        if (hasPrevious) {
+            result += preparedKerningAdvance(previous, ch, fontSize);
+        }
+        result += effectiveAdvance(ite->second);
+        if (result > std::numeric_limits<int>::max()) {
+            return std::numeric_limits<int>::max();
+        }
+        previous = ch;
+        hasPrevious = true;
     }
-    return result;
+    return result <= 0 ? 0 : static_cast<int>(result);
 }
 
 void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
@@ -284,15 +422,30 @@ void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize)
 void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
     if (fontSize < 0) { fontSize = fontSize_; }
     int colorIndex = 0;
-    for (const auto ch: str) {
+    bool hasPrevious = false;
+    std::uint32_t previous = 0;
+    for (const auto raw: str) {
+        const auto ch = static_cast<std::uint32_t>(raw);
         if (ch > 0 && ch < 17) { colorIndex = ch - 1; continue; }
+        if (ch < 32) {
+            hasPrevious = false;
+            continue;
+        }
         const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
         const auto ite = fontCache_.find(key);
-        if (ite == fontCache_.end() || ite->second.advW == 0) { continue; }
+        if (ite == fontCache_.end() || ite->second.advW == 0) {
+            hasPrevious = false;
+            continue;
+        }
         const auto &fd = ite->second;
+        if (hasPrevious) {
+            x += preparedKerningAdvance(previous, ch, fontSize);
+        }
         if (fd.w == 0 || fd.h == 0 || fd.rpidx >= textures_.size()
             || !textures_[fd.rpidx] || !textures_[fd.rpidx]->valid()) {
-            x += fd.advW;
+            x += effectiveAdvance(fd);
+            previous = ch;
+            hasPrevious = true;
             continue;
         }
         auto *tex = textures_[fd.rpidx];
@@ -304,24 +457,39 @@ void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int f
         tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
         renderer_->renderTexture(tex, x + fd.ix0, y + fd.iy0,
                                  fd.rpx, fd.rpy, fd.w, fd.h, true);
-        x += fd.advW;
+        x += effectiveAdvance(fd);
+        previous = ch;
+        hasPrevious = true;
     }
 }
 
 void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize,
                          std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     if (fontSize < 0) { fontSize = fontSize_; }
-    for (const auto ch: str) {
+    bool hasPrevious = false;
+    std::uint32_t previous = 0;
+    for (const auto raw: str) {
+        const auto ch = static_cast<std::uint32_t>(raw);
         if (ch > 0 && ch < 17) { continue; }
+        if (ch < 32) {
+            hasPrevious = false;
+            continue;
+        }
         const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
         const auto ite = fontCache_.find(key);
         if (ite == fontCache_.end() || ite->second.advW == 0) {
+            hasPrevious = false;
             continue;
         }
         const auto &fd = ite->second;
+        if (hasPrevious) {
+            x += preparedKerningAdvance(previous, ch, fontSize);
+        }
         if (fd.w == 0 || fd.h == 0 || fd.rpidx >= textures_.size()
             || !textures_[fd.rpidx] || !textures_[fd.rpidx]->valid()) {
-            x += fd.advW;
+            x += effectiveAdvance(fd);
+            previous = ch;
+            hasPrevious = true;
             continue;
         }
         auto *tex = textures_[fd.rpidx];
@@ -333,7 +501,9 @@ void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int f
         tex->setBlendColor(r, g, b, 255);
         renderer_->renderTexture(tex, x + fd.ix0, y + fd.iy0,
                                  fd.rpx, fd.rpy, fd.w, fd.h, true);
-        x += fd.advW;
+        x += effectiveAdvance(fd);
+        previous = ch;
+        hasPrevious = true;
     }
 }
 
@@ -377,7 +547,14 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     int bitmapPitch;
     if (FT_Render_Glyph(fi->face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
     FT_GlyphSlot slot = fi->face->glyph;
-    const auto glyphY = static_cast<std::int64_t>(fontSize) * 7 / 8 - slot->bitmap_top;
+    std::int64_t glyphY = 0;
+    if (!logic::centeredGlyphTop(
+            fontSize,
+            static_cast<double>(fi->face->size->metrics.ascender) / 64.0,
+            static_cast<double>(fi->face->size->metrics.descender) / 64.0,
+            -static_cast<std::int64_t>(slot->bitmap_top), glyphY)) {
+        return nullptr;
+    }
     if (slot->bitmap.width > std::numeric_limits<std::uint8_t>::max()
         || slot->bitmap.rows > std::numeric_limits<std::uint8_t>::max()
         || slot->bitmap_left < std::numeric_limits<std::int8_t>::min()
@@ -407,7 +584,12 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     stbtt_GetGlyphBitmapBox(info, index, fontScale, fontScale, &x0, &y0, &x1, &y1);
     const auto w = x1 - x0;
     const auto h = y1 - y0;
-    const auto glyphY = int(float(ascent + descent) * fontScale) + y0;
+    std::int64_t glyphY = 0;
+    if (!logic::centeredGlyphTop(
+            fontSize, static_cast<double>(ascent) * fontScale,
+            static_cast<double>(descent) * fontScale, y0, glyphY)) {
+        return nullptr;
+    }
     if (advance < 0 || advance > std::numeric_limits<std::uint8_t>::max()
         || w < 0 || w > std::numeric_limits<std::uint8_t>::max()
         || h < 0 || h > std::numeric_limits<std::uint8_t>::max()

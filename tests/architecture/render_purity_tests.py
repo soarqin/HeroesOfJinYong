@@ -239,6 +239,26 @@ class RenderPurityTests(unittest.TestCase):
         self.assertIn("stbtt_GetGlyphBitmapBox", make_cache)
         self.assertNotIn("stbtt_GetGlyphBitmap(", make_cache)
 
+    def test_font_baseline_uses_centered_ascender_and_descender_metrics(self) -> None:
+        make_cache = function_body(
+            "src/scene/ttf.cc", "const TTF::FontData *TTF::makeCache")
+        self.assertGreaterEqual(make_cache.count("logic::centeredGlyphTop"), 2)
+        self.assertIn("metrics.ascender", make_cache)
+        self.assertIn("metrics.descender", make_cache)
+        self.assertNotIn("fontSize) * 7 / 8", make_cache)
+        self.assertNotIn("ascent + descent", make_cache)
+
+    def test_prepared_text_width_and_render_share_pair_kerning(self) -> None:
+        source = strip_comments(
+            (ROOT / "src/scene/ttf.cc").read_text(encoding="utf-8"))
+        prepare = function_body("src/scene/ttf.cc", "bool TTF::prepareText")
+        width = function_body("src/scene/ttf.cc", "int TTF::preparedStringWidth")
+        self.assertIn("prepareKerning", prepare)
+        self.assertIn("preparedKerningAdvance", width)
+        self.assertGreaterEqual(source.count("preparedKerningAdvance(previous, ch, fontSize)"), 3)
+        self.assertIn("stbtt_GetGlyphKernAdvance", source)
+        self.assertIn("FT_Get_Kerning", source)
+
     def test_atlas_reservations_roll_back_after_upload_failure(self) -> None:
         rectpacker = strip_comments((ROOT / "src/scene/rectpacker.hh").read_text(encoding="utf-8"))
         self.assertIn("rollbackLast", rectpacker)

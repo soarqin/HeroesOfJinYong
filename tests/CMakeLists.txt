@@ -346,6 +346,14 @@ target_link_libraries(scene_talk_layout_tests PRIVATE hojy_scene_logic)
 set_target_properties(scene_talk_layout_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME scene_talk_layout_tests COMMAND scene_talk_layout_tests)
 
+add_executable(scene_font_metrics_tests
+    scene/font_metrics_tests.cc)
+target_include_directories(scene_font_metrics_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests)
+set_target_properties(scene_font_metrics_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_font_metrics_tests COMMAND scene_font_metrics_tests)
+
 add_executable(scene_battle_effect_snapshot_tests
     scene/battle_effect_snapshot_tests.cc)
 target_include_directories(scene_battle_effect_snapshot_tests PRIVATE

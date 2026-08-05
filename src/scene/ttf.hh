@@ -21,10 +21,12 @@
 
 #include <string>
 #include <string_view>
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <cstddef>
 
 #ifdef USE_FREETYPE
 extern "C" {
@@ -61,6 +63,19 @@ protected:
         std::vector<std::uint8_t> ttf_buffer;
 #endif
     };
+    struct KerningKey {
+        int fontSize = 0;
+        std::uint32_t left = 0;
+        std::uint32_t right = 0;
+
+        bool operator==(const KerningKey &other) const noexcept {
+            return fontSize == other.fontSize
+                && left == other.left && right == other.right;
+        }
+    };
+    struct KerningKeyHash {
+        std::size_t operator()(const KerningKey &key) const noexcept;
+    };
 public:
     explicit TTF(Renderer *renderer);
     ~TTF();
@@ -77,6 +92,9 @@ public:
     /** Read a glyph advance from font data without allocating render resources. */
     bool measureCharAdvance(std::uint32_t ch, int &advance,
                             int fontSize = -1) noexcept;
+    /** Read pair kerning without allocating render resources. */
+    bool measureKerningAdvance(std::uint32_t left, std::uint32_t right,
+                               int &advance, int fontSize = -1) noexcept;
     /** Populate glyph resources during prepareRender; never call from render. */
     bool prepareText(std::wstring_view str, int fontSize = -1);
     /** Read-only width lookup for logic/layout consumers. */
@@ -94,12 +112,22 @@ public:
                         std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
 private:
+    bool findGlyph(std::uint32_t ch, std::size_t &fontIndex,
+                   std::uint32_t &glyphIndex) const noexcept;
+    bool prepareKerning(std::uint32_t left, std::uint32_t right,
+                        int fontSize) noexcept;
+    int preparedKerningAdvance(std::uint32_t left, std::uint32_t right,
+                               int fontSize) const noexcept;
+    int effectiveAdvance(const FontData &font) const noexcept {
+        return monoWidth_ ? std::max<int>(font.advW, monoWidth_) : font.advW;
+    }
     const FontData *makeCache(std::uint32_t ch, int fontSize = - 1);
 
 protected:
     int fontSize_ = 16;
     std::vector<FontInfo> fonts_;
     std::unordered_map<std::uint64_t, FontData> fontCache_;
+    std::unordered_map<KerningKey, int, KerningKeyHash> kerningCache_;
     std::uint8_t monoWidth_ = 0;
 
 private:

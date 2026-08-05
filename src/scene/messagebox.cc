@@ -24,9 +24,6 @@
 #include "window.hh"
 #include "core/config.hh"
 
-#include <map>
-#include <set>
-
 namespace hojy::scene {
 
 namespace {
@@ -168,21 +165,24 @@ bool MessageBox::buildLayoutSnapshot() {
     const auto windowBorder = core::config.windowBorder();
     const auto maximumLineWidth = std::max(
         0, frameWidth_ - windowBorder * 2);
-    std::set<wchar_t> characters;
-    for (const auto &line: text_) {
-        characters.insert(line.begin(), line.end());
-    }
-    std::map<wchar_t, int> advances;
-    for (const auto ch: characters) {
-        if (ch < 32 || ch > 0 && ch < 17) { continue; }
+    const auto metricRequest = logic::collectTextMetricRequest(text_);
+    logic::TextMetricsSnapshot metrics;
+    for (const auto ch: metricRequest.characters) {
         int advance = 0;
         if (!ttf->measureCharAdvance(ch, advance)) { return false; }
-        advances.emplace(ch, advance);
+        metrics.advances.emplace(ch, advance);
+    }
+    for (const auto &pair: metricRequest.pairs) {
+        int adjustment = 0;
+        if (ttf->measureKerningAdvance(
+                pair.first, pair.second, adjustment)) {
+            metrics.pairAdjustments.emplace(pair, adjustment);
+        }
     }
     logic::TextBlockLayout candidate;
     if (!logic::buildTextBlockLayout(
             text_, maximumLineWidth, rowHeight, TextLineSpacing,
-            windowBorder, advances, candidate)) {
+            windowBorder, metrics, candidate)) {
         return false;
     }
     x_ = frameX_;
