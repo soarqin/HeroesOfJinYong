@@ -4,10 +4,23 @@ file(GLOB CORE_FILES  core/*.cc  core/*.hh)
 file(GLOB CONTENT_FILES CONFIGURE_DEPENDS content/*.cc content/*.hh)
 file(GLOB WORLD_FILES CONFIGURE_DEPENDS world/*.cc world/*.hh)
 file(GLOB SCENE_FILES CONFIGURE_DEPENDS scene/*.cc scene/*.hh)
+file(GLOB SCENE_LOGIC_FILES CONFIGURE_DEPENDS scene/logic/*.cc scene/logic/*.hh)
 file(GLOB AUDIO_FILES audio/*.cc audio/*.hh)
 file(GLOB UTIL_FILES  util/*.cc  util/*.hh)
 file(GLOB APP_FILES CONFIGURE_DEPENDS app/*.cc app/*.hh)
 file(GLOB EVENT_FILES CONFIGURE_DEPENDS event/*.cc event/*.hh)
+
+# Platform input services are linked below the scene layer so scene code can
+# depend on an abstraction without making the app executable a reverse
+# dependency of hojy_scene.
+list(REMOVE_ITEM APP_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/text_input.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/text_input.hh")
+
+add_library(hojy_platform STATIC app/text_input.cc app/text_input.hh)
+set_target_properties(hojy_platform PROPERTIES CXX_STANDARD 17)
+target_link_libraries(hojy_platform PUBLIC SDL2::SDL2)
+target_include_directories(hojy_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Stable domain targets are introduced before implementation files migrate.
 add_library(hojy_content STATIC ${CONTENT_FILES})
@@ -30,10 +43,14 @@ add_library(hojy_battle STATIC ${BATTLE_FILES})
 set_target_properties(hojy_battle PROPERTIES CXX_STANDARD 17)
 target_include_directories(hojy_battle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_library(hojy_scene_logic STATIC ${SCENE_LOGIC_FILES})
+set_target_properties(hojy_scene_logic PROPERTIES CXX_STANDARD 17)
+target_include_directories(hojy_scene_logic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_library(hojy_scene STATIC ${SCENE_FILES})
 set_target_properties(hojy_scene PROPERTIES CXX_STANDARD 17)
 target_link_libraries(hojy_scene PUBLIC
-    hojy_event hojy_battle hojy_world hojy_content SDL2_gfx fmt::fmt)
+    hojy_scene_logic hojy_event hojy_battle hojy_world hojy_content hojy_platform SDL2_gfx fmt::fmt)
 target_include_directories(hojy_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(hojy_app STATIC ${APP_FILES})

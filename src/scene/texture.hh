@@ -23,6 +23,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <memory>
 
 namespace hojy::scene {
 
@@ -44,6 +45,7 @@ public:
     Texture& operator=(Texture &&other) noexcept;
 
     [[nodiscard]] void *data() const { return data_; }
+    [[nodiscard]] bool valid() const { return data_ != nullptr; }
     [[nodiscard]] virtual std::int16_t x() const { return 0; }
     [[nodiscard]] virtual std::int16_t y() const { return 0; }
     [[nodiscard]] std::int16_t width() const { return width_; }
@@ -51,7 +53,7 @@ public:
     [[nodiscard]] std::int16_t originX() const { return originX_; }
     [[nodiscard]] std::int16_t originY() const { return originY_; }
 
-    void enableBlendMode(bool r);
+    bool enableBlendMode(bool r);
     void setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     std::uint32_t *lock(int &pitch);
     std::uint32_t *lock(int &pitch, int x, int y, int w, int h);
@@ -59,13 +61,45 @@ public:
 
     static Texture *loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette);
     static Texture *loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette);
-    static void renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
-    static void renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
+    [[nodiscard]] static bool validateRLE(const std::string &data);
+    [[nodiscard]] static bool renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
+    [[nodiscard]] static bool renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int x, int y, bool ignoreOrigin = false);
     static std::uint32_t calcRLEAvgColor(const std::string &data, const std::uint32_t *colors);
 
 protected:
     void *data_ = nullptr;
     std::int16_t width_ = 0, height_ = 0, originX_ = 0, originY_ = 0;
+};
+
+/** A lock with an explicit success state and automatic unlock on every exit path. */
+class TextureLock final {
+public:
+    TextureLock(Texture *texture, int &pitch): texture_(texture) {
+        if (texture_) { pixels_ = texture_->lock(pitch); }
+        locked_ = pixels_ != nullptr;
+    }
+    TextureLock(Texture *texture, int &pitch, int x, int y, int w, int h): texture_(texture) {
+        if (texture_) { pixels_ = texture_->lock(pitch, x, y, w, h); }
+        locked_ = pixels_ != nullptr;
+    }
+    TextureLock(const TextureLock &) = delete;
+    TextureLock &operator=(const TextureLock &) = delete;
+    ~TextureLock() {
+        if (locked_ && texture_) { texture_->unlock(); }
+    }
+
+    [[nodiscard]] bool valid() const noexcept { return locked_; }
+    [[nodiscard]] std::uint32_t *pixels() const noexcept { return pixels_; }
+    void unlock() noexcept {
+        if (locked_ && texture_) { texture_->unlock(); }
+        locked_ = false;
+    }
+    void release() noexcept { unlock(); }
+
+private:
+    Texture *texture_ = nullptr;
+    std::uint32_t *pixels_ = nullptr;
+    bool locked_ = false;
 };
 
 class TextureSlice final: public Texture {
@@ -94,12 +128,13 @@ public:
     const Texture *operator[](std::int32_t id) const;
     const Texture *last() const;
     std::int32_t idMax() const { return textureIdMax_; }
+    void swap(TextureMgr &other) noexcept;
     void clear();
 
 private:
     std::unordered_map<std::int32_t, Texture*> textures_;
     std::vector<Texture*> textureContainers_;
-    RectPacker *rectPacker_ = nullptr;
+    std::unique_ptr<RectPacker> rectPacker_;
     std::int32_t textureIdMax_ = 0;
     Renderer *renderer_ = nullptr;
     const ColorPalette *palette_ = nullptr;

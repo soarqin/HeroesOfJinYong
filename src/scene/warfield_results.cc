@@ -2,8 +2,6 @@
 
 #include "battle/combat_rules.hh"
 #include "content/warfielddata.hh"
-#include "messagebox.hh"
-#include "window.hh"
 #include "world/action.hh"
 #include "world/bag.hh"
 #include "world/savedata.hh"
@@ -22,16 +20,12 @@ void Warfield::endWar() {
         won_ = battleEngine_.snapshot().won;
         battleSessionFinished = true;
     } else if (battleEngine_.status() != battle::EngineStatus::Idle) {
-        syncBattleParticipantsToWorking();
-        battleEngine_.abort();
-        syncBattleParticipantsFromWorking();
-        battleParticipants_.clear();
-        battleBag_ = {};
-        battleBagActive_ = false;
-        stage_ = Finished;
+        queueBattleAbortTransition();
+        abortPresentationState();
         return;
     } else {
-        stage_ = Finished;
+        queueBattleAbortTransition();
+        abortPresentationState();
         return;
     }
     currentActor_ = nullptr;
@@ -39,10 +33,7 @@ void Warfield::endWar() {
     movingPath_.clear();
     resumeAutoAttack_ = false;
     clearActionState(false);
-    removeAllChildren();
-    fadeNode_ = nullptr;
-    fadePostAction_ = nullptr;
-    runFadePostAction_ = false;
+    presentationCleanupRequested_ = true;
     std::vector<std::pair<std::int16_t,
                           ::hojy::world::state::CharacterData>> stagedCharacters;
     stagedCharacters.reserve(chars_.size());
@@ -245,37 +236,22 @@ void Warfield::endWar() {
             battleBagActive_ = false;
         }
     }
-    stage_ = Finished;
-    popupFinishMessages(std::move(messages), 0);
-    // The status panel is a renderer-owned root node, not a child of the
-    // battlefield tree. Delete it through its explicit owner at the update
-    // barrier instead of queueing a request that Window cannot observe.
-    delete statusPanel_;
-    statusPanel_ = nullptr;
-}
-
-void Warfield::popupFinishMessages(std::vector<std::pair<int, std::wstring>> messages, int index) {
-    int y = height_ / 3;
-    auto *msgBox = new MessageBox(this, 0, y, width_, 60);
-    msgBox->popup({messages[index].second}, MessageBox::PressToCloseThis);
-    ++index;
-    auto *lastMsgBox = msgBox;
-    while (index < messages.size() && messages[index].first > 0) {
-        auto *msgBox2 = new MessageBox(msgBox, 0, y + 60 * messages[index].first, width_, 60);
-        msgBox2->popup({messages[index].second}, MessageBox::PressToCloseParent);
-        lastMsgBox = msgBox2;
-        ++index;
-    }
-    lastMsgBox->setCloseHandler([this, messages = std::move(messages), index]() {
-        if (index < messages.size()) {
-            popupFinishMessages(messages, index);
-        } else {
-            const bool won = won_;
-            const bool instantDie = !won && deadOnLose_;
-            cleanup();
-            gWindow->endWar(won, instantDie);
-        }
+    setStage(Finished);
+    const auto instantDie = !won_ && deadOnLose_;
+    const auto sessionToken = presentationSessionToken();
+    const auto actionGeneration = presentationGeneration_;
+    postCommand([sessionToken, actionGeneration,
+                 messages = std::move(messages), won = won_, instantDie](
+                        SceneCommandContext &context) mutable {
+        BattleFinishMessagesRequest request{
+            sessionToken, std::move(messages), won, instantDie};
+        request.actionGeneration = actionGeneration;
+        request.expectedStage = BattlePresentationStage::FinishMessages;
+        context.showBattleFinishMessages(std::move(request));
     });
+    // The status panel is a presentation-owned root.  Defer its lifetime
+    // change to prepareRender(), where presentation resources are committed.
+    statusPanelReleaseRequested_ = true;
 }
 
 }

@@ -35,13 +35,23 @@ public:
     RectPacker(int width = 1024, int height = 1024);
     ~RectPacker();
     int pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y);
+    /** Remove the most recently packed rectangle and rebuild the skyline. */
+    void rollbackLast();
 
 private:
+    int packInternal(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y);
+    void resetPacks();
     void newRectPack();
 
 private:
     int width_, height_;
     std::vector<RectPackData*> rectpackData_;
+    struct Allocation {
+        std::uint16_t w = 0, h = 0;
+        std::int16_t x = 0, y = 0;
+        int packIndex = -1;
+    };
+    std::vector<Allocation> allocations_;
 };
 
 }

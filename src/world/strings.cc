@@ -67,46 +67,85 @@ bool Strings::load(const std::string &filename) {
 }
 
 void Strings::saveDataLoaded() {
-    auto sz = gSaveData.charInfo.size();
-    strings_[CharName].resize(sz);
-    strings_[NickName].resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        strings_[CharName][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.charInfo[i]->name, 10));
-        strings_[NickName][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.charInfo[i]->nick, 10));
+    Strings candidate;
+    if (buildForSave(gSaveData, candidate)) {
+        swap(candidate);
     }
-    sz = gSaveData.itemInfo.size();
-    strings_[ItemName].resize(sz);
-    strings_[ItemName2].resize(sz);
-    strings_[ItemDesc].resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        strings_[ItemName][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.itemInfo[i]->name, 20));
-        strings_[ItemName2][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.itemInfo[i]->name2, 20));
-        strings_[ItemDesc][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.itemInfo[i]->desc, 30));
-    }
-    sz = gSaveData.skillInfo.size();
-    strings_[SkillName].resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        strings_[SkillName][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.skillInfo[i]->name, 10));
-    }
-    sz = gSaveData.subMapInfo.size();
-    strings_[SubMapName].resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        strings_[SubMapName][i] = util::big5Conv.toUnicode(std::string_view(gSaveData.subMapInfo[i]->name, 10));
-    }
-    sz = ::hojy::content::gWarfieldData.size();
-    strings_[WarfieldName].resize(sz);
-    for (size_t i = 0; i < sz; ++i) {
-        strings_[WarfieldName][i] = util::big5Conv.toUnicode(std::string_view(::hojy::content::gWarfieldData.info(i)->name, 10));
-    }
-    if (core::config.simplifiedChinese() && !strings_[CharName].empty()) {
-        std::wstring backupCharName = strings_[CharName][0];
-        for (auto t = int(CharName); t < int(StringsMax); ++t) {
-            for (auto &n: strings_[t]) {
-                n = util::trad2SimpConv.convert(n);
-            }
+}
+
+bool Strings::buildForSave(
+        const SaveData &saveData, Strings &output) const noexcept {
+    try {
+        Strings candidate = *this;
+        auto sz = saveData.charInfo.size();
+        candidate.strings_[CharName].resize(sz);
+        candidate.strings_[NickName].resize(sz);
+        for (size_t i = 0; i < sz; ++i) {
+            const auto *character = saveData.charInfo[i];
+            if (!character) { return false; }
+            candidate.strings_[CharName][i] = util::big5Conv.toUnicode(
+                std::string_view(character->name, 10));
+            candidate.strings_[NickName][i] = util::big5Conv.toUnicode(
+                std::string_view(character->nick, 10));
         }
-        /* allow traditional chinese chars in user-input name */
-        strings_[CharName][0] = backupCharName;
+        sz = saveData.itemInfo.size();
+        candidate.strings_[ItemName].resize(sz);
+        candidate.strings_[ItemName2].resize(sz);
+        candidate.strings_[ItemDesc].resize(sz);
+        for (size_t i = 0; i < sz; ++i) {
+            const auto *item = saveData.itemInfo[i];
+            if (!item) { return false; }
+            candidate.strings_[ItemName][i] = util::big5Conv.toUnicode(
+                std::string_view(item->name, 20));
+            candidate.strings_[ItemName2][i] = util::big5Conv.toUnicode(
+                std::string_view(item->name2, 20));
+            candidate.strings_[ItemDesc][i] = util::big5Conv.toUnicode(
+                std::string_view(item->desc, 30));
+        }
+        sz = saveData.skillInfo.size();
+        candidate.strings_[SkillName].resize(sz);
+        for (size_t i = 0; i < sz; ++i) {
+            const auto *skill = saveData.skillInfo[i];
+            if (!skill) { return false; }
+            candidate.strings_[SkillName][i] = util::big5Conv.toUnicode(
+                std::string_view(skill->name, 10));
+        }
+        sz = saveData.subMapInfo.size();
+        candidate.strings_[SubMapName].resize(sz);
+        for (size_t i = 0; i < sz; ++i) {
+            const auto *subMap = saveData.subMapInfo[i];
+            if (!subMap) { return false; }
+            candidate.strings_[SubMapName][i] = util::big5Conv.toUnicode(
+                std::string_view(subMap->name, 10));
+        }
+        sz = ::hojy::content::gWarfieldData.size();
+        candidate.strings_[WarfieldName].resize(sz);
+        for (size_t i = 0; i < sz; ++i) {
+            const auto *warfield = ::hojy::content::gWarfieldData.info(i);
+            if (!warfield) { return false; }
+            candidate.strings_[WarfieldName][i] = util::big5Conv.toUnicode(
+                std::string_view(warfield->name, 10));
+        }
+        if (core::config.simplifiedChinese()
+            && !candidate.strings_[CharName].empty()) {
+            std::wstring backupCharName = candidate.strings_[CharName][0];
+            for (auto t = int(CharName); t < int(StringsMax); ++t) {
+                for (auto &value: candidate.strings_[t]) {
+                    value = util::trad2SimpConv.convert(value);
+                }
+            }
+            candidate.strings_[CharName][0] = std::move(backupCharName);
+        }
+        output.swap(candidate);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void Strings::swap(Strings &other) noexcept {
+    for (int type = 0; type < StringsMax; ++type) {
+        strings_[type].swap(other.strings_[type]);
     }
 }
 

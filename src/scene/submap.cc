@@ -19,244 +19,309 @@
 
 #include "submap.hh"
 
+#include "logic/rle.hh"
 #include "window.hh"
+#include "window_command.hh"
 #include "colorpalette.hh"
+#include "content/constants.hh"
 #include "content/grpdata.hh"
 #include "world/savedata.hh"
+#include "world/strings.hh"
 #include <fmt/format.h>
+
+#include <array>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
+
+namespace {
+
+constexpr std::size_t subMapCellCount = static_cast<std::size_t>(
+    ::hojy::content::SubMapWidth) * static_cast<std::size_t>(::hojy::content::SubMapHeight);
+
+bool readSubMapTextureHeader(const ::hojy::content::GrpData::DataSet &textures,
+                             std::int32_t &cellWidth,
+                             std::int32_t &cellHeight,
+                             std::int32_t &offsetX,
+                             std::int32_t &offsetY) {
+    if (textures.empty() || textures.size() > static_cast<std::size_t>(
+            std::numeric_limits<std::int16_t>::max())
+        || textures.front().size() < sizeof(std::uint16_t) * 4) {
+        return false;
+    }
+    std::array<std::uint16_t, 4> values{};
+    std::memcpy(values.data(), textures.front().data(), sizeof(values));
+    if (values[0] < 2 || values[1] < 2
+        || values[0] / 2 == 0 || values[1] / 2 == 0) {
+        return false;
+    }
+    cellWidth = values[0];
+    cellHeight = values[1];
+    offsetX = values[2];
+    offsetY = values[3];
+    return true;
+}
+
+bool validSubMapId(std::int16_t subMapId) {
+    if (subMapId < 0) { return false; }
+    const auto index = static_cast<std::size_t>(subMapId);
+    const auto &save = ::hojy::world::state::gSaveData;
+    return index < save.subMapInfo.size()
+        && index < save.subMapLayerInfo.size()
+        && index < save.subMapEventInfo.size()
+        && save.subMapInfo[subMapId] != nullptr;
+}
+
+bool validSubMapTextureData(const ::hojy::content::GrpData::DataSet &textures) {
+    for (const auto &texture: textures) {
+        if (!texture.empty() && !::hojy::scene::logic::validateRleData(texture)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool decodeRequiredTexture(std::int16_t encoded,
+                           const ::hojy::content::GrpData::DataSet &textures,
+                           std::int16_t &id) {
+    if (encoded < 0) { return false; }
+    const auto decoded = encoded >> 1;
+    if (decoded < 0 || static_cast<std::size_t>(decoded) >= textures.size()
+        || textures[static_cast<std::size_t>(decoded)].empty()
+        || !::hojy::scene::logic::validateRleData(
+            textures[static_cast<std::size_t>(decoded)])) {
+        return false;
+    }
+    id = decoded;
+    return true;
+}
+
+bool decodeOptionalTexture(std::int16_t encoded,
+                           const ::hojy::content::GrpData::DataSet &textures,
+                           std::int16_t &id) {
+    std::int16_t decoded = -1;
+    if (!::hojy::scene::logic::decodeOptionalSubMapAsset(
+            encoded, textures.size(), decoded)) {
+        return false;
+    }
+    if (decoded > 0 && (textures[static_cast<std::size_t>(decoded)].empty()
+                        || !::hojy::scene::logic::validateRleData(
+                            textures[static_cast<std::size_t>(decoded)]))) {
+        return false;
+    }
+    id = decoded;
+    return true;
+}
+
+}
 
 namespace hojy::scene {
 
 SubMap::SubMap(Renderer *renderer, int ix, int iy, int width, int height, std::pair<int, int> scale):
     MapWithEvent(renderer, ix, iy, width, height, scale),
     drawingTerrainTex2_(Texture::create(renderer_, auxWidth_, auxHeight_)) {
-    drawingTerrainTex2_->enableBlendMode(true);
+    if (!resourcesReady_ || !drawingTerrainTex2_
+        || !drawingTerrainTex2_->enableBlendMode(true)) {
+        resourcesReady_ = false;
+    }
 }
 
 SubMap::~SubMap() {
     delete drawingTerrainTex2_;
 }
 
-bool SubMap::load(std::int16_t subMapId) {
-    if (subMapLoaded_.find(subMapId) == subMapLoaded_.end()) {
-        mapWidth_ = ::hojy::content::SubMapWidth;
-        mapHeight_ = ::hojy::content::SubMapHeight;
-        if (::hojy::content::GrpData::loadData("SDX", "SMP", texData_)) {
-            for (std::int16_t i = 0; i < 1000; ++i) {
-                subMapLoaded_.insert(i);
+bool SubMap::load(std::int16_t subMapId, bool clearPresentation) {
+    if (!resourcesReady_ || !validSubMapId(subMapId)) { return false; }
+
+    try {
+        const int mapWidth = ::hojy::content::SubMapWidth;
+        const int mapHeight = ::hojy::content::SubMapHeight;
+        const auto size = subMapCellCount;
+        const auto &layerInfo = ::hojy::world::state::gSaveData.subMapLayerInfo[
+            static_cast<std::size_t>(subMapId)];
+        const auto &eventInfo = ::hojy::world::state::gSaveData.subMapEventInfo[
+            static_cast<std::size_t>(subMapId)];
+        const auto &layers = layerInfo->data;
+        const auto &events = eventInfo->events;
+
+        auto candidateTexData = texData_;
+        auto candidateLoaded = subMapLoaded_;
+        if (candidateLoaded.find(subMapId) == candidateLoaded.end()) {
+            ::hojy::content::GrpData::DataSet sharedData;
+            if (::hojy::content::GrpData::loadData("SDX", "SMP", sharedData)) {
+                candidateTexData = std::move(sharedData);
+                candidateLoaded.clear();
+                for (std::int16_t i = 0; i < 1000; ++i) {
+                    candidateLoaded.insert(i);
+                }
+            } else {
+                ::hojy::content::GrpData::DataSet specificData;
+                if (!::hojy::content::GrpData::loadData(
+                        fmt::format("SDX{:03}", subMapId),
+                        fmt::format("SMP{:03}", subMapId), specificData)) {
+                    return false;
+                }
+                if (specificData.size() > candidateTexData.size()) {
+                    candidateTexData.resize(specificData.size());
+                }
+                for (std::size_t i = 0; i < specificData.size(); ++i) {
+                    if (!specificData[i].empty() && candidateTexData[i].empty()) {
+                        candidateTexData[i] = std::move(specificData[i]);
+                    }
+                }
+                candidateLoaded.insert(subMapId);
             }
-        } else {
-            ::hojy::content::GrpData::DataSet dset;
-            if (!::hojy::content::GrpData::loadData(fmt::format("SDX{:03}", subMapId), fmt::format("SMP{:03}", subMapId), dset)) {
-                return false;
-            }
-            if (dset.size() > texData_.size()) {
-                texData_.resize(dset.size());
-            }
-            for (size_t i = 0; i < dset.size(); ++i) {
-                if (dset[i].empty()) { continue; }
-                if (!texData_[i].empty()) { continue; }
-                texData_[i] = std::move(dset[i]);
-            }
-            subMapLoaded_.insert(subMapId);
         }
+
+        std::int32_t cellWidth = 0, cellHeight = 0, offsetX = 0, offsetY = 0;
+        if (!readSubMapTextureHeader(
+                candidateTexData, cellWidth, cellHeight, offsetX, offsetY)
+            || !validSubMapTextureData(candidateTexData)) {
+            return false;
+        }
+        const int cellDiffX = cellWidth / 2;
+        const int cellDiffY = cellHeight / 2;
+        if (cellDiffX <= 0 || cellDiffY <= 0) { return false; }
+
+        std::vector<std::int32_t> candidateEventLoop(
+            ::hojy::content::SubMapEventCount, 0);
+        std::vector<std::int32_t> candidateEventDelay(
+            ::hojy::content::SubMapEventCount, 0);
+        std::vector<CellInfo> candidateCellInfo(size);
+        std::array<logic::SubMapEventRecord, logic::SubMapEventCount> candidateEvents{};
+        for (std::size_t eventIndex = 0; eventIndex < candidateEvents.size(); ++eventIndex) {
+            const auto &event = events[eventIndex];
+            candidateEvents[eventIndex] = logic::SubMapEventRecord{
+                event.blocked, event.index, event.currTex, event.endTex,
+                event.begTex, event.texDelay, event.x, event.y,
+            };
+        }
+        const auto validEventTexture = [&candidateTexData](std::int16_t value) {
+            if (value < 0) { return value == -1; }
+            const auto id = static_cast<std::size_t>(value >> 1);
+            return id < candidateTexData.size()
+                && !candidateTexData[id].empty()
+                && logic::validateRleData(candidateTexData[id]);
+        };
+        std::vector<std::int16_t> candidateEventLayer(
+            layers[3], layers[3] + static_cast<std::ptrdiff_t>(size));
+        logic::SubMapStateSnapshot candidateSnapshot;
+        if (!logic::buildSubMapStateSnapshot(
+                candidateEvents, candidateEventLayer, mapWidth, mapHeight,
+                candidateTexData.size(), validEventTexture,
+                candidateSnapshot)) {
+            return false;
+        }
+        const auto candidateMapName = GETSUBMAPNAME(subMapId);
+
+        int x = (mapHeight - 1) * cellDiffX + offsetX;
+        int y = offsetY;
+        int pos = 0;
+        for (int j = mapHeight; j; --j) {
+            int tx = x, ty = y;
+            for (int i = mapWidth; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
+                (void)tx;
+                (void)ty;
+                auto &ci = candidateCellInfo[static_cast<std::size_t>(pos)];
+                if (!decodeRequiredTexture(layers[0][pos], candidateTexData, ci.earthId)
+                    || !decodeOptionalTexture(layers[1][pos], candidateTexData, ci.buildingId)
+                    || !decodeOptionalTexture(layers[2][pos], candidateTexData, ci.decorationId)) {
+                    return false;
+                }
+                ci.blocked = ci.earthId >= 179 && ci.earthId <= 181
+                    || ci.earthId == 261 || ci.earthId == 511
+                    || ci.earthId >= 662 && ci.earthId <= 665 || ci.earthId == 674;
+                if (ci.buildingId >= 0
+                    && candidateTexData[static_cast<std::size_t>(ci.buildingId)].empty()) {
+                    ci.blocked = true;
+                }
+                ci.eventId = candidateSnapshot.eventAssetIds[
+                    static_cast<std::size_t>(pos)];
+                ci.buildingDeltaY = layers[4][pos];
+                ci.decorationDeltaY = layers[5][pos];
+            }
+            x -= cellDiffX;
+            y += cellDiffY;
+        }
+
+        if (clearPresentation) {
+            cleanupEvents();
+        }
+        mapWidth_ = mapWidth;
+        mapHeight_ = mapHeight;
+        cellWidth_ = cellWidth;
+        cellHeight_ = cellHeight;
+        offsetX_ = offsetX;
+        offsetY_ = offsetY;
+        texData_ = std::move(candidateTexData);
+        subMapLoaded_ = std::move(candidateLoaded);
+        eventLoop_ = std::move(candidateEventLoop);
+        eventDelay_ = std::move(candidateEventDelay);
+        activeEvents_ = candidateSnapshot.activeEvents;
+        cellInfo_ = std::move(candidateCellInfo);
+        subMapId_ = subMapId;
+        markWorldChanged();
+        commitMiniPanelSnapshot(std::move(candidateMapName), currX_, currY_);
+        resetFrame();
+        return true;
+    } catch (const std::bad_alloc &) {
+        return false;
     }
-    cleanupEvents();
+}
+
+bool SubMap::unload(bool clearPresentation) {
+    if (clearPresentation) {
+        cleanupEvents();
+    }
+    subMapId_ = -1;
+    mapWidth_ = 0;
+    mapHeight_ = 0;
+    cellWidth_ = 0;
+    cellHeight_ = 0;
+    offsetX_ = 0;
+    offsetY_ = 0;
+    cameraX_ = 0;
+    cameraY_ = 0;
+    charHeight_ = 0;
+    cellInfo_.clear();
     eventLoop_.clear();
     eventDelay_.clear();
-    eventLoop_.resize(::hojy::content::SubMapEventCount);
-    eventDelay_.resize(::hojy::content::SubMapEventCount);
-    {
-        const auto *arr = reinterpret_cast<const uint16_t*>(texData_[0].data());
-        cellWidth_ = arr[0];
-        cellHeight_ = arr[1];
-        offsetX_ = arr[2];
-        offsetY_ = arr[3];
-    }
-    int cellDiffX = cellWidth_ / 2;
-    int cellDiffY = cellHeight_ / 2;
-    auto size = mapWidth_ * mapHeight_;
-    cellInfo_.clear();
-    cellInfo_.resize(size);
-
-    auto &layers = ::hojy::world::state::gSaveData.subMapLayerInfo[subMapId]->data;
-    auto &events = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId]->events;
-    int x = (mapHeight_ - 1) * cellDiffX + offsetX_;
-    int y = offsetY_;
-    int pos = 0;
-    for (int j = mapHeight_; j; --j) {
-        int tx = x, ty = y;
-        for (int i = mapWidth_; i; --i, ++pos, tx += cellDiffX, ty += cellDiffY) {
-            auto &ci = cellInfo_[pos];
-            auto texId = layers[0][pos] >> 1;
-            ci.blocked = texId >= 179 && texId <= 181 || texId == 261 || texId == 511 || texId >= 662 && texId <= 665 || texId == 674;
-            ci.earthId = texId;
-            ci.buildingId = layers[1][pos] >> 1;
-            if (ci.buildingId >= 0 && texData_[ci.buildingId].empty()) {
-                ci.blocked = true;
-            }
-            ci.decorationId = layers[2][pos] >> 1;
-            auto ev = layers[3][pos];
-            if (ev >= 0) {
-                ci.eventId = events[ev].currTex >> 1;
-            }
-            ci.buildingDeltaY = layers[4][pos];
-            ci.decorationDeltaY = layers[5][pos];
-        }
-        x -= cellDiffX; y += cellDiffY;
-    }
-    resetFrame();
-
-    subMapId_ = subMapId;
+    activeEvents_.fill(false);
+    markWorldChanged();
+    commitMiniPanelSnapshot({}, 0, 0);
     return true;
 }
 
-void SubMap::forceMainCharTexture(std::int16_t id) {
-    mainCharTex_ = getOrLoadTexture(id);
-    drawDirty_ = true;
-}
-
-void SubMap::render() {
-    Map::render();
-
-    if (drawDirty_) {
-        drawDirty_ = false;
-        int cellDiffX = cellWidth_ / 2;
-        int cellDiffY = cellHeight_ / 2;
-        int curX = currX_, curY = currY_;
-        int camX = cameraX_, camY = cameraY_;
-        int aheight = int(auxHeight_);
-        int nx = int(auxWidth_) / 2 + cellWidth_ * 2;
-        int ny = aheight / 2 + cellHeight_ * 2;
-        int wcount = nx * 2 / cellWidth_;
-        int hcount = (ny * 2 + 4 * cellHeight_) / cellDiffY;
-        int cx, cy, tx, ty;
-        int delta = -mapWidth_ + 1;
-
-        const auto *colors = gNormalPalette.colors();
-        auto *curTex = drawingTerrainTex_;
-        int pitch;
-        std::uint32_t *pixels = curTex->lock(pitch);
-        memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
-
-/* NOTE: Do we really need to do this?
- *       Earth with height > 0 should not stack with =0 ones
- *       So I just comment it out
-        cx = (nx / cellDiffX + ny / cellDiffY) / 2;
-        cy = (ny / cellDiffY - nx / cellDiffX) / 2;
-        tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
-        cx = camX - cx; cy = camY - cy;
-        for (int j = hcount; j; --j) {
-            int x = cx, y = cy;
-            int dx = tx;
-            int offset = y * mapWidth_ + x;
-            for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight) {
-                    continue;
-                }
-                auto &ci = cellInfo_[offset];
-                auto h = ci.buildingDeltaY;
-                if (h == 0) {
-                    renderer_->renderTexture(ci.earth, dx, ty);
-                }
-            }
-            if (j % 2) {
-                ++cx;
-                tx += cellDiffX;
-                ty += cellDiffY;
-            } else {
-                ++cy;
-                tx -= cellDiffX;
-                ty += cellDiffY;
-            }
-        }
- */
-        cx = (nx / cellDiffX + ny / cellDiffY) / 2;
-        cy = (ny / cellDiffY - nx / cellDiffX) / 2;
-        tx = int(auxWidth_) / 2 - (cx - cy) * cellDiffX;
-        ty = int(auxHeight_) / 2 + cellDiffY - (cx + cy) * cellDiffY;
-        cx = camX - cx; cy = camY - cy;
-        int texCount = texData_.size();
-        for (int j = hcount; j; --j) {
-            int x = cx, y = cy;
-            int dx = tx;
-            int offset = y * mapWidth_ + x;
-            for (int i = wcount; i; --i, dx += cellWidth_, offset += delta, ++x, --y) {
-                if (x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight) {
-                    continue;
-                }
-                auto &ci = cellInfo_[offset];
-                auto h = ci.buildingDeltaY;
-                /* if (h > 0) {  NOTE: commented out, see notes above */
-                Texture::renderRLE(texData_[ci.earthId], colors, pixels, pitch, aheight, dx, ty);
-                /* } */
-                if (ci.buildingId > 0 && ci.buildingId < texCount) {
-                    Texture::renderRLE(texData_[ci.buildingId], colors, pixels, pitch, aheight, dx, ty - h);
-                }
-                if (x == curX && y == curY) {
-                    curTex->unlock();
-                    curTex = drawingTerrainTex2_;
-                    pixels = curTex->lock(pitch);
-                    memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
-                    charHeight_ = h;
-                }
-                if (ci.eventId > 0 && ci.eventId < texCount) {
-                    Texture::renderRLE(texData_[ci.eventId], colors, pixels, pitch, aheight, dx, ty - h);
-                }
-                if (ci.decorationId > 0 && ci.decorationId < texCount) {
-                    Texture::renderRLE(texData_[ci.decorationId], colors, pixels, pitch, aheight, dx, ty - ci.decorationDeltaY);
-                }
-            }
-            if (j % 2) {
-                ++cx;
-                tx += cellDiffX;
-                ty += cellDiffY;
-            } else {
-                ++cy;
-                tx -= cellDiffX;
-                ty += cellDiffY;
-            }
-        }
-        curTex->unlock();
-    }
-
-    renderer_->clear(0, 0, 0, 255);
-    renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
-    renderChar(charHeight_);
-    renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
-    showMiniPanel();
-}
-
-void SubMap::handleKeyInput(Key key) {
-    if (currEventPaused_) { return; }
-    switch (key) {
-    case KeyOK: case KeySpace:
-        doInteract();
-        break;
-    default:
-        MapWithEvent::handleKeyInput(key);
-        break;
-    }
-}
-
 bool SubMap::tryMove(int x, int y, bool checkEvent) {
+    if (!resourcesReady_ || !validSubMapId(subMapId_)
+        || x < 0 || x >= mapWidth_ || y < 0 || y >= mapHeight_
+        || cellInfo_.size() != subMapCellCount) {
+        return false;
+    }
     auto pos = y * mapWidth_ + x;
     auto &ci = cellInfo_[pos];
-    if (ci.buildingId || ci.blocked) {
+    if (ci.buildingId > 0 || ci.blocked) {
         return true;
     }
     auto &layers = ::hojy::world::state::gSaveData.subMapLayerInfo[subMapId_]->data;
     auto &events = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId_]->events;
     auto ev = layers[3][pos];
-    if (ev >= 0 && events[ev].blocked) {
+    if (ev >= 0 && (ev >= ::hojy::content::SubMapEventCount
+                    || !activeEvents_[static_cast<std::size_t>(ev)]
+                    || events[ev].blocked)) {
         return true;
     }
+    const auto oldX = currX_;
+    const auto oldY = currY_;
     currX_ = x;
     currY_ = y;
     cameraX_ = x;
     cameraY_ = y;
-    drawDirty_ = true;
+    markWorldChanged();
+    if (oldX != currX_ || oldY != currY_) {
+        markMiniPanelChanged();
+    }
     currMainCharFrame_ = currMainCharFrame_ % 6 + 1;
     if (checkEvent) {
         onMove();
@@ -264,82 +329,118 @@ bool SubMap::tryMove(int x, int y, bool checkEvent) {
     const auto &subMapInfo = ::hojy::world::state::gSaveData.subMapInfo[subMapId_];
     for (int i = 0; i < 3; ++i) {
         if (subMapInfo->exitX[i] == currX_ && subMapInfo->exitY[i] == currY_) {
-            gWindow->exitToGlobalMap(int(direction_));
+            const auto direction = int(direction_);
+            postSceneCommand(this, [direction](SceneCommandContext &context) { context.exitToGlobalMap(direction); });
             if (subMapInfo->exitMusic >= 0) {
-                gWindow->playMusic(subMapInfo->exitMusic);
+                const auto music = subMapInfo->exitMusic;
+                postSceneCommand(this, [music](SceneCommandContext &context) { context.playMusic(music); });
             }
             return true;
         }
     }
     if (subMapInfo->switchSubMap >= 0 && subMapInfo->switchSubMapX == currX_ && subMapInfo->switchSubMapY == currY_) {
-        gWindow->enterSubMap(subMapInfo->switchSubMap, int(direction_));
+        const auto subMapId = subMapInfo->switchSubMap;
+        if (!validSubMapId(subMapId)) { return true; }
+        const auto direction = int(direction_);
+        postSceneCommand(this, [subMapId, direction](SceneCommandContext &context) {
+            context.enterSubMap(subMapId, direction);
+        });
         auto music = subMapInfo->enterMusic;
         if (music >= 0) {
-            gWindow->playMusic(music);
+            postSceneCommand(this, [music](SceneCommandContext &context) { context.playMusic(music); });
         }
         return true;
     }
     return true;
 }
 
-void SubMap::updateMainCharTexture() {
+void SubMap::updateMainCharSpriteId() {
     if (animEventId_[0] < 0) {
-        mainCharTex_ = getOrLoadTexture(animCurrTex_[0] >> 1);
+        mainCharSpriteId_ = animCurrTex_[0] >> 1;
         return;
     }
     if (resting_) {
-        mainCharTex_ = getOrLoadTexture(2501 + int(direction_) * 7);
+        mainCharSpriteId_ = 2501 + int(direction_) * 7;
         return;
     }
-    mainCharTex_ = getOrLoadTexture(2501 + int(direction_) * 7 + currMainCharFrame_);
+    mainCharSpriteId_ = 2501 + int(direction_) * 7 + currMainCharFrame_;
 }
 
-void SubMap::setCellTexture(int x, int y, int layer, std::int16_t tex) {
+void SubMap::setCellSpriteId(int x, int y, int layer, std::int16_t spriteId) {
+    if (!resourcesReady_ || x < 0 || x >= mapWidth_ || y < 0 || y >= mapHeight_
+        || cellInfo_.size() != subMapCellCount || spriteId < -1
+        || (spriteId >= 0 && static_cast<std::size_t>(spriteId) >= texData_.size())) {
+        return;
+    }
     switch (layer) {
     case 0:
-        cellInfo_[y * mapWidth_ + x].earthId = tex;
+        cellInfo_[y * mapWidth_ + x].earthId = spriteId;
         break;
     case 1:
-        cellInfo_[y * mapWidth_ + x].buildingId = tex;
+        cellInfo_[y * mapWidth_ + x].buildingId = spriteId;
         break;
     case 2:
-        cellInfo_[y * mapWidth_ + x].decorationId = tex;
+        cellInfo_[y * mapWidth_ + x].decorationId = spriteId;
         break;
     case 3:
-        cellInfo_[y * mapWidth_ + x].eventId = tex;
+        cellInfo_[y * mapWidth_ + x].eventId = spriteId;
         break;
     default:
         return;
     }
-    drawDirty_ = true;
+    markWorldChanged();
+}
+
+void SubMap::synchronizeCommittedSubMapState(
+        std::int16_t subMapId,
+        const logic::SubMapStateSnapshot &snapshot) noexcept {
+    if (subMapId != subMapId_
+        || snapshot.eventAssetIds.size() != cellInfo_.size()) {
+        return;
+    }
+    activeEvents_ = snapshot.activeEvents;
+    for (std::size_t pos = 0; pos < cellInfo_.size(); ++pos) {
+        cellInfo_[pos].eventId = snapshot.eventAssetIds[pos];
+    }
+    markWorldChanged();
 }
 
 void SubMap::frameUpdate() {
+    if (!resourcesReady_ || !validSubMapId(subMapId_)
+        || eventLoop_.size() != ::hojy::content::SubMapEventCount
+        || eventDelay_.size() != ::hojy::content::SubMapEventCount
+        || cellInfo_.size() != subMapCellCount) {
+        return;
+    }
     MapWithEvent::frameUpdate();
     auto &evlist = ::hojy::world::state::gSaveData.subMapEventInfo[subMapId_];
-    for (auto &ev: evlist->events) {
-        if (ev.x <= 0) { break; }
-        if (ev.begTex == ev.endTex) { continue; }
-        if (ev.currTex == ev.begTex) {
-            if (eventDelay_[ev.index]) {
-                if (--eventDelay_[ev.index] == 0) {
-                    eventLoop_[ev.index] = 0;
-                }
-                continue;
-            }
+    for (std::size_t index = 0;
+         index < static_cast<std::size_t>(::hojy::content::SubMapEventCount);
+         ++index) {
+        if (index >= activeEvents_.size() || !activeEvents_[index]) { continue; }
+        auto &ev = evlist->events[index];
+        if (ev.index < 0
+            || static_cast<std::size_t>(ev.index) >= eventLoop_.size()) {
+            continue;
         }
-        if (ev.currTex == ev.endTex) {
-            ev.currTex = ev.begTex;
-            if (++eventLoop_[ev.index] == 3) {
-                eventDelay_[ev.index] = ev.texDelay - std::abs(ev.endTex - ev.begTex);
-            }
-        } else {
-            int step = ev.begTex < ev.endTex ? 1 : -1;
-            ev.currTex += step;
+        const auto clockSlot = static_cast<std::size_t>(ev.index);
+        const auto previousTex = ev.currTex;
+        logic::SubMapAnimationState state{
+            ev.currTex, eventLoop_[clockSlot], eventDelay_[clockSlot],
+        };
+        if (!logic::advanceSubMapAnimation(
+                state, ev.begTex, ev.endTex, ev.texDelay)) {
+            eventLoop_[clockSlot] = state.loop;
+            eventDelay_[clockSlot] = state.delay;
+            continue;
         }
+        ev.currTex = static_cast<std::int16_t>(state.current);
+        eventLoop_[clockSlot] = state.loop;
+        eventDelay_[clockSlot] = state.delay;
+        if (ev.currTex == previousTex) { continue; }
         auto &ci = cellInfo_[ev.y * mapWidth_ + ev.x];
-        ci.eventId = ev.currTex >> 1;
-        drawDirty_ = true;
+        ci.eventId = ev.currTex < 0 ? -1 : ev.currTex >> 1;
+        markWorldChanged();
     }
 }
 

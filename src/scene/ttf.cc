@@ -33,27 +33,85 @@
 #include <external/stb_truetype.h>
 #endif
 
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
+
+#ifndef USE_FREETYPE
+namespace {
+
+std::uint32_t readBigEndian32(const std::uint8_t *data) {
+    return (std::uint32_t(data[0]) << 24)
+        | (std::uint32_t(data[1]) << 16)
+        | (std::uint32_t(data[2]) << 8)
+        | std::uint32_t(data[3]);
+}
+
+bool getStbFontOffset(const std::vector<std::uint8_t> &buffer, int index, int &offset) {
+    if (index < 0 || buffer.size() < 4) { return false; }
+
+    const auto *data = buffer.data();
+    if (buffer.size() >= 4 && std::memcmp(data, "ttcf", 4) == 0) {
+        if (buffer.size() < 12) { return false; }
+        const auto version = readBigEndian32(data + 4);
+        if (version != 0x00010000u && version != 0x00020000u) { return false; }
+        const auto count = readBigEndian32(data + 8);
+        if (count == 0 || static_cast<std::size_t>(count) > (buffer.size() - 12) / 4
+            || static_cast<std::size_t>(index) >= count) {
+            return false;
+        }
+        const auto tableOffset = 12 + static_cast<std::size_t>(index) * 4;
+        const auto fontOffset = readBigEndian32(data + tableOffset);
+        if (fontOffset > static_cast<std::uint32_t>(std::numeric_limits<int>::max())
+            || static_cast<std::size_t>(fontOffset) >= buffer.size()) {
+            return false;
+        }
+        offset = static_cast<int>(fontOffset);
+        return buffer.size() - static_cast<std::size_t>(offset) >= 12;
+    }
+
+    offset = stbtt_GetFontOffsetForIndex(data, index);
+    return offset >= 0 && static_cast<std::size_t>(offset) < buffer.size()
+        && buffer.size() - static_cast<std::size_t>(offset) >= 12;
+}
+
+}
+#endif
+
 namespace hojy::scene {
 
 TTF::TTF(Renderer *renderer): renderer_(renderer), rectpacker_(new RectPacker(RectPackWidthDefault, RectPackWidthDefault)) {
+    ready_ = renderer_ != nullptr && rectpacker_ != nullptr;
 #ifdef USE_FREETYPE
-    FT_Init_FreeType(&ftLib_);
+    if (ready_ && FT_Init_FreeType(&ftLib_) != 0) {
+        ready_ = false;
+    }
 #endif
 }
 
 TTF::~TTF() {
     deinit();
 #ifdef USE_FREETYPE
-    FT_Done_FreeType(ftLib_);
+    if (ftLib_) { FT_Done_FreeType(ftLib_); }
 #endif
 }
 
-void TTF::init(int size, std::uint8_t width) {
+bool TTF::init(int size, std::uint8_t width) {
+    if (!ready_ || size <= 0) {
+        initialized_ = false;
+        return false;
+    }
     fontSize_ = size;
     monoWidth_ = width;
+    initialized_ = true;
+    return true;
 }
 
 void TTF::deinit() {
+    initialized_ = false;
     for (auto &tex: textures_) {
         delete tex;
     }
@@ -68,43 +126,52 @@ void TTF::deinit() {
 #endif
     }
     fonts_.clear();
+    // Glyph coordinates belong to the atlas skyline.  Rebuild the packer
+    // together with the textures so a later init cannot reuse stale space.
+    rectpacker_.reset(new RectPacker(RectPackWidthDefault, RectPackWidthDefault));
 }
 
 bool TTF::add(const std::string &filename, int index) {
+    if (!ready_ || !initialized_ || filename.empty() || index < 0) {
+        return false;
+    }
     FontInfo fi;
 #ifdef USE_FREETYPE
     if (FT_New_Face(ftLib_, filename.c_str(), index, &fi.face)) return false;
-    fonts_.emplace_back(fi);
+    try {
+        fonts_.emplace_back(fi);
+    } catch (...) {
+        FT_Done_Face(fi.face);
+        throw;
+    }
 #else
     if (!util::File::getFileContent(filename, fi.ttf_buffer)) {
         return false;
     }
-    auto *info = new stbtt_fontinfo;
-    stbtt_InitFont(info, &fi.ttf_buffer[0], stbtt_GetFontOffsetForIndex(&fi.ttf_buffer[0], index));
-    fi.font = info;
+    int offset = 0;
+    if (!getStbFontOffset(fi.ttf_buffer, index, offset)) {
+        return false;
+    }
+    std::unique_ptr<stbtt_fontinfo> info(new(std::nothrow) stbtt_fontinfo);
+    if (!info || !stbtt_InitFont(info.get(), fi.ttf_buffer.data(), offset)) {
+        return false;
+    }
+    fi.font = info.get();
     fonts_.emplace_back(std::move(fi));
+    info.release();
 #endif
     return true;
 }
 
 void TTF::charDimension(std::uint32_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b, int fontSize) {
     if (fontSize < 0) fontSize = fontSize_;
-    const FontData *fd;
-    std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
-    auto ite = fontCache_.find(key);
-    if (ite == fontCache_.end()) {
-        fd = makeCache(ch, fontSize);
-        if (!fd) {
-            width = t = b = 0;
-            return;
-        }
-    } else {
-        fd = &ite->second;
-        if (fd->advW == 0) {
-            width = t = b = 0;
-            return;
-        }
+    const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+    const auto ite = fontCache_.find(key);
+    if (ite == fontCache_.end() || ite->second.advW == 0) {
+        width = t = b = 0;
+        return;
     }
+    const auto *fd = &ite->second;
     if (monoWidth_)
         width = std::max(fd->advW, monoWidth_);
     else
@@ -114,15 +181,87 @@ void TTF::charDimension(std::uint32_t ch, std::uint8_t &width, std::int8_t &t, s
 }
 
 int TTF::stringWidth(const std::wstring &str, int fontSize) {
-    std::uint8_t w;
-    std::int8_t t, b;
-    int res = 0;
-    for (auto &ch: str) {
-        if (ch < 32) { continue; }
-        charDimension(ch, w, t, b, fontSize);
-        res += int(std::uint32_t(w));
+    return preparedStringWidth(str, fontSize);
+}
+
+bool TTF::preparedCharDimension(std::uint32_t ch, std::uint8_t &width,
+                                std::int8_t &t, std::int8_t &b, int fontSize) const {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+    const auto ite = fontCache_.find(key);
+    if (ite == fontCache_.end() || ite->second.advW == 0) {
+        width = t = b = 0;
+        return false;
     }
-    return res;
+    const auto &fd = ite->second;
+    width = monoWidth_ ? std::max(fd.advW, monoWidth_) : fd.advW;
+    t = fd.iy0;
+    b = fd.iy0 + fd.h;
+    return true;
+}
+
+bool TTF::measureCharAdvance(std::uint32_t ch, int &advance,
+                             int fontSize) noexcept {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    if (fontSize <= 0) { return false; }
+    for (auto &font: fonts_) {
+#ifdef USE_FREETYPE
+        const auto index = FT_Get_Char_Index(font.face, ch);
+        if (index == 0
+            || FT_Set_Pixel_Sizes(
+                font.face, 0, static_cast<FT_UInt>(fontSize))
+            || FT_Load_Glyph(font.face, index, FT_LOAD_DEFAULT)) {
+            continue;
+        }
+        const auto measured = font.face->glyph->advance.x >> 6;
+#else
+        auto *info = static_cast<stbtt_fontinfo *>(font.font);
+        const auto index = stbtt_FindGlyphIndex(info, ch);
+        if (index == 0) { continue; }
+        int rawAdvance = 0;
+        int leftBearing = 0;
+        stbtt_GetGlyphHMetrics(info, index, &rawAdvance, &leftBearing);
+        (void)leftBearing;
+        const auto scale = stbtt_ScaleForMappingEmToPixels(
+            info, static_cast<float>(fontSize));
+        const auto measured = std::lround(scale * static_cast<float>(rawAdvance));
+#endif
+        if (measured <= 0 || measured > std::numeric_limits<int>::max()) {
+            return false;
+        }
+        advance = monoWidth_ ? std::max<int>(measured, monoWidth_) : measured;
+        return true;
+    }
+    return false;
+}
+
+bool TTF::prepareText(std::wstring_view str, int fontSize) {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    bool ok = true;
+    for (const auto ch: str) {
+        if (ch < 32 || (ch > 0 && ch < 17)) { continue; }
+        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        const auto cached = fontCache_.find(key);
+        if (cached != fontCache_.end()) {
+            if (cached->second.advW == 0) { ok = false; }
+            continue;
+        }
+        if (!makeCache(static_cast<std::uint32_t>(ch), fontSize)) { ok = false; }
+    }
+    return ok;
+}
+
+int TTF::preparedStringWidth(std::wstring_view str, int fontSize) const {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    int result = 0;
+    for (const auto ch: str) {
+        if (ch < 32 || (ch > 0 && ch < 17)) { continue; }
+        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        const auto ite = fontCache_.find(key);
+        if (ite == fontCache_.end() || ite->second.advW == 0) { continue; }
+        result += monoWidth_ ? std::max<int>(ite->second.advW, monoWidth_) : ite->second.advW;
+    }
+    return result;
 }
 
 void TTF::setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
@@ -139,39 +278,73 @@ void TTF::setAltColor(int index, std::uint8_t r, std::uint8_t g, std::uint8_t b)
 }
 
 void TTF::render(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
-    if (fontSize < 0) fontSize = fontSize_;
+    renderPrepared(str, x, y, shadow, fontSize);
+}
+
+void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize) {
+    if (fontSize < 0) { fontSize = fontSize_; }
     int colorIndex = 0;
-    for (auto ch: str) {
+    for (const auto ch: str) {
         if (ch > 0 && ch < 17) { colorIndex = ch - 1; continue; }
-        const FontData *fd;
-        std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
-        auto ite = fontCache_.find(key);
-        if (ite == fontCache_.end()) {
-            fd = makeCache(ch, fontSize);
-            if (!fd) {
-                continue;
-            }
-        } else {
-            fd = &ite->second;
-            if (fd->advW == 0) continue;
+        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        const auto ite = fontCache_.find(key);
+        if (ite == fontCache_.end() || ite->second.advW == 0) { continue; }
+        const auto &fd = ite->second;
+        if (fd.w == 0 || fd.h == 0 || fd.rpidx >= textures_.size()
+            || !textures_[fd.rpidx] || !textures_[fd.rpidx]->valid()) {
+            x += fd.advW;
+            continue;
         }
+        auto *tex = textures_[fd.rpidx];
         if (shadow) {
-            auto *tex = textures_[fd->rpidx];
             tex->setBlendColor(0, 0, 0, 255);
-            renderer_->renderTexture(tex, x + fd->ix0 + 2, y + fd->iy0 + 2, fd->rpx, fd->rpy, fd->w, fd->h, true);
-            tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
-            renderer_->renderTexture(tex, x + fd->ix0, y + fd->iy0, fd->rpx, fd->rpy, fd->w, fd->h, true);
-        } else {
-            auto *tex = textures_[fd->rpidx];
-            tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
-            renderer_->renderTexture(tex, x + fd->ix0, y + fd->iy0, fd->rpx, fd->rpy, fd->w, fd->h, true);
+            renderer_->renderTexture(tex, x + fd.ix0 + 2, y + fd.iy0 + 2,
+                                     fd.rpx, fd.rpy, fd.w, fd.h, true);
         }
-        x += fd->advW;
+        tex->setBlendColor(altR_[colorIndex], altG_[colorIndex], altB_[colorIndex], 255);
+        renderer_->renderTexture(tex, x + fd.ix0, y + fd.iy0,
+                                 fd.rpx, fd.rpy, fd.w, fd.h, true);
+        x += fd.advW;
+    }
+}
+
+void TTF::renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize,
+                         std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    if (fontSize < 0) { fontSize = fontSize_; }
+    for (const auto ch: str) {
+        if (ch > 0 && ch < 17) { continue; }
+        const auto key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+        const auto ite = fontCache_.find(key);
+        if (ite == fontCache_.end() || ite->second.advW == 0) {
+            continue;
+        }
+        const auto &fd = ite->second;
+        if (fd.w == 0 || fd.h == 0 || fd.rpidx >= textures_.size()
+            || !textures_[fd.rpidx] || !textures_[fd.rpidx]->valid()) {
+            x += fd.advW;
+            continue;
+        }
+        auto *tex = textures_[fd.rpidx];
+        if (shadow) {
+            tex->setBlendColor(0, 0, 0, 255);
+            renderer_->renderTexture(tex, x + fd.ix0 + 2, y + fd.iy0 + 2,
+                                     fd.rpx, fd.rpy, fd.w, fd.h, true);
+        }
+        tex->setBlendColor(r, g, b, 255);
+        renderer_->renderTexture(tex, x + fd.ix0, y + fd.iy0,
+                                 fd.rpx, fd.rpy, fd.w, fd.h, true);
+        x += fd.advW;
     }
 }
 
 const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     if (fontSize < 0) fontSize = fontSize_;
+    const std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
+    const auto cached = fontCache_.find(key);
+    if (cached != fontCache_.end()) {
+        return cached->second.advW == 0 ? nullptr : &cached->second;
+    }
+
     FontInfo *fi = nullptr;
 #ifndef USE_FREETYPE
     stbtt_fontinfo *info;
@@ -181,7 +354,9 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
 #ifdef USE_FREETYPE
         auto index = FT_Get_Char_Index(f.face, ch);
         if (index == 0) continue;
-        FT_Set_Pixel_Sizes(f.face, 0, fontSize);
+        if (FT_Set_Pixel_Sizes(f.face, 0, static_cast<FT_UInt>(fontSize))) {
+            continue;
+        }
         auto err = FT_Load_Glyph(f.face, index, FT_LOAD_DEFAULT);
         if (!err) { fi = &f; break; }
 #else
@@ -190,23 +365,34 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
         if (index != 0) { fi = &f; break; }
 #endif
     }
-    std::uint64_t key = (std::uint64_t(fontSize) << 32) | std::uint64_t(ch);
-    FontData *fd = &fontCache_[key];
     if (fi == nullptr) {
-        memset(fd, 0, sizeof(FontData));
+        fontCache_.insert_or_assign(key, FontData{});
         return nullptr;
     }
+
+    FontData candidate{};
 
 #ifdef USE_FREETYPE
     unsigned char *srcPtr;
     int bitmapPitch;
     if (FT_Render_Glyph(fi->face->glyph, FT_RENDER_MODE_NORMAL)) return nullptr;
     FT_GlyphSlot slot = fi->face->glyph;
-    fd->ix0 = slot->bitmap_left;
-    fd->iy0 = fontSize * 7 / 8 - slot->bitmap_top;
-    fd->w = slot->bitmap.width;
-    fd->h = slot->bitmap.rows;
-    fd->advW = slot->advance.x >> 6;
+    const auto glyphY = static_cast<std::int64_t>(fontSize) * 7 / 8 - slot->bitmap_top;
+    if (slot->bitmap.width > std::numeric_limits<std::uint8_t>::max()
+        || slot->bitmap.rows > std::numeric_limits<std::uint8_t>::max()
+        || slot->bitmap_left < std::numeric_limits<std::int8_t>::min()
+        || slot->bitmap_left > std::numeric_limits<std::int8_t>::max()
+        || glyphY < std::numeric_limits<std::int8_t>::min()
+        || glyphY > std::numeric_limits<std::int8_t>::max()
+        || slot->advance.x < 0
+        || (slot->advance.x >> 6) > std::numeric_limits<std::uint8_t>::max()) {
+        return nullptr;
+    }
+    candidate.ix0 = static_cast<std::int8_t>(slot->bitmap_left);
+    candidate.iy0 = static_cast<std::int8_t>(glyphY);
+    candidate.w = static_cast<std::uint8_t>(slot->bitmap.width);
+    candidate.h = static_cast<std::uint8_t>(slot->bitmap.rows);
+    candidate.advW = static_cast<std::uint8_t>(slot->advance.x >> 6);
     srcPtr = slot->bitmap.buffer;
     bitmapPitch = slot->bitmap.pitch;
 #else
@@ -216,63 +402,110 @@ const TTF::FontData *TTF::makeCache(std::uint32_t ch, int fontSize) {
     stbtt_GetGlyphHMetrics(info, index, &advW, &leftB);
     int ascent, descent;
     stbtt_GetFontVMetrics(info, &ascent, &descent, nullptr);
-    fd->advW = std::uint8_t(std::lround(fontScale * float(advW)));
-    int w, h, x, y;
-    stbtt_GetGlyphBitmap(info, fontScale, fontScale, index, &w, &h, &x, &y);
-    fd->ix0 = x;
-    fd->iy0 = int(float(ascent + descent) * fontScale) + y;
-    fd->w = w;
-    fd->h = h;
-#endif
-
-    int dstPitch = int((fd->w + 1u) & ~1u);
-    /* Get last rect pack bitmap */
-    auto rpidx = rectpacker_->pack(dstPitch, fd->h, fd->rpx, fd->rpy);
-    if (rpidx < 0) {
-        memset(fd, 0, sizeof(FontData));
+    const auto advance = std::lround(fontScale * float(advW));
+    int x0, y0, x1, y1;
+    stbtt_GetGlyphBitmapBox(info, index, fontScale, fontScale, &x0, &y0, &x1, &y1);
+    const auto w = x1 - x0;
+    const auto h = y1 - y0;
+    const auto glyphY = int(float(ascent + descent) * fontScale) + y0;
+    if (advance < 0 || advance > std::numeric_limits<std::uint8_t>::max()
+        || w < 0 || w > std::numeric_limits<std::uint8_t>::max()
+        || h < 0 || h > std::numeric_limits<std::uint8_t>::max()
+        || x0 < std::numeric_limits<std::int8_t>::min() || x0 > std::numeric_limits<std::int8_t>::max()
+        || glyphY < std::numeric_limits<std::int8_t>::min() || glyphY > std::numeric_limits<std::int8_t>::max()) {
         return nullptr;
     }
-    // stbrp_rect rc = {0, std::uint16_t((fd->w + 3u) & ~3u), fd->h};
-    fd->rpidx = rpidx;
+    candidate.advW = static_cast<std::uint8_t>(advance);
+    candidate.ix0 = static_cast<std::int8_t>(x0);
+    candidate.iy0 = static_cast<std::int8_t>(glyphY);
+    candidate.w = static_cast<std::uint8_t>(w);
+    candidate.h = static_cast<std::uint8_t>(h);
+#endif
 
-    std::uint8_t dst[64 * 64];
+    if (candidate.advW == 0) {
+        fontCache_.insert_or_assign(key, FontData{});
+        return nullptr;
+    }
+    if (candidate.w == 0 || candidate.h == 0) {
+        auto inserted = fontCache_.emplace(key, candidate);
+        return &inserted.first->second;
+    }
+
+    const int dstPitch = int((candidate.w + 1u) & ~1u);
+    if (dstPitch <= 0 || candidate.h > 0
+        && static_cast<std::size_t>(dstPitch) > std::numeric_limits<std::size_t>::max() / candidate.h) {
+        return nullptr;
+    }
+    std::vector<std::uint8_t> dst(static_cast<std::size_t>(dstPitch) * candidate.h, 0);
+
+    /* Get last rect pack bitmap */
+    auto rpidx = rectpacker_->pack(dstPitch, candidate.h, candidate.rpx, candidate.rpy);
+    if (rpidx < 0 || rpidx > std::numeric_limits<std::uint8_t>::max()) {
+        if (rpidx >= 0) { rectpacker_->rollbackLast(); }
+        return nullptr;
+    }
+    candidate.rpidx = static_cast<std::uint8_t>(rpidx);
 
 #ifdef USE_FREETYPE
-    auto *dstPtr = dst;
-    for (int k = 0; k < fd->h; ++k) {
-        memcpy(dstPtr, srcPtr, fd->w);
+    auto *dstPtr = dst.data();
+    for (int k = 0; k < candidate.h; ++k) {
+        memcpy(dstPtr, srcPtr, candidate.w);
         srcPtr += bitmapPitch;
         dstPtr += dstPitch;
     }
 #else
-    stbtt_MakeGlyphBitmapSubpixel(info, dst, fd->w, fd->h, dstPitch, fontScale, fontScale, 0, 0, index);
+    stbtt_MakeGlyphBitmapSubpixel(info, dst.data(), candidate.w, candidate.h,
+                                  dstPitch, fontScale, fontScale, 0, 0, index);
 #endif
 
-    if (rpidx >= textures_.size()) {
-        textures_.resize(rpidx + 1, nullptr);
-    }
-    auto *tex = textures_[rpidx];
-    if (tex == nullptr) {
-        tex = Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault);
-        tex->enableBlendMode(true);
-        textures_[rpidx] = tex;
-    }
-    int pitch;
-    uint32_t *pixels = tex->lock(pitch, fd->rpx, fd->rpy, dstPitch, fd->h);
-    if (pixels) {
-        auto *pdst = dst;
-        int offset = pitch - dstPitch;
-        int h = fd->h;
-        while (h--) {
-            int w = dstPitch;
-            while (w--) {
-                *pixels++ = 0xFFFFFFu | (std::uint32_t(*pdst++) << 24);
-            }
-            pixels += offset;
+    std::unique_ptr<Texture> textureCandidate;
+    auto *tex = rpidx < static_cast<int>(textures_.size()) ? textures_[rpidx] : nullptr;
+    if (!tex) {
+        textureCandidate.reset(Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault));
+        if (!textureCandidate || !textureCandidate->enableBlendMode(true)) {
+            rectpacker_->rollbackLast();
+            return nullptr;
         }
-        tex->unlock();
+        tex = textureCandidate.get();
     }
-    return fd;
+
+    int pitch = 0;
+    TextureLock lock(tex, pitch, candidate.rpx, candidate.rpy, dstPitch, candidate.h);
+    if (!lock.valid() || pitch < dstPitch) {
+        rectpacker_->rollbackLast();
+        return nullptr;
+    }
+    auto *pixels = lock.pixels();
+    auto *source = dst.data();
+    const int offset = pitch - dstPitch;
+    for (int row = 0; row < candidate.h; ++row) {
+        for (int column = 0; column < dstPitch; ++column) {
+            *pixels++ = 0xFFFFFFu | (std::uint32_t(*source++) << 24);
+        }
+        pixels += offset;
+    }
+    lock.unlock();
+
+    decltype(fontCache_.begin()) inserted;
+    try {
+        inserted = fontCache_.emplace(key, candidate).first;
+    } catch (...) {
+        rectpacker_->rollbackLast();
+        return nullptr;
+    }
+    if (textureCandidate) {
+        try {
+            if (rpidx >= static_cast<int>(textures_.size())) {
+                textures_.resize(static_cast<std::size_t>(rpidx) + 1, nullptr);
+            }
+        } catch (...) {
+            fontCache_.erase(key);
+            rectpacker_->rollbackLast();
+            return nullptr;
+        }
+        textures_[rpidx] = textureCandidate.release();
+    }
+    return &inserted->second;
 }
 
 }

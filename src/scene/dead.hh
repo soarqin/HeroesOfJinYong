@@ -28,15 +28,21 @@ public:
     using NodeWithCache::NodeWithCache;
     ~Dead() override;
 
-    void init();
-    void handleKeyInput(Key key) override;
+    [[nodiscard]] bool init();
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
 
 private:
+    bool prepareTextResources() override;
     void makeCache() override;
 
 private:
     Texture *big_ = nullptr;
     Node *menu_ = nullptr;
+    std::wstring nameText_;
+    std::wstring dateText_;
+    std::wstring messageText_[3];
+    Key pendingInput_ = KeyNone;
 };
 
 }

@@ -19,39 +19,26 @@
 
 #include "window.hh"
 
+#include "extendednode.hh"
 #include "colorpalette.hh"
 #include "globalmap.hh"
 #include "submap.hh"
 #include "warfield.hh"
 #include "effect.hh"
-#include "talkbox.hh"
-#include "title.hh"
-#include "dead.hh"
-#include "endscreen.hh"
-#include "menu.hh"
-#include "charlistmenu.hh"
-#include "itemview.hh"
-#include "statusview.hh"
-
 #include "audio/mixer.hh"
-#include "content/factors.hh"
+#include "content/constants.hh"
 #include "content/grpdata.hh"
-#include "content/event.hh"
-#include "world/strings.hh"
-#include "world/savedata.hh"
 #include "core/config.hh"
-#include "util/conv.hh"
 
 #include <SDL.h>
 #include <fmt/xchar.h>
 #include <limits>
 #include <algorithm>
-#include <thread>
-#include <stdexcept>
+#include <cstring>
+#include <memory>
+#include <new>
 
 namespace hojy::scene {
-
-Window *gWindow = nullptr;
 
 #if !defined(HOJY_VERSION)
 #define HOJY_VERSION "development"
@@ -75,15 +62,31 @@ std::uint64_t wallTimeMicros() {
 
 }
 
-Window::Window(int w, int h) : width_(w), height_(h), currTime_(wallTimeMicros()) {
-    if (gWindow) {
-        throw std::runtime_error("Duplicate window creation");
+Window::Window(int w, int h):
+    width_(w), height_(h),
+    lifetimeState_(std::make_shared<WindowLifetimeState>()),
+    currTime_(wallTimeMicros()) {
+    lifetimeState_->owner = this;
+    if (w <= 0 || h <= 0) {
+        ready_ = false;
+        quitRequested_ = true;
+        return;
     }
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
-        SDL_Init(SDL_INIT_VIDEO);
+        if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+            ready_ = false;
+            quitRequested_ = true;
+            return;
+        }
+        ownsVideoSubsystem_ = true;
     }
     if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
-        SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
+        if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
+            ready_ = false;
+            quitRequested_ = true;
+            return;
+        }
+        ownsControllerSubsystem_ = true;
     }
     SDL_GameControllerEventState(SDL_ENABLE);
     auto *win = SDL_CreateWindow(GameWindowTitle,
@@ -96,10 +99,19 @@ Window::Window(int w, int h) : width_(w), height_(h), currTime_(wallTimeMicros()
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 #endif
     SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+    if (!win) {
+        ready_ = false;
+        quitRequested_ = true;
+        return;
+    }
     win_ = win;
-    gWindow = this;
 
-    renderer_ = new Renderer(win_, w, h);
+    renderer_ = new (std::nothrow) Renderer(win_, w, h);
+    if (!renderer_ || !renderer_->ready()) {
+        ready_ = false;
+        quitRequested_ = true;
+        return;
+    }
     renderer_->enableLinear(false);
 
     if (!gNormalPalette.load("MMAP") || !gEndPalette.load("ENDCOL")) {
@@ -129,30 +141,28 @@ Window::Window(int w, int h) : width_(w), height_(h), currTime_(wallTimeMicros()
     globalMap_ = new GlobalMap(renderer_, 0, 0, w, h, core::config.scale());
     subMap_ = new SubMap(renderer_, 0, 0, w, h, core::config.scale());
     warfield_ = new Warfield(renderer_, 0, 0, w, h, core::config.scale());
+    if (!globalMap_ || !subMap_
+        || !globalMap_->ready() || !subMap_->ready()) {
+        ready_ = false;
+        return;
+    }
+    if (!warfield_ || !warfield_->ready()) {
+        ready_ = false;
+        return;
+    }
+    warfield_->setHeadTextureProvider(
+        [this](std::int16_t id) { return headTexture(id); });
+    const auto commandSink = [this](std::unique_ptr<SceneCommand> command) {
+        deferredCommands_.push(std::move(command));
+    };
+    globalMap_->setCommandSink(commandSink);
+    subMap_->setCommandSink(commandSink);
+    warfield_->setCommandSink(commandSink);
 
-    {
-        const auto *arr = reinterpret_cast<const int16_t *>(globalMap_->texData(::hojy::content::ItemTexIdStart).data());
-        itemTexW_ = arr[0];
-        itemTexH_ = arr[1];
+    if (!initializeItemAtlas()) {
+        ready_ = false;
+        return;
     }
-    itemWCount_ = 1024 / itemTexW_;
-    itemHCount_ = (::hojy::content::BagItemCount + itemWCount_ - 1) / itemWCount_;
-    int height = itemTexH_ * itemHCount_;
-    itemTexture_ = Texture::create(renderer_, itemTexW_ * itemWCount_, height);
-    itemTexture_->enableBlendMode(true);
-    int pitch;
-    const auto *colors = gNormalPalette.colors();
-    auto *pixels = itemTexture_->lock(pitch);
-    for (int i = 0; i < ::hojy::content::BagItemCount; ++i) {
-        Texture::renderRLE(globalMap_->texData(::hojy::content::ItemTexIdStart + i),
-                           colors,
-                           pixels,
-                           pitch,
-                           height,
-                           itemTexW_ * (i % itemWCount_),
-                           itemTexH_ * (i / itemWCount_));
-    }
-    itemTexture_->unlock();
     SDL_ShowWindow(win);
     if (audio::gMixer.init(3)) {
         audio::gMixer.pause(false);
@@ -160,20 +170,109 @@ Window::Window(int w, int h) : width_(w), height_(h), currTime_(wallTimeMicros()
     title();
 }
 
-Window::~Window() {
-    if (gWindow == this) {
-        gWindow = nullptr;
+bool Window::initializeItemAtlas() {
+    if (!globalMap_ || !renderer_) { return false; }
+
+    const auto &firstData = globalMap_->texData(::hojy::content::ItemTexIdStart);
+    if (!Texture::validateRLE(firstData)) { return false; }
+
+    std::int16_t firstHeader[4]{};
+    std::memcpy(firstHeader, firstData.data(), sizeof(firstHeader));
+    const int itemTexW = firstHeader[0];
+    const int itemTexH = firstHeader[1];
+    if (itemTexW <= 0 || itemTexH <= 0 || itemTexW > 1024) { return false; }
+
+    const int itemWCount = 1024 / itemTexW;
+    if (itemWCount <= 0) { return false; }
+    const int itemHCount = (::hojy::content::BagItemCount + itemWCount - 1) / itemWCount;
+    const auto atlasWidth = static_cast<std::int64_t>(itemTexW) * itemWCount;
+    const auto atlasHeight = static_cast<std::int64_t>(itemTexH) * itemHCount;
+    if (atlasWidth <= 0 || atlasWidth > std::numeric_limits<std::int16_t>::max()
+        || atlasHeight <= 0 || atlasHeight > std::numeric_limits<std::int16_t>::max()) {
+        return false;
     }
-    closePopup();
+
+    std::unique_ptr<Texture> candidate(Texture::create(
+        renderer_, static_cast<std::int16_t>(atlasWidth), static_cast<std::int16_t>(atlasHeight)));
+    if (!candidate || !candidate->enableBlendMode(true)) { return false; }
+
+    int pitch = 0;
+    TextureLock lock(candidate.get(), pitch);
+    if (!lock.valid() || pitch < atlasWidth) { return false; }
+    const auto pixelCount = static_cast<std::size_t>(pitch) * static_cast<std::size_t>(atlasHeight);
+    std::fill_n(lock.pixels(), pixelCount, 0U);
+
+    const auto *colors = gNormalPalette.colors();
+    for (int i = 0; i < ::hojy::content::BagItemCount; ++i) {
+        const auto &data = globalMap_->texData(::hojy::content::ItemTexIdStart + i);
+        if (!Texture::validateRLE(data)) { return false; }
+        std::int16_t header[4]{};
+        std::memcpy(header, data.data(), sizeof(header));
+        if (header[0] != itemTexW || header[1] != itemTexH) { return false; }
+        if (!Texture::renderRLE(data,
+                                colors,
+                                lock.pixels(),
+                                pitch,
+                                static_cast<int>(atlasHeight),
+                                itemTexW * (i % itemWCount),
+                                itemTexH * (i / itemWCount))) {
+            return false;
+        }
+    }
+    lock.unlock();
+
+    auto *previous = itemTexture_;
+    itemTexture_ = candidate.release();
+    itemTexW_ = itemTexW;
+    itemTexH_ = itemTexH;
+    itemWCount_ = itemWCount;
+    itemHCount_ = itemHCount;
+    renderer_->setItemAtlas(itemTexture_, itemTexW_, itemTexH_);
+    delete previous;
+    return true;
+}
+
+Window::~Window() {
+    if (lifetimeState_) {
+        lifetimeState_->owner = nullptr;
+        lifetimeState_.reset();
+    }
+    invalidateBattleSession();
+    eventOverlay_ = nullptr;
+    eventOverlayOwner_ = nullptr;
+    eventOverlaySession_ = 0;
+    eventFadeOwner_ = nullptr;
+    eventFadeSession_ = 0;
+    if (deferredPopup_) {
+        if (deferredPopupOwned_) {
+            delete deferredPopup_;
+        } else {
+            deferredPopup_->close();
+        }
+        deferredPopup_ = nullptr;
+    }
+    if (popup_) { closePopup(); }
     headTextureMgr_.clear();
     gEffect.clear();
     delete itemTexture_;
     delete talkBox_;
+    delete mainMenu_;
+    mainMenu_ = nullptr;
     delete globalMap_;
     delete subMap_;
     delete warfield_;
     delete renderer_;
     SDL_DestroyWindow(static_cast<SDL_Window *>(win_));
+    if (ownsControllerSubsystem_) { SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER); }
+    if (ownsVideoSubsystem_) { SDL_QuitSubSystem(SDL_INIT_VIDEO); }
+}
+
+void Window::setSimulationTime(std::uint64_t timestamp) {
+    currTime_ = timestamp;
+    if (globalMap_) { globalMap_->setPhaseTime(timestamp); }
+    if (subMap_) { subMap_->setPhaseTime(timestamp); }
+    if (warfield_) { warfield_->setPhaseTime(timestamp); }
+    if (popup_) { popup_->setPhaseTime(timestamp); }
 }
 
 const Texture *Window::smpTexture(std::int16_t id) const {
@@ -188,14 +287,69 @@ void Window::renderItemTexture(std::int16_t id, int x, int y, int w, int h) {
 }
 
 void Window::updateFixed() {
+    // Input collection is intentionally side-effect free: platform events
+    // are translated to value intents and retained until the fixed-logic
+    // sub-phase below.  No scene consumer runs while this loop is active.
+    while (!pendingInputEvents_.empty() && !quitRequested_) {
+        auto event = std::move(pendingInputEvents_.front());
+        pendingInputEvents_.pop_front();
+        if (event.action == core::InputAction::Quit) {
+            quitRequested_ = true;
+            pendingInputEvents_.clear();
+            break;
+        }
+        if (auto intent = makeIntent(event)) {
+            if (popup_ || map_) {
+                inputPort_.enqueue(std::move(intent));
+            }
+        }
+    }
+
+    if (quitRequested_) { return; }
+
+    // Deliver and consume intents only from fixed logic.  Keeping the
+    // command/node barrier after this sub-phase preserves input ordering while
+    // preventing an input event from executing movement or UI work inline.
+    if (!inputPort_.empty()) {
+        const bool wasProcessing = processingStage_;
+        processingStage_ = true;
+        try {
+            while (!inputPort_.empty() && !quitRequested_) {
+                // Resolve focus for every intent.  The previous intent may
+                // have closed or replaced the popup during its barrier.
+                auto *target = popup_ ? popup_ : map_;
+                if (!target) { break; }
+
+                inputPort_.deliverNext(*target);
+                target->dispatchInputLogic();
+
+                processingStage_ = wasProcessing;
+                if (!wasProcessing) {
+                    applyDeferredNodes();
+                    applyDeferredCommands();
+                }
+                processingStage_ = true;
+            }
+        } catch (...) {
+            processingStage_ = wasProcessing;
+            throw;
+        }
+        processingStage_ = wasProcessing;
+    }
+
     audio::gMixer.service();
     const bool wasProcessing = processingStage_;
     processingStage_ = true;
+    try {
     if (map_) {
         map_->doUpdate();
     }
     if (popup_) {
         popup_->doUpdate();
+    }
+    } catch (...) {
+        processingStage_ = wasProcessing;
+        throw;
     }
     processingStage_ = wasProcessing;
     if (!wasProcessing) {
@@ -207,8 +361,13 @@ void Window::updateFixed() {
 void Window::compatibilityUpdate() {
     const bool wasProcessing = processingStage_;
     processingStage_ = true;
-    if (map_) {
-        map_->advanceCompatibilityFrame();
+    try {
+        if (map_) {
+            map_->advanceCompatibilityFrame();
+        }
+    } catch (...) {
+        processingStage_ = wasProcessing;
+        throw;
     }
     processingStage_ = wasProcessing;
     if (!wasProcessing) {
@@ -221,21 +380,39 @@ void Window::update() {
     updateFixed();
 }
 
-void Window::render() {
-    const bool wasProcessing = processingStage_;
-    processingStage_ = true;
+bool Window::prepareRender() {
+    if (!ready_ || !renderer_ || !renderer_->ready()) {
+        return false;
+    }
+    try {
+        preparePresentationCleanup();
+        if (map_) {
+            map_->dispatchPrepareRender();
+        }
+        if (popup_) {
+            popup_->dispatchPrepareRender();
+        }
+        // Presentation nodes that fixed logic marked for cleanup are now
+        // removed while the preparation phase owns the node tree.
+        applyPresentationCleanup();
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+void Window::render() const {
     if (map_) {
         map_->doRender();
     }
     if (popup_) {
         popup_->doRender();
     }
-    processingStage_ = wasProcessing;
 }
 
 bool Window::flush() {
     const auto now = wallTimeMicros();
-    if (!renderer_->canRender()) {
+    if (!renderer_->canRender(now)) {
         const auto next = renderer_->nextRenderTime();
         if (next > now) {
             SDL_Delay(static_cast<Uint32>(std::min<std::uint64_t>(
@@ -257,35 +434,43 @@ bool Window::flush() {
     return true;
 }
 
-void Window::defer(std::function<void()> command) {
-    if (!command) { return; }
-    if (processingStage_) {
-        deferredCommands_.emplace_back(std::move(command));
-        return;
-    }
-    command();
-}
-
 void Window::applyDeferredCommands() {
     if (processingStage_ || applyingDeferred_) { return; }
     applyingDeferred_ = true;
-    while (!deferredCommands_.empty()) {
-        auto commands = std::move(deferredCommands_);
-        deferredCommands_.clear();
-        for (auto &command : commands) {
-            if (command) { command(); }
-        }
+    try {
+        deferredCommands_.executeGeneration(*this);
+    } catch (...) {
+        applyingDeferred_ = false;
+        throw;
     }
     applyingDeferred_ = false;
 }
 
 void Window::applyDeferredNodes() {
+    if (eventOverlay_ && eventOverlay_->deleteRequested()) {
+        eventOverlay_ = nullptr;
+        eventOverlayOwner_ = nullptr;
+        eventOverlaySession_ = 0;
+    }
     if (map_) {
         map_->applyDeferredDeletes();
         // Persistent maps are owned by Window and are never deleted as a
         // consequence of a child callback. Consume an accidental root request
         // and keep the owner pointer valid until an explicit scene transition.
         (void)map_->consumeDeleteRequest();
+    }
+    if (deferredPopup_) {
+        auto *victim = deferredPopup_;
+        const bool owned = deferredPopupOwned_;
+        deferredPopup_ = nullptr;
+        deferredPopupOwned_ = false;
+        victim->applyDeferredDeletes();
+        (void)victim->consumeDeleteRequest();
+        if (owned) {
+            delete victim;
+        } else {
+            victim->close();
+        }
     }
     if (!popup_) { return; }
     popup_->applyDeferredDeletes();
@@ -302,273 +487,64 @@ void Window::applyDeferredNodes() {
     }
 }
 
-void Window::title() {
-    if (processingStage_) {
-        defer([this] { title(); });
-        return;
-    }
-    playMusic(16);
-    auto *title = new Title(renderer_, 0, 0, width_, height_);
-    title->init();
-    freeOnClose_ = true;
-    popup_ = title;
+void Window::applyPresentationCleanup() noexcept {
+    // The same ownership routine is safe after a prepare traversal; the
+    // phase-specific name keeps command-barrier APIs out of render code.
+    applyDeferredNodes();
 }
 
-void Window::endscreen() {
-    if (processingStage_) {
-        defer([this] { endscreen(); });
-        return;
-    }
-    subMap_->cleanupEvents();
-    map_ = nullptr;
-    auto *endScreen = new EndScreen(renderer_, 0, 0, width_, height_);
-    endScreen->init();
-    freeOnClose_ = true;
-    popup_ = endScreen;
-}
-
-void Window::newGame() {
-    if (processingStage_) {
-        defer([this] { newGame(); });
-        return;
-    }
-    ::hojy::world::state::gStrings.saveDataLoaded();
-    map_ = subMap_;
-    dynamic_cast<GlobalMap *>(globalMap_)->load();
-    globalMap_->setPosition(::hojy::world::state::gSaveData.baseInfo->mainX, ::hojy::world::state::gSaveData.baseInfo->mainY);
-    dynamic_cast<SubMap *>(subMap_)->load(::hojy::content::gFactors.initSubMapId);
-    subMap_->setPosition(::hojy::content::gFactors.initSubMapX, ::hojy::content::gFactors.initSubMapY, false);
-    dynamic_cast<SubMap *>(subMap_)->forceMainCharTexture(::hojy::content::gFactors.initMainCharTex / 2);
-    map_->fadeIn([this] {
-        dynamic_cast<SubMap *>(subMap_)->setPosition(::hojy::content::gFactors.initSubMapX, ::hojy::content::gFactors.initSubMapY);
-        dynamic_cast<SubMap *>(subMap_)->forceMainCharTexture(::hojy::content::gFactors.initMainCharTex / 2);
-        map_->resetFrame();
+void Window::bindCommandSink(Node *node) {
+    if (!node) { return; }
+    node->setCommandSink([this](std::unique_ptr<SceneCommand> command) {
+        deferredCommands_.push(std::move(command));
     });
 }
 
-bool Window::loadGame(int slot) {
-    if (!::hojy::world::state::gSaveData.load(slot)) { return false; }
-    ::hojy::world::state::gStrings.saveDataLoaded();
-    dynamic_cast<GlobalMap *>(globalMap_)->load();
-    globalMap_->setPosition(::hojy::world::state::gSaveData.baseInfo->mainX, ::hojy::world::state::gSaveData.baseInfo->mainY);
-    auto &binfo = ::hojy::world::state::gSaveData.baseInfo;
-    if (binfo->subMap > 0) {
-        map_ = subMap_;
-        dynamic_cast<SubMap *>(subMap_)->load(binfo->subMap - 1);
-        subMap_->setPosition(binfo->subX, binfo->subY, false);
-        subMap_->setDirection(Map::Direction(binfo->direction));
-        map_->fadeIn([this]() {
-            dynamic_cast<SubMap *>(subMap_)->setPosition(::hojy::world::state::gSaveData.baseInfo->subX, ::hojy::world::state::gSaveData.baseInfo->subY);
-            map_->resetFrame();
-        });
-    } else {
-        globalMap_->setDirection(Map::Direction(binfo->direction));
-        map_ = globalMap_;
-        map_->resetFrame();
-        map_->fadeIn([this]() {
-            map_->resetFrame();
-        });
+std::uint64_t Window::beginTransition() noexcept {
+    ++transitionGeneration_;
+    if (transitionGeneration_ == 0) {
+        transitionGeneration_ = 1;
     }
-    return true;
+    return transitionGeneration_;
 }
 
-bool Window::saveGame(int slot) {
-    auto &binfo = ::hojy::world::state::gSaveData.baseInfo;
-    binfo->onShip = dynamic_cast<GlobalMap *>(globalMap_)->onShip();
-    binfo->mainX = globalMap_->currX();
-    binfo->mainY = globalMap_->currY();
-    binfo->subMap = map_->subMapId() + 1;
-    if (binfo->subMap > 0) {
-        binfo->subX = dynamic_cast<SubMap *>(subMap_)->currX();
-        binfo->subY = dynamic_cast<SubMap *>(subMap_)->currY();
+bool Window::isCurrentTransition(std::uint64_t token) const noexcept {
+    return token != 0 && token == transitionGeneration_;
+}
+
+void Window::invalidateTransitions() noexcept {
+    (void)beginTransition();
+}
+
+void Window::invalidateBattleSession() noexcept {
+    auto *owner = battleSessionOwner_;
+    battleSessionOwner_ = nullptr;
+    battleSessionToken_ = 0;
+    if (owner) {
+        owner->abortPresentationState();
     }
-    binfo->direction = std::int16_t(dynamic_cast<MapWithEvent *>(map_)->direction());
-    return ::hojy::world::state::gSaveData.save(slot);
 }
 
-void Window::forceQuit() {
-    quitRequested_ = true;
-}
-
-void Window::exitToGlobalMap(int direction) {
-    if (processingStage_) {
-        defer([this, direction] { exitToGlobalMap(direction); });
-        return;
-    }
-    map_->fadeOut([this, direction]() {
-        map_ = globalMap_;
-        map_->resetFrame();
-        dynamic_cast<MapWithEvent *>(map_)->setDirection(Map::Direction(direction));
-        map_->fadeIn([this]() {
-            map_->resetFrame();
-        });
-    });
-}
-
-void Window::enterSubMap(std::int16_t subMapId, int direction) {
-    if (processingStage_) {
-        defer([this, subMapId, direction] { enterSubMap(subMapId, direction); });
-        return;
-    }
-    bool switching = map_->subMapId() >= 0;
-    map_->fadeOut([this, subMapId, direction, switching]() {
-        if (!switching) {
-            map_ = subMap_;
-        }
-        const auto *smi = ::hojy::world::state::gSaveData.subMapInfo[subMapId];
-        dynamic_cast<SubMap *>(map_)->load(subMapId);
-        if (!switching) {
-            subMap_->setDirection(Map::Direction(direction));
-        }
-        std::int16_t x, y;
-        if (switching && smi->subMapEnterX) {
-            x = smi->subMapEnterX;
-            y = smi->subMapEnterY;
-        } else {
-            x = smi->enterX;
-            y = smi->enterY;
-        }
-        dynamic_cast<MapWithEvent *>(map_)->setPosition(x, y, false);
-        auto *tips = new MessageBox(map_, 0, 0, width_, height_ * 4 / 5);
-        tips->popup({GETSUBMAPNAME(subMapId)}, MessageBox::Normal);
-        map_->fadeIn([this, tips, x, y] {
-            tips->requestDelete();
-            dynamic_cast<MapWithEvent *>(map_)->setPosition(x, y);
-            map_->resetFrame();
-        });
-    });
-}
-
-bool Window::enterWar(std::int16_t warId, bool getExpOnLose, bool deadOnLose) {
-    auto *wf = dynamic_cast<Warfield *>(warfield_);
-    if (!wf) { return false; }
-    if (!wf->load(warId)) {
+bool Window::activateBattleSession(Warfield *owner) noexcept {
+    invalidateBattleSession();
+    if (!owner || !owner->beginPresentationSession()) {
         return false;
     }
-    wf->setGetExpOnLose(getExpOnLose);
-    wf->setDeadOnLose(deadOnLose);
-    std::set<std::int16_t> defaultChars;
-    if (wf->getDefaultChars(defaultChars)) {
-        auto *clm = new CharListMenu(renderer_, 0, 0, gWindow->width(), gWindow->height());
-        clm->enableCheckBox(true, [defaultChars](std::int16_t charId) -> bool {
-            return defaultChars.find(charId) == defaultChars.end();
-        });
-        clm->initWithTeamMembers({GETTEXT(70)}, {CharListMenu::LEVEL}, [this, clm](std::int16_t) {
-            const auto selectedChars = clm->getSelectedCharIds();
-            closePopup();
-            auto *wf = dynamic_cast<Warfield *>(warfield_);
-            if (!wf) { return; }
-            map_ = warfield_;
-            if (!wf->putChars(selectedChars)) {
-                map_ = subMap_;
-                return;
-            }
-            if (map_ == warfield_) {
-                map_->fadeIn();
-            }
-        }, []() -> bool { return false; });
-        for (size_t i = 0; i < clm->charCount(); ++i) {
-            if (defaultChars.find(clm->charId(i)) != defaultChars.end()) {
-                clm->checkItem(i, true);
-            }
-        }
-        clm->makeCenter(gWindow->width(), gWindow->height() * 4 / 5, 0, 0);
-        popup_ = clm;
-        freeOnClose_ = true;
-    } else {
-        map_ = warfield_;
-        if (!wf->putChars({})) {
-            map_ = subMap_;
-            return false;
-        }
-        if (map_ == warfield_) {
-            map_->fadeIn();
-        }
-    }
-    return true;
+    battleSessionOwner_ = owner;
+    battleSessionToken_ = owner->presentationSessionToken();
+    return battleSessionToken_ != 0;
 }
 
-void Window::endWar(bool won, bool instantDie) {
-    if (processingStage_) {
-        defer([this, won, instantDie] { endWar(won, instantDie); });
-        return;
-    }
-    if (instantDie) {
-        playerDie();
-        return;
-    }
-    map_ = subMap_;
-    subMap_->fadeIn([this, won]() {
-        subMap_->continueEvents(won);
-        auto *subMapInfo = ::hojy::world::state::gSaveData.subMapInfo[subMap_->subMapId()];
-        if (subMapInfo) {
-            auto music = subMapInfo->enterMusic;
-            if (music < 0) {
-                music = subMapInfo->exitMusic;
-            }
-            if (music >= 0) {
-                gWindow->playMusic(music);
-            }
-        }
-    });
+bool Window::isCurrentBattleSession(
+        const Warfield *owner, std::uint64_t token) const noexcept {
+    return ownsBattleSession(owner, token)
+        && owner->isCurrentPresentationSession(token);
 }
 
-void Window::playerDie() {
-    if (processingStage_) {
-        defer([this] { playerDie(); });
-        return;
-    }
-    subMap_->cleanupEvents();
-    map_ = nullptr;
-    auto *dead = new Dead(renderer_, 0, 0, width_, height_);
-    dead->init();
-    freeOnClose_ = true;
-    popup_ = dead;
-}
-
-void Window::useQuestItem(std::int16_t itemId) {
-    if (processingStage_) {
-        defer([this, itemId] { useQuestItem(itemId); });
-        return;
-    }
-    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
-    if (mapev) mapev->onUseItem(itemId);
-}
-
-void Window::forceEvent(std::int16_t eventId) {
-    if (processingStage_) {
-        defer([this, eventId] { forceEvent(eventId); });
-        return;
-    }
-    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
-    if (mapev) mapev->runEvent(eventId);
-    else if (subMap_) subMap_->runEvent(eventId);
-}
-
-void Window::closePopup() {
-    if (processingStage_) {
-        defer([this] { closePopup(); });
-        return;
-    }
-    if (!popup_) { return; }
-    if (freeOnClose_) {
-        delete popup_;
-    } else {
-        popup_->close();
-    }
-    popup_ = nullptr;
-}
-
-void Window::endPopup(bool close, bool result) {
-    if (processingStage_) {
-        defer([this, close, result] { endPopup(close, result); });
-        return;
-    }
-    if (close) {
-        closePopup();
-    }
-    auto *mapev = dynamic_cast<MapWithEvent *>(map_);
-    if (mapev) mapev->continueEvents(result);
+bool Window::ownsBattleSession(
+        const Warfield *owner, std::uint64_t token) const noexcept {
+    return owner && owner == battleSessionOwner_
+        && token != 0 && token == battleSessionToken_;
 }
 
 }

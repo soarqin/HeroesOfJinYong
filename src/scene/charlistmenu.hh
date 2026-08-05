@@ -19,28 +19,17 @@
 
 #pragma once
 
+#include "logic/presentation.hh"
 #include "menu.hh"
 
 #include <string>
 #include <vector>
-#include <functional>
 #include <cstdint>
 
 namespace hojy::scene {
 
 class CharListMenu: public MenuTextList {
 public:
-    enum ValueType {
-        LEVEL,
-        HP,
-        MAXHP,
-        MP,
-        MAXMP,
-        MEDIC,
-        DEPOISON,
-        POISONED,
-    };
-
     using MenuTextList::MenuTextList;
     ~CharListMenu() override;
 
@@ -48,21 +37,22 @@ public:
     [[nodiscard]] std::int16_t charId(size_t idx) const { return idx < charIdList_.size() ? charIdList_[idx] : -1; }
     [[nodiscard]] std::vector<std::int16_t> getSelectedCharIds() const;
 
-    void init(const std::vector<std::wstring> &title, const std::vector<std::int16_t> &charIds,
-              const std::vector<ValueType> &valueTypes,
-              const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler = nullptr,
-              const std::function<bool(ValueType, std::int16_t)> &filterFunc = nullptr);
-    void initWithTeamMembers(const std::vector<std::wstring> &title, const std::vector<ValueType> &valueTypes,
-              const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler = nullptr,
-              const std::function<bool(ValueType, std::int16_t)> &filterFunc = nullptr);
-    void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) override;
+    void init(CharacterListSnapshot snapshot,
+              std::shared_ptr<MenuSelectionSink> selectionSink);
     void makeCenter(int w, int h, int x, int y) override;
-    void render() override;
+    void prepareRender() override;
+    void render() const override;
 
 private:
-    std::function<bool(std::int16_t)> onCheckBoxToggle2_;
     std::vector<std::int16_t> charIdList_;
     Node *msgBox_ = nullptr;
+    int layoutAnchorX_ = 0;
+    int layoutAnchorY_ = 0;
+    int centerWidth_ = 0;
+    int centerHeight_ = 0;
+    int centerX_ = 0;
+    int centerY_ = 0;
+    bool centerRequested_ = false;
 };
 
 }

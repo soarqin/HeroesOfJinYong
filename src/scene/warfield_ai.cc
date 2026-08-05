@@ -1,11 +1,11 @@
 #include "warfield.hh"
 
+#include "battle_presentation_snapshot_builder.hh"
 #include "battle/ai_policy.hh"
 #include "battle/ai_strategy.hh"
 #include "battle/combat_rules.hh"
 #include "battle/movement.hh"
 #include "battle/turn_order.hh"
-#include "itemview.hh"
 #include "world/action.hh"
 #include "world/bag.hh"
 #include "world/savedata.hh"
@@ -26,7 +26,7 @@ void Warfield::autoAction() {
         return;
     }
     auto *ch = currentActor_;
-    if (!ch) { stage_ = Idle; return; }
+    if (!ch) { setStage(Idle); return; }
     const auto resumeAutoAttack = resumeAutoAttack_;
     resumeAutoAttack_ = false;
     const auto currentAiStats = [](const CharInfo &actor) {
@@ -252,7 +252,7 @@ void Warfield::autoAction() {
                     cell = cell->moveParent;
                 }
                 resumeAutoAttack_ = battle::shouldResumeAutoAttack(true);
-                stage_ = Moving;
+                setStage(Moving);
                 return;
             }
         }
@@ -304,11 +304,31 @@ void Warfield::autoAction() {
                         return;
                     }
                 }
-                stage_ = PoppingUp;
-                auto *msgBox = ItemView::popupUseResult(this, resourceItemId, changes);
-                msgBox->setCloseHandler([this, ch] {
-                    if (currentActor_ != ch) { return; }
-                    endTurn(ch);
+                setStage(PoppingUp);
+                setPresentationStage(BattlePresentationStage::ItemResult);
+                pendingItemResultActorId_ = ch->id;
+                pendingItemResultItemId_ = resourceItemId;
+                std::vector<BattleItemChange> changeValues;
+                changeValues.reserve(changes.size());
+                for (const auto &[property, value]: changes) {
+                    changeValues.push_back({static_cast<std::int16_t>(property), value});
+                }
+                const auto actorId = ch->id;
+                const auto sessionToken = presentationSessionToken();
+                const auto actionGeneration = presentationGeneration_;
+                auto messages = buildBattleItemResultMessages(
+                    resourceItemId, changes);
+                postCommand([sessionToken, actorId, actionGeneration,
+                             itemId = resourceItemId,
+                             changes = std::move(changeValues),
+                             messages = std::move(messages)](
+                                SceneCommandContext &context) mutable {
+                    BattleItemResultRequest request{
+                        sessionToken, actorId, itemId, std::move(changes)};
+                    request.actionGeneration = actionGeneration;
+                    request.expectedStage = BattlePresentationStage::ItemResult;
+                    request.messages = std::move(messages);
+                    context.showBattleItemResult(std::move(request));
                 });
             };
         } else {
@@ -375,14 +395,14 @@ void Warfield::autoAction() {
                     movingPath_.emplace_back(cell->x, cell->y);
                     cell = cell->moveParent;
                 }
-                stage_ = Moving;
+                setStage(Moving);
                 return;
             }
         }
         if (resourceSupportPosition
             && (*resourceSupportPosition != std::make_pair<int, int>(ch->x, ch->y))) {
             movingPath_ = std::move(resourceMovingPath);
-            stage_ = Moving;
+            setStage(Moving);
             return;
         }
         battle::runPendingAction(pendingAutoAction_);

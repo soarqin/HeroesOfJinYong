@@ -53,6 +53,11 @@ int Application::run() {
             if (window_.quitRequested()) { break; }
         }
 
+        if (window_.quitRequested()) { break; }
+
+        if (!window_.prepareRender()) {
+            return 1;
+        }
         window_.render();
         if (!window_.flush()) {
             continue;

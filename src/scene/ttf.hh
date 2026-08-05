@@ -65,17 +65,33 @@ public:
     explicit TTF(Renderer *renderer);
     ~TTF();
 
-    void init(int size, std::uint8_t width = 0);
+    bool init(int size, std::uint8_t width = 0);
     void deinit();
     bool add(const std::string& filename, int index = 0);
+    [[nodiscard]] bool ready() const noexcept { return ready_; }
+    [[nodiscard]] bool hasFont() const noexcept { return !fonts_.empty(); }
     void charDimension(std::uint32_t ch, std::uint8_t &width, std::int8_t &t, std::int8_t &b, int fontSize = -1);
     int stringWidth(const std::wstring &str, int fontSize = -1);
+    bool preparedCharDimension(std::uint32_t ch, std::uint8_t &width,
+                               std::int8_t &t, std::int8_t &b, int fontSize = -1) const;
+    /** Read a glyph advance from font data without allocating render resources. */
+    bool measureCharAdvance(std::uint32_t ch, int &advance,
+                            int fontSize = -1) noexcept;
+    /** Populate glyph resources during prepareRender; never call from render. */
+    bool prepareText(std::wstring_view str, int fontSize = -1);
+    /** Read-only width lookup for logic/layout consumers. */
+    int preparedStringWidth(std::wstring_view str, int fontSize = -1) const;
 
     inline int fontSize() const { return fontSize_; }
     void setColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
     void setAltColor(int index, std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
+    /** Draw only glyphs prepared by prepareText; this overload uses setColor. */
     void render(std::wstring_view str, int x, int y, bool shadow, int fontSize = -1);
+    void renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize = -1);
+    /** Draw prepared glyphs with an explicit color. */
+    void renderPrepared(std::wstring_view str, int x, int y, bool shadow, int fontSize,
+                        std::uint8_t r, std::uint8_t g, std::uint8_t b);
 
 private:
     const FontData *makeCache(std::uint32_t ch, int fontSize = - 1);
@@ -88,6 +104,9 @@ protected:
 
 private:
     Renderer *renderer_;
+
+    bool ready_ = true;
+    bool initialized_ = false;
 
     std::uint8_t altR_[16] = {}, altG_[16] = {}, altB_[16] = {};
     std::vector<Texture*> textures_;

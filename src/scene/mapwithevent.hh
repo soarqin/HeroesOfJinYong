@@ -20,21 +20,36 @@
 #pragma once
 
 #include "map.hh"
-#include "extendednode.hh"
 #include "event/vm.hh"
+#include "logic/presentation.hh"
+#include "logic/map_input.hh"
+#include "logic/submap_contract.hh"
 
 #include <functional>
+#include <array>
 #include <list>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
+
+namespace hojy::world::state {
+struct SubMapEventData;
+}
 
 namespace hojy::scene {
 
 class MapWithEvent: public Map,
                     public event::VmHost,
-                    public event::LegacyVmHost {
+                    public event::LegacyVmHost,
+                    private MapInputContext {
 public:
-    using Map::Map;
+    struct EventContinuationState final {
+        MapWithEvent *owner = nullptr;
+    };
+
+    MapWithEvent(Renderer *renderer, int x, int y, int width, int height,
+                 std::pair<int, int> scale);
 
     // Keep the polymorphic key function in the MapWithEvent translation unit.
     // Without an out-of-line destructor, LTO may emit incompatible implicit
@@ -46,6 +61,20 @@ public:
     void runEvent(std::int16_t evt);
     void onUseItem(std::int16_t itemId);
 
+    /** Apply a presentation result at the fixed-logic command barrier. */
+    void applyEventInputContinuation(std::uint64_t token, std::int16_t value,
+                                     bool writesMemory,
+                                     std::int32_t destination);
+    void applyEventMenuContinuation(std::uint64_t token,
+                                    std::int32_t destination,
+                                    const EventMenuResult &result);
+    [[nodiscard]] std::uint64_t eventSessionToken() const noexcept {
+        return eventSessionGeneration_;
+    }
+    [[nodiscard]] bool isCurrentEventSession(std::uint64_t token) const noexcept {
+        return token != 0 && token == eventSessionGeneration_;
+    }
+
     [[nodiscard]] std::int16_t currX() const { return currX_; }
     [[nodiscard]] std::int16_t currY() const { return currY_; }
     [[nodiscard]] Map::Direction direction() const { return direction_; }
@@ -54,7 +83,9 @@ public:
     void move(Direction direction);
 
     void update() override;
-    void handleKeyInput(Key key) override;
+    void applyInputLogic() override;
+    void prepareRender() override;
+    void consumeKeyIntent(Key key) override;
     event::VmResult execute(const event::Instruction &instruction,
                             event::EventMemory &memory) override;
     bool decodeLegacy(const std::vector<std::int16_t> &program,
@@ -71,18 +102,36 @@ protected:
     void checkEvent(int type, int x, int y);
 
     bool getFaceOffset(int &x, int &y);
-    void renderChar(int deltaY = 0);
+    void renderChar(int deltaY = 0) const;
     inline void showChar(bool show = true) { showChar_ = show; }
 
     virtual bool tryMove(int x, int y, bool checkEvent) { return false; }
-    virtual void updateMainCharTexture() {}
+    virtual void updateMainCharSpriteId() {}
 
     void resetTime() override;
     void frameUpdate() override;
     virtual bool checkTime();
-    virtual void setCellTexture(int x, int y, int layer, std::int16_t tex) {}
+    virtual void setCellSpriteId(int x, int y, int layer, std::int16_t spriteId) {}
+    virtual void synchronizeCommittedSubMapState(
+        std::int16_t subMapId,
+        const logic::SubMapStateSnapshot &snapshot) noexcept {}
 
-    void ensureExtendedNode();
+    bool validateSubMapStateCandidate(
+        std::int16_t subMapId,
+        const ::hojy::world::state::SubMapEventData &events,
+        const std::vector<std::int16_t> &eventLayer,
+        logic::SubMapStateSnapshot &snapshot) const;
+
+    std::uint64_t beginEventContinuation();
+    std::shared_ptr<EventInputContinuation> createEventInputContinuation(
+        std::uint64_t token, std::int32_t destination, bool writesMemory);
+    std::shared_ptr<EventMenuContinuation> createEventMenuContinuation(
+        std::uint64_t token, std::int32_t destination);
+    void postEventOverlay(std::shared_ptr<const EventOverlayOperation> operation);
+
+    void requestMove(InputKey key) override;
+    void requestInteract() override;
+    void requestOpenMenu() override;
 
 private:
     static bool closePopup(MapWithEvent *map);
@@ -167,8 +216,16 @@ protected:
     std::int16_t currEventId_ = -1;
     std::int16_t currEventItem_ = -1;
     bool pendingSubEventWaiting_ = false;
+    std::uint64_t nextEventContinuationToken_ = 0;
+    std::uint64_t activeEventContinuationToken_ = 0;
+    std::uint64_t eventSessionGeneration_ = 0;
+    std::uint64_t eventTimeoutDeadline_ = 0;
+    std::uint64_t eventTimeoutContinuationToken_ = 0;
+    std::shared_ptr<EventContinuationState> eventContinuationState_;
 
-    const Texture *mainCharTex_ = nullptr;
+    std::int16_t mainCharSpriteId_ = -1;
+    std::int16_t preparedMainCharSpriteId_ = -1;
+    const Texture *preparedMainCharTex_ = nullptr;
     Direction direction_ = DirUp;
 
     bool showChar_ = true;
@@ -181,8 +238,10 @@ protected:
     std::list<std::function<bool()>> pendingSubEvents_;
     std::vector<std::pair<std::int16_t, std::int16_t>> moving_;
     bool movingChar_ = false;
+    std::unique_ptr<MapInputMode> mapInputMode_;
+    std::optional<InputKey> pendingInputKey_;
+    std::unique_ptr<MapInputAction> pendingInputAction_;
 
-    ExtendedNode *extendedNode_ = nullptr;
     event::Vm eventVm_;
 };
 

@@ -19,36 +19,82 @@
 
 #pragma once
 
+#include "logic/title_input_mode.hh"
+#include "logic/title_snapshot.hh"
 #include "nodewithcache.hh"
 #include "texture.hh"
+#include "world/new_game_transaction.hh"
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <variant>
 
 namespace hojy::scene {
 
-class Title final: public NodeWithCache {
+class Title final: public NodeWithCache, public TitleInputExecutionContext {
 public:
     using NodeWithCache::NodeWithCache;
     ~Title() override;
 
-    void init();
-    void update() override;
-    void handleKeyInput(Key key) override;
-    void handleTextInput(const std::wstring &str) override;
+    [[nodiscard]] bool init();
+    void setFontSize(int size) noexcept { fontSize_ = size > 0 ? size : 16; }
+
+    [[nodiscard]] const TitleScreenSnapshot &screenSnapshot() const noexcept {
+        return snapshot_;
+    }
+
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
+    void consumeTextIntent(const std::wstring &str) override;
+
+    // TitleInputExecutionContext
+    void executeMoveSelection(int delta) override;
+    void executeActivateMainSelection() override;
+    void executeActivateLoadSelection() override;
+    void executeReturnToMainMenu() override;
+    void executeAppendName(std::wstring text) override;
+    void executeEraseName() override;
+    void executeSubmitName() override;
+    void executeSelectConfirmation(int index) override;
+    void executeActivateConfirmation() override;
+    void executeRerollCandidate() override;
 
 private:
+    bool prepareTextResources() override;
     void makeCache() override;
-    void ensureConfirmationMenu();
-    bool prepareNewGame();
-    void doRandomBaseInfo();
-    void drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType = -1);
-    void recalcInputRect();
+
+    void enterMainMenu();
+    void enterLoadMenu();
+    void enterNameEntry();
+    void enterPreview();
+    void showInputFailure();
+    void startDefaultNewGame();
+    void startNameEntry();
+    void requestLoadMenu();
+    void requestQuit();
+    [[nodiscard]] bool prepareCandidate();
+    [[nodiscard]] bool setCandidateIdentity();
+    [[nodiscard]] bool rerollCandidate();
+    void queueTextInputRect();
+    void queueCandidateActivation();
 
 private:
     TextureMgr titleTextureMgr_;
     Texture *big_ = nullptr;
-    Node *menu_ = nullptr;
-    int mode_ = 0;
-    size_t currSel_ = 0;
+
+    std::unique_ptr<TitleInputMode> inputMode_ =
+        std::make_unique<TitleMainMenuInputMode>();
+    TitleScreenSnapshot snapshot_ = TitleMainMenuSnapshot{};
+    std::variant<std::monostate, Key, std::wstring> pendingInput_;
+
+    int selection_ = 0;
+    int confirmationIndex_ = 0;
     std::wstring mainCharName_;
+    int fontSize_ = 16;
+    std::optional<::hojy::world::state::NewGameCandidate> candidate_;
+    std::uint64_t snapshotGeneration_ = 0;
 };
 
 }

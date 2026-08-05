@@ -1,6 +1,6 @@
 #include "mapwithevent.hh"
 
-#include "window.hh"
+#include "window_command.hh"
 #include "content/event.hh"
 
 #include <cstdio>
@@ -258,16 +258,26 @@ event::LegacyHostResult MapWithEvent::executeLegacy(
     case 7:
         (void)exitEventList(this);
         return {event::VmStatus::Completed, false, {}};
-    case 6:
+    case 6: {
         if (instruction.operands.size() != 2) {
             return {event::VmStatus::Faulted, false,
                     "legacy battle operand count mismatch"};
         }
-        if (gWindow->enterWar(instruction.operands[0],
-                              instruction.operands[1] > 0)) {
-            return {event::VmStatus::Waiting, false, {}};
-        }
-        return {event::VmStatus::Running, false, {}};
+        const auto warId = instruction.operands[0];
+        const auto getExpOnLose = instruction.operands[1] > 0;
+        const auto eventSession = eventSessionToken();
+        postOwnedSceneCommand(
+            this,
+            [eventSession, warId, getExpOnLose](
+                MapWithEvent &owner, SceneCommandContext &context) {
+            if (!owner.isCurrentEventSession(eventSession)) { return; }
+            if (!context.enterWar(warId, getExpOnLose)
+                && owner.isCurrentEventSession(eventSession)) {
+                owner.continueEvents(false);
+            }
+        });
+        return {event::VmStatus::Waiting, false, {}};
+    }
     case 50:
         if (instruction.conditional) {
             return invokeLegacyHandler<&MapWithEvent::checkHas5Item>(
@@ -306,10 +316,21 @@ event::LegacyHostResult MapWithEvent::executeLegacy(
 }
 
 void MapWithEvent::cleanupEvents() {
+    const auto oldSession = eventSessionGeneration_;
+    if (oldSession != 0) {
+        postSceneCommand(this, [oldSession](SceneCommandContext &context) {
+            context.clearEventPresentation({oldSession});
+        });
+    }
+    ++eventSessionGeneration_;
+    if (eventSessionGeneration_ == 0) { eventSessionGeneration_ = 1; }
     currEventPaused_ = false;
     currEventId_ = -1;
     currEventItem_ = -1;
     pendingSubEventWaiting_ = false;
+    activeEventContinuationToken_ = 0;
+    eventTimeoutDeadline_ = 0;
+    eventTimeoutContinuationToken_ = 0;
     pendingSubEvents_.clear();
     moving_.clear();
     movingChar_ = false;
@@ -317,10 +338,49 @@ void MapWithEvent::cleanupEvents() {
     animCurrTex_[0] = animCurrTex_[1] = animCurrTex_[2] = 0;
     animEndTex_[0] = animEndTex_[1] = animEndTex_[2] = 0;
     eventVm_.reset();
-    if (extendedNode_) {
-        extendedNode_->requestDelete();
-        extendedNode_ = nullptr;
+}
+
+std::uint64_t MapWithEvent::beginEventContinuation() {
+    ++nextEventContinuationToken_;
+    if (nextEventContinuationToken_ == 0) {
+        ++nextEventContinuationToken_;
     }
+    activeEventContinuationToken_ = nextEventContinuationToken_;
+    return activeEventContinuationToken_;
+}
+
+void MapWithEvent::applyEventInputContinuation(std::uint64_t token,
+                                               std::int16_t value,
+                                               bool writesMemory,
+                                               std::int32_t destination) {
+    if (token == 0 || token != activeEventContinuationToken_
+        || !eventVm_.legacyWaiting()) {
+        return;
+    }
+    activeEventContinuationToken_ = 0;
+    if (writesMemory && !eventVm_.memory().writeWord(destination, value)) {
+        std::fprintf(stderr, "failed to write event continuation result\n");
+        cleanupEvents();
+        return;
+    }
+    continueEvents(false);
+}
+
+void MapWithEvent::applyEventMenuContinuation(
+        std::uint64_t token, std::int32_t destination,
+        const EventMenuResult &result) {
+    if (token == 0 || token != activeEventContinuationToken_
+        || !eventVm_.legacyWaiting()) {
+        return;
+    }
+    activeEventContinuationToken_ = 0;
+    const auto value = result.accepted ? result.selection : 0;
+    if (!eventVm_.memory().writeWord(destination, value)) {
+        std::fprintf(stderr, "failed to write event menu result\n");
+        cleanupEvents();
+        return;
+    }
+    continueEvents(false);
 }
 
 void MapWithEvent::continueEvents(bool result) {
@@ -376,6 +436,13 @@ void MapWithEvent::continueEvents(bool result) {
 }
 
 void MapWithEvent::runEvent(std::int16_t evt) {
+    // A new VM program invalidates every presentation result belonging to the
+    // previous program. Otherwise a stale menu/key callback could resume the
+    // newly loaded program while it happens to be waiting.
+    const auto eventId = currEventId_;
+    cleanupEvents();
+    currEventId_ = eventId;
+    activeEventContinuationToken_ = 0;
     eventVm_.loadLegacy(::hojy::content::gEvent.event(evt));
     currEventPaused_ = eventVm_.legacyActive();
     pendingSubEventWaiting_ = false;

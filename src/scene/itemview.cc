@@ -19,12 +19,8 @@
 
 #include "itemview.hh"
 
-#include "window.hh"
-#include "charlistmenu.hh"
-#include "world/savedata.hh"
-#include "world/strings.hh"
+#include <algorithm>
 #include "core/config.hh"
-#include <fmt/xchar.h>
 
 namespace hojy::scene {
 
@@ -32,32 +28,67 @@ enum {
     ItemCellSpacing = 5,
 };
 
-void ItemView::show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc) {
+ItemView::~ItemView() {
+    if (selectionLifetime_) {
+        selectionLifetime_->alive = false;
+    }
+}
+
+void ItemView::show(std::vector<ItemEntry> items,
+                    std::unique_ptr<ItemSelectionController> selectionController) {
+    if (selectionLifetime_) {
+        selectionLifetime_->alive = false;
+    }
     auto windowBorder = core::config.windowBorder();
-    inBattle_ = inBattle;
-    resultFunc_ = resultFunc;
-    items_.clear();
+    items_ = std::move(items);
+    selectionController_ = std::move(selectionController);
+    selectionLifetime_ = std::make_shared<ItemSelectionLifetime>();
+    if (selectionController_) {
+        selectionController_->bindLifetime(selectionLifetime_);
+        selectionController_->bindItems(items_);
+    }
     currTop_ = 0;
     currSel_ = 0;
-    for (auto &p: ::hojy::world::state::gBag.items()) {
-        if (inBattle) {
-            const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[p.first];
-            if (!itemInfo || (itemInfo->itemType != 3 && itemInfo->itemType != 4)) {
-                continue;
-            }
-        }
-        items_.emplace_back(std::make_pair(p.first, p.second));
-    }
-    int scale0 = gWindow->width() / 320, scale1 = gWindow->height() / 200;
-    scale_ = std::max(1, std::min(scale0, scale1));
-    cellWidth_ = gWindow->itemTexWidth() * scale_;
-    cellHeight_ = gWindow->itemTexHeight() * scale_;
-    cols_ = (width_ + ItemCellSpacing - windowBorder * 2) / (cellWidth_ + ItemCellSpacing);
-    rows_ = (height_ + ItemCellSpacing - windowBorder * 2) / (cellHeight_ + ItemCellSpacing);
-    width_ = (cellWidth_ + ItemCellSpacing) * cols_ - ItemCellSpacing + windowBorder * 2;
-    height_ = (cellHeight_ + ItemCellSpacing) * rows_ - ItemCellSpacing + windowBorder * 2;
+    if (layoutBoundsWidth_ <= 0) { layoutBoundsWidth_ = width_; }
+    if (layoutBoundsHeight_ <= 0) { layoutBoundsHeight_ = height_; }
+    presentationGeometryReady_ = false;
+    requestPresentationRefresh();
+}
+
+void ItemView::setItems(std::vector<ItemEntry> items) {
+    items_ = std::move(items);
+    if (selectionController_) { selectionController_->bindItems(items_); }
     normalizeSelection();
-    setDirty();
+    requestPresentationRefresh();
+}
+
+void ItemView::closeItemSelection() {
+    if (selectionLifetime_) {
+        selectionLifetime_->alive = false;
+    }
+    requestPresentationCleanup();
+}
+
+void ItemView::replaceItemSelection(std::vector<ItemViewEntrySnapshot> items) {
+    setItems(std::move(items));
+}
+
+void ItemView::showCharacterSelection(CharacterSelectionRequest request) {
+    postCommand([request = std::move(request)](SceneCommandContext &context) mutable {
+        context.showCharacterSelection(std::move(request));
+    });
+}
+
+void ItemView::showItemMessage(ItemMessageRequest request) {
+    postCommand([request = std::move(request)](SceneCommandContext &context) mutable {
+        context.showItemMessage(std::move(request));
+    });
+}
+
+void ItemView::useQuestItem(std::int16_t itemId) {
+    postCommand([itemId](SceneCommandContext &context) {
+        context.useQuestItem(itemId);
+    });
 }
 
 void ItemView::update() {
@@ -79,121 +110,30 @@ void ItemView::normalizeSelection() {
     currSel_ = std::clamp(currSel_, 0, std::max(0, visible - 1));
 }
 
-void ItemView::handleKeyInput(Node::Key key) {
+void ItemView::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void ItemView::applyInputLogic() {
+    if (!presentationGeometryReady_) { return; }
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
     normalizeSelection();
     if (items_.empty() || cols_ <= 0 || rows_ <= 0) { return; }
     switch (key) {
     case KeyOK: case KeySpace: {
-        auto &ipair = items_[currSel_ + currTop_ * cols_];
-        std::int16_t id = ipair.first;
-        const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[id];
-        if (!itemInfo) { break; }
-        if (inBattle_) {
-            switch (itemInfo->itemType) {
-            case 3: {
-                std::map<::hojy::world::state::PropType, std::int16_t> changes;
-                if (::hojy::world::state::useItem(charInfo_, id, changes)) {
-                    auto fn = std::move(resultFunc_);
-                    auto *parent = parent_;
-                    requestDelete();
-                    auto *msgBox = popupUseResult(parent, id, changes);
-                    msgBox->setCloseHandler([fn] {
-                        if (fn) { fn(-1); }
-                    });
-                } else {
-                    requestDelete();
-                }
-                return;
-            }
-            case 4: {
-                auto fn = std::move(resultFunc_);
-                requestDelete();
-                if (fn) { fn(id); }
-                return;
-            }
-            default:
-                break;
-            }
-            return;
+        const auto id = items_[currSel_ + currTop_ * cols_].itemId;
+        if (selectionController_) {
+            selectionController_->select(*this, id);
         }
-        auto type = itemInfo->itemType;
-        switch (type) {
-        case 1:
-        case 2: {
-            auto *clm = new CharListMenu(this, 0, 0, width_, height_);
-            clm->initWithTeamMembers({GETTEXT(type == 1 ? 38 : 39) + GETITEMNAME(id)}, {},
-                                     [this, itemInfo, id, type, clm](std::int16_t charId) {
-                                         if (type == 2 && itemInfo->user >= 0) {
-                                             auto *msgBox = new MessageBox(clm, 0, 0, gWindow->width(), gWindow->height());
-                                             msgBox->setYesNoHandler([this, id, charId, clm]() {
-                                                 if (::hojy::world::state::skillFull(charId)) {
-                                                     auto *msgBox = new MessageBox(parent_,
-                                                                                   0,
-                                                                                   0,
-                                                                                   gWindow->width(),
-                                                                                   gWindow->height());
-                                                     msgBox->popup({GETTEXT(42)}, MessageBox::PressToCloseThis);
-                                                 } else if (!::hojy::world::state::equipItem(charId, id)) {
-                                                     auto *msgBox = new MessageBox(parent_,
-                                                                                   0,
-                                                                                   0,
-                                                                                   gWindow->width(),
-                                                                                   gWindow->height());
-                                                     msgBox->popup({GETTEXT(43)}, MessageBox::PressToCloseThis);
-                                                 } else {
-                                                     setDirty();
-                                                 }
-                                                 clm->requestDelete();
-                                             }, [clm]() {
-                                                 clm->requestDelete();
-                                             });
-                                             msgBox->popup({GETTEXT(44), GETTEXT(45)}, MessageBox::YesNo);
-                                         } else {
-                                             if (!::hojy::world::state::equipItem(charId, id)) {
-                                                 auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                                                 msgBox->popup({GETTEXT(46)}, MessageBox::PressToCloseThis);
-                                             } else {
-                                                 setDirty();
-                                             }
-                                             clm->requestDelete();
-                                         }
-                                     });
-            clm->makeCenter(width_, height_, x_, y_);
-            return;
-        }
-        case 3: {
-            int x = width_ / 3, y = height_ * 2 / 7;
-            auto *clm = new CharListMenu(this, x, y, width_ - x, height_ - y);
-            clm->initWithTeamMembers({GETTEXT(36) + L' ' + GETITEMNAME(id)}, {},
-                                     [this, &ipair, id](std::int16_t charId) {
-                                         std::map<::hojy::world::state::PropType, std::int16_t> changes;
-                                         if (ipair.second && ::hojy::world::state::useItem(::hojy::world::state::gSaveData.charInfo[charId], id, changes)) {
-                                             std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
-                                             for (auto &c: changes) {
-                                                 messages.emplace_back(fmt::format(L"{} {} {}", ::hojy::world::state::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
-                                             }
-                                             auto *msgBox = new MessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-                                             msgBox->popup(messages, MessageBox::PressToCloseParent);
-                                         } else {
-                                             requestDelete();
-                                         }
-                                     });
-            return;
-        }
-        case 4:
-            return;
-        default:
-            break;
-        }
-        auto func = std::move(resultFunc_);
-        gWindow->closePopup();
-        if (func) { func(id); }
         return;
     }
     case KeyCancel: {
-        auto fn = std::move(closeHandler_);
-        requestDelete();
-        if (fn) { fn(); }
+        if (selectionController_) {
+            selectionController_->cancel(*this);
+        } else {
+            requestPresentationCleanup();
+        }
         return;
     }
     case KeyUp:
@@ -216,7 +156,7 @@ void ItemView::handleKeyInput(Node::Key key) {
             currSel_ -= cols_;
         }
         normalizeSelection();
-        setDirty();
+        requestPresentationRefresh();
         break;
     case KeyLeft:
         if (currSel_ == 0) {
@@ -235,7 +175,7 @@ void ItemView::handleKeyInput(Node::Key key) {
             --currSel_;
         }
         normalizeSelection();
-        setDirty();
+        requestPresentationRefresh();
         break;
     case KeyRight: {
         int sz = int(items_.size());
@@ -249,7 +189,7 @@ void ItemView::handleKeyInput(Node::Key key) {
             }
         }
         normalizeSelection();
-        setDirty();
+        requestPresentationRefresh();
         break;
     }
     case KeyDown: {
@@ -265,7 +205,7 @@ void ItemView::handleKeyInput(Node::Key key) {
             }
         }
         normalizeSelection();
-        setDirty();
+        requestPresentationRefresh();
         break;
     }
     default:
@@ -273,14 +213,68 @@ void ItemView::handleKeyInput(Node::Key key) {
     }
 }
 
-MessageBox *ItemView::popupUseResult(Node *parent, std::int16_t id, const std::map<::hojy::world::state::PropType, std::int16_t> &changes) {
-    std::vector<std::wstring> messages = {GETTEXT(37) + L' ' + GETITEMNAME(id)};
-    for (auto &c: changes) {
-        messages.emplace_back(fmt::format(L"{} {} {}", ::hojy::world::state::propToName(c.first), GETTEXT(c.second ? 34 : 35), c.second));
+void ItemView::prepareRender() {
+    const auto *atlas = renderer_ ? renderer_->itemAtlas() : nullptr;
+    const auto atlasWidth = renderer_ ? renderer_->itemTexWidth() : 0;
+    const auto atlasHeight = renderer_ ? renderer_->itemTexHeight() : 0;
+    const bool atlasChanged = atlas != itemAtlas_
+        || atlasWidth != itemTexW_ || atlasHeight != itemTexH_;
+    itemAtlas_ = atlas;
+    itemTexW_ = atlasWidth;
+    itemTexH_ = atlasHeight;
+
+    const auto windowBorder = core::config.windowBorder();
+    const int scale0 = rootWidth() / 320;
+    const int scale1 = rootHeight() / 200;
+    const int nextScale = std::max(1, std::min(scale0, scale1));
+    const int nextCellWidth = itemTexW_ * nextScale;
+    const int nextCellHeight = itemTexH_ * nextScale;
+    const int nextCols = nextCellWidth > 0
+        ? (layoutBoundsWidth_ + ItemCellSpacing - windowBorder * 2)
+            / (nextCellWidth + ItemCellSpacing)
+        : 0;
+    const int nextRows = nextCellHeight > 0
+        ? (layoutBoundsHeight_ + ItemCellSpacing - windowBorder * 2)
+            / (nextCellHeight + ItemCellSpacing)
+        : 0;
+    const bool geometryChanged = !presentationGeometryReady_
+        || atlasChanged || nextScale != scale_ || nextCellWidth != cellWidth_
+        || nextCellHeight != cellHeight_ || nextCols != cols_ || nextRows != rows_;
+    scale_ = nextScale;
+    cellWidth_ = nextCellWidth;
+    cellHeight_ = nextCellHeight;
+    cols_ = std::max(0, nextCols);
+    rows_ = std::max(0, nextRows);
+    if (cellWidth_ > 0 && cellHeight_ > 0 && cols_ > 0 && rows_ > 0) {
+        width_ = (cellWidth_ + ItemCellSpacing) * cols_
+            - ItemCellSpacing + windowBorder * 2;
+        height_ = (cellHeight_ + ItemCellSpacing) * rows_
+            - ItemCellSpacing + windowBorder * 2;
+        presentationGeometryReady_ = true;
+    } else {
+        presentationGeometryReady_ = false;
     }
-    auto *msgBox = new MessageBox(parent, 0, 0, gWindow->width(), gWindow->height());
-    msgBox->popup(messages, MessageBox::PressToCloseThis);
-    return msgBox;
+    if (geometryChanged) { requestPresentationRefresh(); }
+    NodeWithCache::prepareRender();
+}
+
+bool ItemView::prepareTextResources() {
+    auto *ttf = renderer_->ttf();
+    bool ready = true;
+    for (const auto &entry: items_) {
+        ready = ttf->prepareText(std::to_wstring(entry.count)) && ready;
+        ready = ttf->prepareText(entry.displayText) && ready;
+        ready = ttf->prepareText(entry.description) && ready;
+        ready = ttf->prepareText(entry.requirementTitle) && ready;
+        ready = ttf->prepareText(entry.effectTitle) && ready;
+        for (const auto &line: entry.requirementLines) {
+            ready = ttf->prepareText(line) && ready;
+        }
+        for (const auto &line: entry.effectLines) {
+            ready = ttf->prepareText(line) && ready;
+        }
+    }
+    return ready;
 }
 
 void ItemView::makeCache() {
@@ -292,20 +286,26 @@ void ItemView::makeCache() {
     int x, y = windowBorder;
     int idx = currTop_ * cols_;
     auto totalSz = int(items_.size());
-    if (totalSz == 0) {
+    if (totalSz == 0 || cols_ <= 0 || rows_ <= 0) {
         cacheEnd();
         return;
     }
     auto *ttf = renderer_->ttf();
-    int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
+    int smallFontSize = std::max(8, (renderer_->fontSize() * 2 / 3 + 1) & ~1);
     ttf->setColor(236, 236, 236);
     for (int j = rows_; j && idx < totalSz; --j) {
         x = windowBorder;
         for (int i = cols_; i && idx < totalSz; --i, ++idx) {
-            gWindow->renderItemTexture(items_[idx].first, x, y, cellWidth_, cellHeight_);
-            auto countStr = std::to_wstring(items_[idx].second);
-            int countw = ttf->stringWidth(countStr, smallFontSize);
-            ttf->render(countStr, x + cellWidth_ - countw - 4 * scale_, y + cellHeight_ - smallFontSize - 4 * scale_, true, smallFontSize);
+            if (itemAtlas_ && itemTexW_ > 0 && itemTexH_ > 0) {
+                const int columns = std::max(1, 1024 / itemTexW_);
+                renderer_->renderTexture(itemAtlas_, x, y, cellWidth_, cellHeight_,
+                                         itemTexW_ * (items_[idx].itemId % columns),
+                                         itemTexH_ * (items_[idx].itemId / columns),
+                                         itemTexW_, itemTexH_, true);
+            }
+            auto countStr = std::to_wstring(items_[idx].count);
+            int countw = ttf->preparedStringWidth(countStr, smallFontSize);
+            ttf->renderPrepared(countStr, x + cellWidth_ - countw - 4 * scale_, y + cellHeight_ - smallFontSize - 4 * scale_, true, smallFontSize);
             x += cellWidth_ + ItemCellSpacing;
         }
         y += cellHeight_ + ItemCellSpacing;
@@ -319,109 +319,14 @@ void ItemView::makeCache() {
         cacheEnd();
         return;
     }
-    auto itemId = items_[idx].first;
-    const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
-    if (itemInfo) {
-        /* show description */
-        std::wstring display;
-        if (items_[idx].second > 1) {
-            display = fmt::format(L"{} x{}", GETITEMNAME(itemId), items_[idx].second);
-        } else {
-            display = fmt::format(L"{}", GETITEMNAME(itemId), items_[idx].second);
-        }
-        std::wstring desc;
-        if (items_[idx].first == ::hojy::content::ItemIDCompass) {
-            auto *map = gWindow->globalMap();
-            if (core::config.shipLogicEnabled()) {
-                desc = fmt::format(GETTEXT(40), map->currX(), map->currY(),
-                                   ::hojy::world::state::gSaveData.baseInfo->shipX, ::hojy::world::state::gSaveData.baseInfo->shipY);
-            } else {
-                desc = fmt::format(GETTEXT(116), map->currX(), map->currY());
-            }
-        } else {
-            desc = GETITEMDESC(itemId);
-        }
-        auto lineheight = ttf->fontSize() + TextLineSpacing;
+    const auto &entry = items_[idx];
+    {
+        auto lineheight = renderer_->fontSize() + TextLineSpacing;
         int dx = 0, dy;
-        int addLine = 0, reqLine = 0;
-        std::wstring addStr[2], reqStr[2];
-        switch (itemInfo->itemType) {
-        case 1:
-        case 2:
-            if (itemInfo->charOnly >= 0) {
-                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}", GETCHARNAME(itemInfo->charOnly));
-            }
-            if (itemInfo->reqMpType == 0 || itemInfo->reqMpType == 1) {
-                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}={}", GETTEXT(5), GETTEXT(119 + itemInfo->reqMpType));
-            }
-#define CheckReq(n, textid) \
-            if (itemInfo->n != 0) { \
-                reqStr[reqStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}{}{}", GETTEXT(textid), GETTEXT(121 + (itemInfo->n < 0 ? 1 : 0)), std::abs(itemInfo->n)); \
-            }
-            CheckReq(reqMp, 26)
-            CheckReq(reqAttack, 101)
-            CheckReq(reqSpeed, 9)
-            CheckReq(reqPoison, 104)
-            CheckReq(reqMedic, 103)
-            CheckReq(reqDepoison, 105)
-            CheckReq(reqFist, 106)
-            CheckReq(reqSword, 107)
-            CheckReq(reqBlade, 108)
-            CheckReq(reqSpecial, 123)
-            CheckReq(reqThrowing, 109)
-            CheckReq(reqPotential, 29)
-#undef CheckReq
-            if (!reqStr[1].empty()) {
-                reqLine = 3;
-            } else if (!reqStr[0].empty()) {
-                reqLine = 2;
-            }
-            /* fallthrough */
-        case 3: case 4:
-            if (itemInfo->skillId > 0) {
-                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}", GETTEXT(130), GETSKILLNAME(itemInfo->skillId));
-            }
-            if (itemInfo->addDoubleAttack) {
-                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}", GETTEXT(130), GETTEXT(22));
-            }
-            if (itemInfo->changeMpType > 0) {
-                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L"{}{}{}", GETTEXT(5), GETTEXT(128), GETTEXT(itemInfo->changeMpType == 1 ? 120 : 129));
-            }
-#define CheckAdd(n, textid) \
-            if (itemInfo->n != 0) { \
-                addStr[addStr[0].size() < 24 ? 0 : 1] += fmt::format(L" {}{:+}", GETTEXT(textid), itemInfo->n); \
-            }
-            CheckAdd(addHp, 25)
-            CheckAdd(addMaxHp, 25)
-            CheckAdd(addPoisoned, 3)
-            CheckAdd(addStamina, 4)
-            CheckAdd(addMp, 26)
-            CheckAdd(addMaxMp, 26)
-            CheckAdd(addAttack, 101)
-            CheckAdd(addSpeed, 9)
-            CheckAdd(addDefence, 102)
-            CheckAdd(addMedic, 103)
-            CheckAdd(addPoison, 104)
-            CheckAdd(addDepoison, 105)
-            CheckAdd(addAntipoison, 14)
-            CheckAdd(addFist, 106)
-            CheckAdd(addSword, 107)
-            CheckAdd(addBlade, 108)
-            CheckAdd(addSpecial, 123)
-            CheckAdd(addThrowing, 109)
-            CheckAdd(addKnowledge, 20)
-            CheckAdd(addIntegrity, 21)
-            CheckAdd(addPoisonAmp, 23)
-#undef CheckAdd
-            if (!addStr[1].empty()) {
-                addLine = 3;
-            } else if (!addStr[0].empty()) {
-                addLine = 2;
-            }
-            break;
-        default:
-            break;
-        }
+        const auto reqLine = entry.requirementTitle.empty()
+            ? 0 : static_cast<int>(entry.requirementLines.size()) + 1;
+        const auto addLine = entry.effectTitle.empty()
+            ? 0 : static_cast<int>(entry.effectLines.size()) + 1;
         if (currSel_ / cols_ * 2 < rows_) {
             /* draw on bottom side */
             dy = height_ - lineheight * (addLine + reqLine + 2) - windowBorder * 2 + TextLineSpacing;
@@ -436,34 +341,44 @@ void ItemView::makeCache() {
         dy += windowBorder;
         dw -= windowBorder * 2;
         ttf->setColor(236, 200, 40);
-        if (itemInfo->user < 0 || ::hojy::world::state::gSaveData.charInfo[itemInfo->user] == nullptr) {
-            ttf->render(display, dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
-        } else {
-            ttf->render(display + L"  (" + GETCHARNAME(itemInfo->user) + L')', dx + (dw - ttf->stringWidth(display)) / 2, dy, true);
-        }
+        ttf->renderPrepared(
+            entry.displayText,
+            dx + (dw - ttf->preparedStringWidth(entry.displayText)) / 2,
+            dy, true);
         dy += lineheight;
         ttf->setColor(252, 148, 16);
-        ttf->render(desc, dx + (dw - ttf->stringWidth(desc)) / 2, dy, true);
+        ttf->renderPrepared(
+            entry.description,
+            dx + (dw - ttf->preparedStringWidth(entry.description)) / 2,
+            dy, true);
         if (reqLine) {
             dy += lineheight;
             ttf->setColor(236, 236, 236);
-            const auto &txt = GETTEXT(116 + itemInfo->itemType);
-            ttf->render(txt, dx + (dw - ttf->stringWidth(txt)) / 2, dy, true);
+            ttf->renderPrepared(
+                entry.requirementTitle,
+                dx + (dw - ttf->preparedStringWidth(entry.requirementTitle)) / 2,
+                dy, true);
             ttf->setColor(236, 200, 40);
-            for (int i = 0; i < reqLine - 1; ++i) {
+            for (const auto &line: entry.requirementLines) {
                 dy += lineheight;
-                ttf->render(reqStr[i], dx + (dw - ttf->stringWidth(reqStr[i])) / 2, dy, true);
+                ttf->renderPrepared(
+                    line, dx + (dw - ttf->preparedStringWidth(line)) / 2,
+                    dy, true);
             }
         }
         if (addLine) {
             dy += lineheight;
             ttf->setColor(236, 236, 236);
-            const auto &txt = GETTEXT(123 + itemInfo->itemType);
-            ttf->render(txt, dx + (dw - ttf->stringWidth(txt)) / 2, dy, true);
+            ttf->renderPrepared(
+                entry.effectTitle,
+                dx + (dw - ttf->preparedStringWidth(entry.effectTitle)) / 2,
+                dy, true);
             ttf->setColor(236, 200, 40);
-            for (int i = 0; i < addLine - 1; ++i) {
+            for (const auto &line: entry.effectLines) {
                 dy += lineheight;
-                ttf->render(addStr[i], dx + (dw - ttf->stringWidth(addStr[i])) / 2, dy, true);
+                ttf->renderPrepared(
+                    line, dx + (dw - ttf->preparedStringWidth(line)) / 2,
+                    dy, true);
             }
         }
     }

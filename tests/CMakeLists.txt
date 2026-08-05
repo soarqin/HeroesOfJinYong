@@ -137,6 +137,34 @@ target_link_libraries(world_state_tests PRIVATE hojy_world)
 set_target_properties(world_state_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME world_state_tests COMMAND world_state_tests)
 
+add_executable(world_item_transaction_tests
+    world/item_transaction_tests.cc
+    content/config_stub.cc
+    ${PROJECT_SOURCE_DIR}/src/util/conv.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/src/util/random.cc)
+target_include_directories(world_item_transaction_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(world_item_transaction_tests PRIVATE hojy_world hojy_battle)
+set_target_properties(world_item_transaction_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME world_item_transaction_tests COMMAND world_item_transaction_tests)
+
+add_executable(world_new_game_transaction_tests
+    world/new_game_transaction_tests.cc
+    content/config_stub.cc
+    ${PROJECT_SOURCE_DIR}/src/util/conv.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/src/util/random.cc)
+target_include_directories(world_new_game_transaction_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(world_new_game_transaction_tests PRIVATE
+    hojy_world hojy_battle)
+set_target_properties(world_new_game_transaction_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME world_new_game_transaction_tests
+    COMMAND world_new_game_transaction_tests)
+
 add_executable(audio_channel_tests
     audio/channel_tests.cc
     ${PROJECT_SOURCE_DIR}/src/audio/channel.cc
@@ -192,8 +220,131 @@ add_executable(scene_node_lifetime_tests scene/node_lifetime_tests.cc
 target_include_directories(scene_node_lifetime_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_node_lifetime_tests PRIVATE hojy_scene_logic)
 set_target_properties(scene_node_lifetime_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME scene_node_lifetime_tests COMMAND scene_node_lifetime_tests)
+
+add_executable(scene_node_phase_tests
+    scene/node_phase_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/scene/node.cc)
+target_include_directories(scene_node_phase_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_node_phase_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_node_phase_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_node_phase_tests COMMAND scene_node_phase_tests)
+
+add_executable(scene_command_queue_tests scene/command_queue_tests.cc)
+target_include_directories(scene_command_queue_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_command_queue_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_command_queue_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_command_queue_tests COMMAND scene_command_queue_tests)
+
+add_executable(scene_render_phase_tests
+    scene/render_phase_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/scene/node.cc)
+target_include_directories(scene_render_phase_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_render_phase_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_render_phase_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_render_phase_tests COMMAND scene_render_phase_tests)
+
+add_executable(scene_extendednode_input_tests
+    scene/extendednode_input_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/tests/content/config_stub.cc)
+target_include_directories(scene_extendednode_input_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_extendednode_input_tests PRIVATE hojy_scene)
+set_target_properties(scene_extendednode_input_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_extendednode_input_tests COMMAND scene_extendednode_input_tests)
+
+add_executable(scene_warfield_input_mode_tests
+    scene/warfield_input_mode_tests.cc)
+target_include_directories(scene_warfield_input_mode_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_warfield_input_mode_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_warfield_input_mode_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_warfield_input_mode_tests COMMAND scene_warfield_input_mode_tests)
+
+add_executable(scene_title_input_mode_tests
+    scene/title_input_mode_tests.cc)
+target_include_directories(scene_title_input_mode_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_title_input_mode_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_title_input_mode_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_title_input_mode_tests COMMAND scene_title_input_mode_tests)
+
+add_executable(scene_title_snapshot_tests
+    scene/title_snapshot_tests.cc
+    content/config_stub.cc
+    ${PROJECT_SOURCE_DIR}/src/util/conv.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc)
+target_include_directories(scene_title_snapshot_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_title_snapshot_tests PRIVATE hojy_scene)
+set_target_properties(scene_title_snapshot_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_title_snapshot_tests COMMAND scene_title_snapshot_tests)
+
+add_executable(scene_title_integration_tests
+    scene/title_integration_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/core/config.cc
+    ${PROJECT_SOURCE_DIR}/src/core/resourcemgr.cc
+    ${PROJECT_SOURCE_DIR}/src/util/conv.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/src/util/math.cc
+    ${PROJECT_SOURCE_DIR}/src/util/random.cc)
+target_include_directories(scene_title_integration_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_title_integration_tests PRIVATE hojy_scene)
+set_target_properties(scene_title_integration_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_title_integration_tests COMMAND scene_title_integration_tests)
+
+add_executable(scene_battle_presentation_session_tests
+    scene/battle_presentation_session_tests.cc)
+target_include_directories(scene_battle_presentation_session_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests)
+target_link_libraries(scene_battle_presentation_session_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_battle_presentation_session_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_battle_presentation_session_tests
+    COMMAND scene_battle_presentation_session_tests)
+
+add_executable(scene_submap_contract_tests
+    scene/submap_contract_tests.cc)
+target_include_directories(scene_submap_contract_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests)
+target_link_libraries(scene_submap_contract_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_submap_contract_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_submap_contract_tests COMMAND scene_submap_contract_tests)
+
+add_executable(scene_talk_layout_tests
+    scene/talk_layout_tests.cc)
+target_include_directories(scene_talk_layout_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests)
+target_link_libraries(scene_talk_layout_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_talk_layout_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_talk_layout_tests COMMAND scene_talk_layout_tests)
+
+add_executable(scene_battle_effect_snapshot_tests
+    scene/battle_effect_snapshot_tests.cc)
+target_include_directories(scene_battle_effect_snapshot_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests)
+target_link_libraries(scene_battle_effect_snapshot_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_battle_effect_snapshot_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_battle_effect_snapshot_tests
+    COMMAND scene_battle_effect_snapshot_tests)
 
 add_executable(scene_fade_timeline_tests scene/fade_timeline_tests.cc)
 target_include_directories(scene_fade_timeline_tests PRIVATE
@@ -349,6 +500,48 @@ set_tests_properties(architecture_warfield_battle_boundary_tests PROPERTIES
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 add_test(
+    NAME architecture_logic_render_boundary_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/logic_render_boundary_tests.py -v)
+set_tests_properties(architecture_logic_render_boundary_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
+    NAME architecture_input_logic_boundary_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/input_logic_boundary_tests.py -v)
+set_tests_properties(architecture_input_logic_boundary_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
+    NAME architecture_scene_command_boundary_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/scene_command_boundary_tests.py -v)
+set_tests_properties(architecture_scene_command_boundary_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
+    NAME architecture_presentation_command_boundary_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/presentation_command_boundary_tests.py -v)
+set_tests_properties(architecture_presentation_command_boundary_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
+    NAME architecture_registration_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/architecture_registration_tests.py -v)
+set_tests_properties(architecture_registration_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
+    NAME architecture_transition_lifecycle_tests
+    COMMAND "${Python3_EXECUTABLE}" -m unittest
+            tests/architecture/transition_lifecycle_tests.py -v)
+set_tests_properties(architecture_transition_lifecycle_tests PROPERTIES
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_test(
     NAME architecture_event_vm_boundary_tests
     COMMAND "${Python3_EXECUTABLE}" -m unittest
             tests/architecture/event_vm_boundary_tests.py -v)
@@ -362,6 +555,72 @@ target_include_directories(input_scheduler_tests PRIVATE
 target_link_libraries(input_scheduler_tests PRIVATE hojy_app)
 set_target_properties(input_scheduler_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME input_scheduler_tests COMMAND input_scheduler_tests)
+
+add_executable(input_event_contract_tests app/input_event_contract_tests.cc)
+target_include_directories(input_event_contract_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(input_event_contract_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME input_event_contract_tests COMMAND input_event_contract_tests)
+
+add_executable(scene_input_port_tests scene/input_port_tests.cc)
+target_include_directories(scene_input_port_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_input_port_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_input_port_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_input_port_tests COMMAND scene_input_port_tests)
+
+add_executable(scene_map_input_mode_tests scene/map_input_mode_tests.cc)
+target_include_directories(scene_map_input_mode_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_map_input_mode_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_map_input_mode_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_map_input_mode_tests COMMAND scene_map_input_mode_tests)
+
+add_executable(scene_menu_selection_tests scene/menu_selection_tests.cc)
+target_include_directories(scene_menu_selection_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_menu_selection_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_menu_selection_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_menu_selection_tests COMMAND scene_menu_selection_tests)
+
+add_executable(scene_item_selection_controller_tests
+    scene/item_selection_controller_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/scene/item_selection_controller.cc)
+target_include_directories(scene_item_selection_controller_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_item_selection_controller_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_item_selection_controller_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_item_selection_controller_tests
+    COMMAND scene_item_selection_controller_tests)
+
+add_executable(scene_menu_widget_mode_tests
+    scene/menu_widget_mode_tests.cc
+    ${PROJECT_SOURCE_DIR}/src/core/config.cc
+    ${PROJECT_SOURCE_DIR}/src/core/resourcemgr.cc
+    ${PROJECT_SOURCE_DIR}/src/util/conv.cc
+    ${PROJECT_SOURCE_DIR}/src/util/file.cc
+    ${PROJECT_SOURCE_DIR}/src/util/math.cc
+    ${PROJECT_SOURCE_DIR}/src/util/random.cc)
+target_include_directories(scene_menu_widget_mode_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_menu_widget_mode_tests PRIVATE hojy_scene)
+set_target_properties(scene_menu_widget_mode_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_menu_widget_mode_tests COMMAND scene_menu_widget_mode_tests)
+
+add_executable(scene_rle_validation_tests
+    scene/rle_validation_tests.cc)
+target_include_directories(scene_rle_validation_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(scene_rle_validation_tests PRIVATE hojy_scene_logic)
+set_target_properties(scene_rle_validation_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_rle_validation_tests COMMAND scene_rle_validation_tests)
 
 add_executable(input_repeat_tests app/input_repeat_tests.cc)
 target_include_directories(input_repeat_tests PRIVATE

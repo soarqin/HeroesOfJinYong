@@ -1,372 +1,508 @@
 #include "window.hh"
 
 #include "charlistmenu.hh"
+#include "character_list_snapshot_builder.hh"
+#include "item_snapshot_builder.hh"
 #include "itemview.hh"
+#include "item_selection_controller.hh"
 #include "menu.hh"
+#include "menu_action_adapter.hh"
+#include "menu_commands.hh"
+#include "window_command.hh"
 #include "statusview.hh"
+#include "status_snapshot_builder.hh"
 #include "talkbox.hh"
 
-#include "audio/mixer.hh"
 #include "content/constants.hh"
-#include "core/config.hh"
 #include "content/event.hh"
-#include "world/action.hh"
-#include "world/savedata.hh"
+#include "core/config.hh"
+#include "world/item_transaction.hh"
+#include "world/menu_transaction.hh"
 #include "world/strings.hh"
 
 #include <fmt/xchar.h>
 
+#include <memory>
+#include <optional>
+#include <utility>
+
 namespace hojy::scene {
 namespace {
 
-void medicTargetMenu(Node *mainMenu, std::int16_t charId);
-void depoisonTargetMenu(Node *mainMenu, std::int16_t charId);
-void showCharStatus(Node *parent, std::int16_t charId);
-void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave);
-void optionMenu(Node *mainMenu, int x, int y);
+enum MainMenuEntry : std::int32_t {
+    MainMedic = 100,
+    MainDepoison = 101,
+    MainItems = 102,
+    MainStatus = 103,
+    MainLeaveTeam = 104,
+    MainSystem = 105,
+};
 
-void medicMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(53)}, {CharListMenu::MEDIC},
-                              [mainMenu](std::int16_t charId) {
-                                  medicTargetMenu(mainMenu, charId);
-                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value) -> bool {
-            return value > 0;
+enum SystemMenuEntry : std::int32_t {
+    SystemLoad = 200,
+    SystemSave = 201,
+    SystemOptions = 202,
+    SystemQuit = 203,
+};
+
+enum OptionMenuEntry : std::int32_t {
+    OptionMiniPanel = 300,
+    OptionMinimap = 301,
+    OptionMusic = 302,
+    OptionSound = 303,
+};
+
+void medicMenu(Window *window, Node *mainMenu);
+void medicTargetMenu(Window *window, Node *mainMenu, std::int16_t charId);
+void depoisonMenu(Window *window, Node *mainMenu);
+void depoisonTargetMenu(Window *window, Node *mainMenu, std::int16_t charId);
+void showItems(Window *window, Node *mainMenu);
+void statusMenu(Window *window, Node *mainMenu);
+void showCharStatus(Window *window, Node *parent, std::int16_t charId);
+void leaveTeamMenu(Window *window, Node *mainMenu);
+void systemMenu(Window *window, Node *mainMenu);
+void selectSaveSlotMenu(Window *window, Node *mainMenu, int x, int y, bool isSave);
+void optionMenu(Window *window, Node *mainMenu, int x, int y);
+
+template<typename Function>
+void enqueueScene(Node *node, Function function) {
+    if (!node) { return; }
+    node->postCommand(
+        [function = std::move(function)](SceneCommandContext &context) mutable {
+            function(context);
         });
 }
 
-void medicTargetMenu(Node *mainMenu, std::int16_t charId) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder() * 3;
-    auto y = mainMenu->y() + core::config.windowBorder() * 2;
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(54)}, {CharListMenu::HP},
-                              [charId](std::int16_t toCharId) {
-                                  int result = ::hojy::world::state::actMedic(::hojy::world::state::gSaveData.charInfo[charId],
-                                                             ::hojy::world::state::gSaveData.charInfo[toCharId], 2);
-                                  gWindow->closePopup();
-                                  gWindow->popupMessageBox({GETTEXT(55) + L' ' + std::to_wstring(result)},
-                                                           MessageBox::PressToCloseTop);
-                              }, nullptr);
+std::shared_ptr<ActionMenuController> controllerFor(
+        Node *menu, bool deleteOnCancel = true) {
+    auto controller = std::make_shared<ActionMenuController>();
+    if (deleteOnCancel) {
+        controller->bindCancel(makeMenuAction(
+            [menu](MenuSelection) { if (menu) { menu->requestDelete(); } }));
+    }
+    return controller;
 }
 
-void depoisonMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(56)}, {CharListMenu::DEPOISON},
-                              [mainMenu](std::int16_t charId) {
-                                  depoisonTargetMenu(mainMenu, charId);
-                              }, nullptr, [](CharListMenu::ValueType, std::int16_t value) -> bool {
-            return value > 0;
-        });
+void medicMenu(Window *window, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [window, mainMenu](MenuSelection selection) {
+            if (selection.gesture == MenuGesture::Activate) {
+                medicTargetMenu(window, mainMenu,
+                                static_cast<std::int16_t>(selection.entryId));
+            }
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(53)}, teamCharacterSources(),
+                   {medicProjection(1)}), std::move(controller));
 }
 
-void depoisonTargetMenu(Node *mainMenu, std::int16_t charId) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder() * 3;
-    auto y = mainMenu->y() + core::config.windowBorder() * 2;
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(57)}, {CharListMenu::HP},
-                              [charId](std::int16_t toCharId) {
-                                  int result = ::hojy::world::state::actDepoison(::hojy::world::state::gSaveData.charInfo[charId],
-                                                                ::hojy::world::state::gSaveData.charInfo[toCharId], 2);
-                                  gWindow->closePopup();
-                                  gWindow->popupMessageBox({GETTEXT(58) + L' ' + std::to_wstring(result)},
-                                                           MessageBox::PressToCloseTop);
-                              }, nullptr);
+void medicTargetMenu(Window *, Node *mainMenu, std::int16_t charId) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder() * 3;
+    const auto y = mainMenu->y() + core::config.windowBorder() * 2;
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [mainMenu, charId](MenuSelection selection) {
+            if (selection.gesture != MenuGesture::Activate) { return; }
+            postOwnedSceneCommand(mainMenu,
+                std::make_unique<MedicActionCommand>(
+                    charId, static_cast<std::int16_t>(selection.entryId), 2));
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(54)}, teamCharacterSources(),
+                   {healthProjection()}), std::move(controller));
 }
 
-void showItems(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto border = core::config.windowBorder();
-    auto *view = new ItemView(mainMenu, x, y,
-                              gWindow->width() - x - border * 4,
-                              gWindow->height() - y - border * 4);
-    view->show(false, [](std::int16_t itemId) {
-        gWindow->useQuestItem(itemId);
-    });
+void depoisonMenu(Window *window, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [window, mainMenu](MenuSelection selection) {
+            if (selection.gesture == MenuGesture::Activate) {
+                depoisonTargetMenu(window, mainMenu,
+                                   static_cast<std::int16_t>(selection.entryId));
+            }
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(56)}, teamCharacterSources(),
+                   {depoisonProjection(1)}), std::move(controller));
 }
 
-void statusMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(59)}, {CharListMenu::LEVEL},
-                              [mainMenu](std::int16_t charId) {
-                                  showCharStatus(mainMenu, charId);
-                              }, nullptr);
+void depoisonTargetMenu(Window *, Node *mainMenu, std::int16_t charId) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder() * 3;
+    const auto y = mainMenu->y() + core::config.windowBorder() * 2;
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [mainMenu, charId](MenuSelection selection) {
+            if (selection.gesture != MenuGesture::Activate) { return; }
+            postOwnedSceneCommand(mainMenu,
+                std::make_unique<DepoisonActionCommand>(
+                    charId, static_cast<std::int16_t>(selection.entryId), 2));
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(57)}, teamCharacterSources(),
+                   {healthProjection()}), std::move(controller));
 }
 
-void showCharStatus(Node *parent, std::int16_t charId) {
-    auto x = parent->x() + parent->width() + core::config.windowBorder();
-    auto y = parent->y();
-    auto *view = new StatusView(parent, x, y, gWindow->width() - x, gWindow->height() - y);
-    view->show(charId);
+void showItems(Window *window, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    const auto border = core::config.windowBorder();
+    auto *view = new ItemView(
+        mainMenu, x, y, mainMenu->rootWidth() - x - border * 4,
+        mainMenu->rootHeight() - y - border * 4);
+    const auto itemSnapshot = ::hojy::world::state::itemSelectionSnapshot();
+    std::optional<std::pair<int, int>> compass;
+    if (window && window->globalMap()) {
+        compass = std::make_pair(window->globalMap()->currX(),
+                                 window->globalMap()->currY());
+    }
+    view->show(
+        buildItemViewSnapshot(itemSnapshot.bagItems, compass),
+        std::make_unique<WorldItemSelectionController>(
+            compass,
+            [](ItemSelectionHost &host) { host.closeItemSelection(); },
+            [](ItemSelectionHost &host, std::int16_t itemId) {
+                host.closeItemSelection();
+                host.useQuestItem(itemId);
+            }));
 }
 
-void leaveTeamMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto *menu = new CharListMenu(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    menu->initWithTeamMembers({GETTEXT(60)}, {CharListMenu::LEVEL},
-                              [](std::int16_t charId) {
-                                  if (charId == 0) {
-                                      gWindow->popupMessageBox({GETTEXT(61)}, MessageBox::PressToCloseThis);
-                                      return;
-                                  }
-                                  if (::hojy::world::state::leaveTeam(charId)) {
-                                      auto eventId = ::hojy::world::state::getLeaveEventId(charId);
-                                      gWindow->closePopup();
-                                      if (eventId >= 0) {
-                                          gWindow->forceEvent(eventId);
-                                      }
-                                  }
-                              }, nullptr);
+void statusMenu(Window *window, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [window, mainMenu](MenuSelection selection) {
+            if (selection.gesture == MenuGesture::Activate) {
+                showCharStatus(window, mainMenu,
+                               static_cast<std::int16_t>(selection.entryId));
+            }
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(59)}, teamCharacterSources(),
+                   {levelProjection()}), std::move(controller));
 }
 
-void systemMenu(Node *mainMenu) {
-    auto x = mainMenu->x() + mainMenu->width() + core::config.windowBorder();
-    auto y = mainMenu->y();
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->popup({GETTEXT(62), GETTEXT(63), GETTEXT(131), GETTEXT(64)});
-    subMenu->forceUpdate();
-    x += subMenu->width() + core::config.windowBorder();
-    subMenu->setHandler([mainMenu, subMenu, x, y]() {
-        switch (subMenu->currIndex()) {
-        case 0:
-            selectSaveSlotMenu(mainMenu, x, y, false);
-            break;
-        case 1:
-            selectSaveSlotMenu(mainMenu, x, y, true);
-            break;
-        case 2:
-            optionMenu(mainMenu, x, y);
-            break;
-        case 3: {
-            auto *yesNo = new MenuYesNo(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-            yesNo->setHandler([]() { gWindow->forceQuit(); },
-                              [yesNo]() { yesNo->requestDelete(); });
-            yesNo->popupWithYesNo();
-            break;
-        }
-        default:
-            break;
-        }
-    }, nullptr);
+void showCharStatus(Window *window, Node *parent, std::int16_t charId) {
+    const auto x = parent->x() + parent->width()
+        + core::config.windowBorder();
+    const auto y = parent->y();
+    auto *view = new StatusView(
+        parent, x, y, parent->rootWidth() - x, parent->rootHeight() - y);
+    if (window) {
+        view->setHeadTextureProvider(
+            [window](std::int16_t id) { return window->headTexture(id); });
+    }
+    auto snapshot = buildCharacterStatusSnapshot(
+        charId, false, core::config.showPotential());
+    if (!snapshot) {
+        view->requestDelete();
+        return;
+    }
+    view->show(std::move(*snapshot));
 }
 
-void selectSaveSlotMenu(Node *mainMenu, int x, int y, bool isSave) {
-    auto *subMenu = new MenuTextList(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    subMenu->popup({GETTEXT(65), GETTEXT(66), GETTEXT(67)});
-    subMenu->setHandler([subMenu, isSave]() {
-        auto index = subMenu->currIndex();
-        if (isSave) {
-            gWindow->saveGame(index + 1);
-            gWindow->popupMessageBox({GETTEXT(68)}, MessageBox::PressToCloseTop);
-        } else if (gWindow->loadGame(index + 1)) {
-            gWindow->closePopup();
-        } else {
-            gWindow->popupMessageBox({GETTEXT(69)}, MessageBox::PressToCloseTop);
-        }
-    }, nullptr);
+void leaveTeamMenu(Window *, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    auto *menu = new CharListMenu(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto controller = controllerFor(menu);
+    controller->bindDefault(makeMenuAction(
+        [mainMenu](MenuSelection selection) {
+            if (selection.gesture != MenuGesture::Activate) { return; }
+            const auto charId = static_cast<std::int16_t>(selection.entryId);
+            if (charId == 0) {
+                enqueueScene(mainMenu, [](SceneCommandContext &context) {
+                    context.showMessage(
+                        {GETTEXT(61)}, ScenePopupType::PressToCloseThis);
+                });
+                return;
+            }
+            postOwnedSceneCommand(mainMenu,
+                std::make_unique<LeaveTeamActionCommand>(charId));
+        }));
+    menu->init(buildCharacterListSnapshot(
+                   {GETTEXT(60)}, teamCharacterSources(),
+                   {levelProjection()}), std::move(controller));
 }
 
-void optionMenu(Node *mainMenu, int x, int y) {
-    auto *subMenu = new MenuOption(mainMenu, x, y, gWindow->width() - x, gWindow->height() - y);
-    std::vector<std::wstring> values = {
-        fmt::format(L" {:<2}", core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)),
-        fmt::format(L" {:<2}", core::config.showMinimap() ? GETTEXT(135) : GETTEXT(136)),
-        fmt::format(L" {:>2}", core::config.musicVolume()),
-        fmt::format(L" {:>2}", core::config.soundVolume()),
+void systemMenu(Window *window, Node *mainMenu) {
+    const auto x = mainMenu->x() + mainMenu->width()
+        + core::config.windowBorder();
+    const auto y = mainMenu->y();
+    auto *subMenu = new MenuTextList(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    auto entries = MenuEntries{
+        {SystemLoad, GETTEXT(62), L"", true},
+        {SystemSave, GETTEXT(63), L"", true},
+        {SystemOptions, GETTEXT(131), L"", true},
+        {SystemQuit, GETTEXT(64), L"", true},
     };
-    subMenu->popup({GETTEXT(132), GETTEXT(137), GETTEXT(133), GETTEXT(134)}, values);
-    subMenu->setHandler([subMenu](int inputType) {
-        switch (inputType) {
-        case 0:
-            (void)core::config.saveOptions(core::config.saveFilePath("options.toml"));
-            break;
-        case 1:
-        case 2:
-            switch (subMenu->currIndex()) {
-            case 2: {
-                int value = core::config.musicVolume();
-                if (inputType == 1) {
-                    if (value <= 0) { break; }
-                    --value;
-                } else {
-                    if (value >= 8) { break; }
-                    ++value;
-                }
-                core::config.setMusicVolume(value);
-                audio::gMixer.setVolume(0, 16 * value);
-                subMenu->setValue(1, fmt::format(L" {:>2}", value));
-                break;
-            }
-            case 3: {
-                int value = core::config.soundVolume();
-                if (inputType == 1) {
-                    if (value <= 0) { break; }
-                    --value;
-                } else {
-                    if (value >= 8) { break; }
-                    ++value;
-                }
-                core::config.setSoundVolume(value);
-                subMenu->setValue(2, fmt::format(L" {:>2}", value));
-                break;
-            }
-            default:
-                break;
-            }
-            /* fallthrough */
-        case 3:
-            switch (subMenu->currIndex()) {
-            case 0:
-                core::config.setShowMapMiniPanel(!core::config.showMapMiniPanel());
-                subMenu->setValue(0,
-                                  fmt::format(L" {:<2}",
-                                              core::config.showMapMiniPanel() ? GETTEXT(135) : GETTEXT(136)));
-                break;
-            case 1:
-                core::config.setShowMinimap(!core::config.showMinimap());
-                subMenu->setValue(1,
-                                  fmt::format(L" {:<2}",
-                                              core::config.showMinimap() ? GETTEXT(135) : GETTEXT(136)));
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-        }
+    subMenu->popup(entries);
+    auto controller = controllerFor(subMenu);
+    controller->bind(SystemLoad, makeMenuAction(
+        [window, mainMenu, subMenu, y](MenuSelection) {
+            selectSaveSlotMenu(window, mainMenu,
+                               subMenu->x() + subMenu->width()
+                                   + core::config.windowBorder(), y, false);
+        }));
+    controller->bind(SystemSave, makeMenuAction(
+        [window, mainMenu, subMenu, y](MenuSelection) {
+            selectSaveSlotMenu(window, mainMenu,
+                               subMenu->x() + subMenu->width()
+                                   + core::config.windowBorder(), y, true);
+        }));
+    controller->bind(SystemOptions, makeMenuAction(
+        [window, mainMenu, subMenu, y](MenuSelection) {
+            optionMenu(window, mainMenu,
+                       subMenu->x() + subMenu->width()
+                           + core::config.windowBorder(), y);
+        }));
+    controller->bind(SystemQuit, makeMenuAction(
+        [mainMenu, subMenu, y](MenuSelection) {
+            const auto x = subMenu->x() + subMenu->width()
+                + core::config.windowBorder();
+            auto *yesNo = new MenuYesNo(
+                mainMenu, x, y, mainMenu->rootWidth() - x,
+                mainMenu->rootHeight() - y);
+            yesNo->enableHorizonal(true);
+            yesNo->popupWithYesNo();
+            auto choice = controllerFor(yesNo);
+            choice->bind(0, makeMenuAction(
+                [mainMenu](MenuSelection) {
+                    enqueueScene(mainMenu, [](SceneCommandContext &context) {
+                        context.forceQuit();
+                    });
+                }));
+            yesNo->setSelectionSink(std::move(choice));
+        }));
+    subMenu->setSelectionSink(std::move(controller));
+}
+
+void selectSaveSlotMenu(Window *, Node *mainMenu, int x, int y, bool isSave) {
+    auto *subMenu = new MenuTextList(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    subMenu->popup(MenuEntries{
+        {1, GETTEXT(65), L"", true},
+        {2, GETTEXT(66), L"", true},
+        {3, GETTEXT(67), L"", true},
     });
+    auto controller = controllerFor(subMenu);
+    for (int slot = 1; slot <= 3; ++slot) {
+        controller->bind(slot, makeMenuAction(
+            [subMenu, slot, isSave](MenuSelection) {
+                enqueueScene(subMenu, [slot, isSave](SceneCommandContext &context) {
+                    if (isSave) {
+                        context.saveGame(slot);
+                        context.showMessage(
+                            {GETTEXT(68)}, ScenePopupType::PressToCloseTop);
+                    } else if (context.loadGame(slot)) {
+                        context.closePopup();
+                    } else {
+                        context.showMessage(
+                            {GETTEXT(69)}, ScenePopupType::PressToCloseTop);
+                    }
+                });
+            }));
+    }
+    subMenu->setSelectionSink(std::move(controller));
+}
+
+void optionMenu(Window *, Node *mainMenu, int x, int y) {
+    auto *subMenu = new MenuOption(
+        mainMenu, x, y, mainMenu->rootWidth() - x, mainMenu->rootHeight() - y);
+    subMenu->popup(MenuEntries{
+        {OptionMiniPanel, GETTEXT(132), fmt::format(
+            L" {:<2}", core::config.showMapMiniPanel()
+                ? GETTEXT(135) : GETTEXT(136)), true},
+        {OptionMinimap, GETTEXT(137), fmt::format(
+            L" {:<2}", core::config.showMinimap()
+                ? GETTEXT(135) : GETTEXT(136)), true},
+        {OptionMusic, GETTEXT(133), fmt::format(
+            L" {:>2}", core::config.musicVolume()), true},
+        {OptionSound, GETTEXT(134), fmt::format(
+            L" {:>2}", core::config.soundVolume()), true},
+    });
+    subMenu->enableHorizonal(false);
+    auto controller = controllerFor(subMenu);
+    controller->bindCancel(makeMenuAction(
+        [subMenu](MenuSelection) {
+            subMenu->postCommand(std::make_unique<OptionsCommitCommand>(
+                nullptr, OptionsCommitRequest{OptionCommandId::Save,
+                                               OptionAdjustment::None}));
+            subMenu->requestDelete();
+        }));
+    controller->bindDefault(makeMenuAction(
+        [subMenu](MenuSelection selection) {
+            const auto id = selection.entryId;
+            if (id == OptionMiniPanel && selection.gesture == MenuGesture::Activate) {
+                postOwnedSceneCommand(subMenu,
+                    std::make_unique<OptionsCommitCommand>(
+                        subMenu, OptionsCommitRequest{
+                            OptionCommandId::MiniPanel,
+                            OptionAdjustment::None}));
+            } else if (id == OptionMinimap
+                       && selection.gesture == MenuGesture::Activate) {
+                postOwnedSceneCommand(subMenu,
+                    std::make_unique<OptionsCommitCommand>(
+                        subMenu, OptionsCommitRequest{
+                            OptionCommandId::Minimap,
+                            OptionAdjustment::None}));
+            } else if (id == OptionMusic
+                       && (selection.gesture == MenuGesture::AdjustPrevious
+                           || selection.gesture == MenuGesture::AdjustNext)) {
+                postOwnedSceneCommand(subMenu,
+                    std::make_unique<OptionsCommitCommand>(
+                        subMenu, OptionsCommitRequest{
+                            OptionCommandId::MusicVolume,
+                            selection.gesture == MenuGesture::AdjustNext
+                                ? OptionAdjustment::Next
+                                : OptionAdjustment::Previous}));
+            } else if (id == OptionSound
+                       && (selection.gesture == MenuGesture::AdjustPrevious
+                           || selection.gesture == MenuGesture::AdjustNext)) {
+                postOwnedSceneCommand(subMenu,
+                    std::make_unique<OptionsCommitCommand>(
+                        subMenu, OptionsCommitRequest{
+                            OptionCommandId::SoundVolume,
+                            selection.gesture == MenuGesture::AdjustNext
+                                ? OptionAdjustment::Next
+                                : OptionAdjustment::Previous}));
+            }
+        }));
+    subMenu->setSelectionSink(std::move(controller));
 }
 
 }
 
 void Window::showMainMenu(bool inSubMap) {
-    if (processingStage_) {
-        defer([this, inSubMap] { showMainMenu(inSubMap); });
-        return;
-    }
     (void)inSubMap;
-    if (popup_) {
-        return;
-    }
+    if (popup_) { return; }
     if (mainMenu_ == nullptr) {
-        auto border = core::config.windowBorder();
-        auto *menu = new MenuTextList(renderer_, 4 * border, 4 * border, width_ - 80, height_ - 80);
+        const auto border = core::config.windowBorder();
+        auto *menu = new MenuTextList(
+            renderer_, 4 * border, 4 * border, width_ - 80, height_ - 80);
+        bindCommandSink(menu);
         mainMenu_ = menu;
-        menu->setHandler([this]() {
-            switch (dynamic_cast<Menu *>(mainMenu_)->currIndex()) {
-            case 0:
-                medicMenu(mainMenu_);
-                break;
-            case 1:
-                depoisonMenu(mainMenu_);
-                break;
-            case 2:
-                showItems(mainMenu_);
-                break;
-            case 3:
-                statusMenu(mainMenu_);
-                break;
-            case 4:
-                leaveTeamMenu(mainMenu_);
-                break;
-            case 5:
-                systemMenu(mainMenu_);
-                break;
-            default:
-                break;
-            }
-        }, [this]() -> bool {
-            closePopup();
-            return false;
-        });
     }
-    popup_ = mainMenu_;
-    freeOnClose_ = false;
-    dynamic_cast<MenuTextList *>(mainMenu_)
-        ->popup({GETTEXT(47), GETTEXT(48), GETTEXT(49), GETTEXT(50), GETTEXT(51), GETTEXT(52)});
-}
-
-void Window::runTalk(const std::wstring &text, std::int16_t headId, std::int16_t position) {
-    if (processingStage_) {
-        defer([this, text, headId, position] { runTalk(text, headId, position); });
-        return;
-    }
-    if (popup_) {
-        auto *map = dynamic_cast<MapWithEvent *>(map_);
-        if (map) { map->continueEvents(false); }
-        return;
-    }
-    if (!talkBox_) {
-        auto border = width_ / 12;
-        talkBox_ = new TalkBox(renderer_, border, border, width_ - border * 2, height_ - border * 2);
-    }
-    dynamic_cast<TalkBox *>(talkBox_)->popup(text, headId, position);
-    popup_ = talkBox_;
-    freeOnClose_ = false;
+    auto *menu = dynamic_cast<MenuTextList *>(mainMenu_);
+    if (!menu) { return; }
+    auto controller = controllerFor(menu);
+    controller->bind(MainMedic, makeMenuAction(
+        [this](MenuSelection) { medicMenu(this, mainMenu_); }));
+    controller->bind(MainDepoison, makeMenuAction(
+        [this](MenuSelection) { depoisonMenu(this, mainMenu_); }));
+    controller->bind(MainItems, makeMenuAction(
+        [this](MenuSelection) { showItems(this, mainMenu_); }));
+    controller->bind(MainStatus, makeMenuAction(
+        [this](MenuSelection) { statusMenu(this, mainMenu_); }));
+    controller->bind(MainLeaveTeam, makeMenuAction(
+        [this](MenuSelection) { leaveTeamMenu(this, mainMenu_); }));
+    controller->bind(MainSystem, makeMenuAction(
+        [this](MenuSelection) { systemMenu(this, mainMenu_); }));
+    controller->bindCancel(makeMenuAction(
+        [this](MenuSelection) { closePopup(); }));
+    menu->setSelectionSink(std::move(controller));
+    if (popup_ != mainMenu_) { replacePopup(mainMenu_, false); }
+    menu->popup(MenuEntries{
+        {MainMedic, GETTEXT(47), L"", true},
+        {MainDepoison, GETTEXT(48), L"", true},
+        {MainItems, GETTEXT(49), L"", true},
+        {MainStatus, GETTEXT(50), L"", true},
+        {MainLeaveTeam, GETTEXT(51), L"", true},
+        {MainSystem, GETTEXT(52), L"", true},
+    });
 }
 
 bool Window::runShop(std::int16_t id) {
-    auto *shopInfo = ::hojy::world::state::gSaveData.shopInfo[id];
-    if (!shopInfo) {
-        return false;
-    }
+    const auto snapshot = ::hojy::world::state::shopSnapshot(id);
+    if (!snapshot || snapshot->listings.empty()) { return false; }
     auto *subMenu = new MenuTextList(popup_, 0, 0, width_, height_);
-    std::vector<std::wstring> items;
-    std::vector<std::wstring> prices;
-    std::vector<int> indices;
-    for (int i = 0; i < content::ShopItemCount; ++i) {
-        if (shopInfo->id[i] <= 0 || shopInfo->total[i] <= 0) { continue; }
-        items.emplace_back(GETITEMNAME(shopInfo->id[i]));
-        prices.emplace_back(std::to_wstring(shopInfo->price[i]));
-        indices.emplace_back(i);
+    MenuEntries entries;
+    entries.reserve(snapshot->listings.size());
+    for (const auto &listing: snapshot->listings) {
+        entries.push_back({listing.slot, listing.name,
+                           std::to_wstring(listing.price), true});
     }
-    subMenu->popup(items, prices);
+    subMenu->popup(entries);
     subMenu->makeCenter(width_, height_, 0, 0);
-    subMenu->setHandler([subMenu, shopInfo, indices]() {
-        int index = subMenu->currIndex();
-        if (index < 0 || index >= static_cast<int>(indices.size())) { return; }
-        index = indices[index];
-        const auto price = shopInfo->price[index];
-        if (!::hojy::world::state::gBag.remove(content::ItemIDMoney, price)) {
-            gWindow->closePopup();
-            gWindow->runTalk(::hojy::content::gEvent.talk(0xB9F), 0x6F, 0);
-            return;
-        }
-        ::hojy::world::state::gBag.add(shopInfo->id[index], 1);
-        if (shopInfo->total[index] < 1000) {
-            --shopInfo->total[index];
-        }
-        gWindow->closePopup();
-        gWindow->runTalk(::hojy::content::gEvent.talk(0xBA0), 0x6F, 0);
-    }, [this]() {
-        subMap_->continueEvents(false);
-        return false;
-    });
+    const auto shopId = snapshot->shopId;
+    auto controller = controllerFor(subMenu);
+    for (const auto &listing: snapshot->listings) {
+        controller->bind(listing.slot, makeMenuAction(
+            [subMenu, shopId, slot = listing.slot](MenuSelection) {
+                postOwnedSceneCommand(subMenu,
+                    std::make_unique<PurchaseShopOfferCommand>(shopId, slot));
+            }));
+    }
+    controller->bindCancel(makeMenuAction(
+        [subMenu](MenuSelection) {
+            subMenu->postCommand(std::make_unique<ContinueEventCommand>(false));
+            subMenu->requestDelete();
+        }));
+    subMenu->setSelectionSink(std::move(controller));
     return true;
 }
 
-void Window::popupMessageBox(const std::vector<std::wstring> &text, MessageBox::Type type) {
-    if (processingStage_) {
-        defer([this, text, type] { popupMessageBox(text, type); });
-        return;
-    }
+void Window::popupMessageBox(
+        const std::vector<std::wstring> &text, MessageBox::Type type) {
     MessageBox *messageBox;
     if (popup_) {
         messageBox = new MessageBox(popup_, 0, 0, width_, height_ * 4 / 5);
     } else {
-        messageBox = new MessageBox(renderer_, 0, 0, width_, height_ * 4 / 5);
-        popup_ = messageBox;
-        freeOnClose_ = true;
+        messageBox = new MessageBox(
+            renderer_, 0, 0, width_, height_ * 4 / 5);
+        bindCommandSink(messageBox);
+        replacePopup(messageBox, true);
     }
     messageBox->popup(text, type);
+}
+
+void Window::showMessage(std::vector<std::wstring> text, ScenePopupType type) {
+    MessageBox::Type messageType = MessageBox::Normal;
+    switch (type) {
+    case ScenePopupType::YesNo:
+        messageType = MessageBox::YesNo;
+        break;
+    case ScenePopupType::PressToCloseTop:
+        messageType = MessageBox::PressToCloseTop;
+        break;
+    case ScenePopupType::PressToCloseThis:
+        messageType = MessageBox::PressToCloseThis;
+        break;
+    case ScenePopupType::PressToCloseParent:
+        messageType = MessageBox::PressToCloseParent;
+        break;
+    case ScenePopupType::Normal:
+        break;
+    }
+    popupMessageBox(text, messageType);
+}
+
+void Window::setGlobalMapPosition(int x, int y) {
+    if (globalMap_) { globalMap_->setPosition(x, y, false); }
 }
 
 }

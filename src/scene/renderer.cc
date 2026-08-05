@@ -20,45 +20,103 @@
 #include "renderer.hh"
 
 #include "window.hh"
+#include "texture.hh"
 #include "core/config.hh"
 #include <SDL2_gfxPrimitives.h>
 
+#include <cstdint>
+#include <limits>
+#include <new>
+
 namespace hojy::scene {
 
+namespace {
+
+bool validSourceRect(const Texture *tex, int x, int y, int w, int h) {
+    if (!tex || !tex->valid() || x < 0 || y < 0 || w <= 0 || h <= 0) {
+        return false;
+    }
+    const auto textureWidth = static_cast<int>(tex->width());
+    const auto textureHeight = static_cast<int>(tex->height());
+    return x <= textureWidth && y <= textureHeight
+        && w <= textureWidth - x && h <= textureHeight - y;
+}
+
+bool scaledDimension(int value, int numerator, int denominator, int &result) {
+    if (value <= 0 || numerator <= 0 || denominator <= 0) { return false; }
+    const auto scaled = static_cast<std::int64_t>(value) * numerator / denominator;
+    if (scaled <= 0 || scaled > std::numeric_limits<int>::max()) { return false; }
+    result = static_cast<int>(scaled);
+    return true;
+}
+
+bool scaledOffset(int value, int numerator, int denominator, int &result) {
+    if (denominator <= 0) { return false; }
+    const auto scaled = static_cast<std::int64_t>(value) * numerator / denominator;
+    if (scaled < std::numeric_limits<int>::min() || scaled > std::numeric_limits<int>::max()) {
+        return false;
+    }
+    result = static_cast<int>(scaled);
+    return true;
+}
+
+}
+
 Renderer::Renderer(void *win, int w, int h):
-    renderer_(SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE)),
-    ttf_(new TTF(this)) {
+    renderer_(nullptr),
+    ttf_(nullptr) {
+    if (!win || w <= 0 || h <= 0) { return; }
+    renderer_ = SDL_CreateRenderer(static_cast<SDL_Window*>(win), -1,
+                                   SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
+    if (!renderer_) { return; }
+    ttf_ = new (std::nothrow) TTF(this);
+    if (!ttf_ || !ttf_->ready()) { return; }
+    if (SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_),
+                                   SDL_BLENDMODE_BLEND) != 0) {
+        return;
+    }
     if (core::config.limitFPS() > 0) {
         renderInterval_ = 1000 * 1000;
         renderInterval_ /= core::config.limitFPS();
     } else {
         renderInterval_ = 0;
     }
-    SDL_SetRenderDrawBlendMode(static_cast<SDL_Renderer*>(renderer_), SDL_BLENDMODE_BLEND);
     int fontSize;
     if (w * 3 > h * 4) {
         fontSize = h / 48 * 2;
     } else {
         fontSize = w * 3 / 4 / 48 * 2;
     }
-    ttf_->init(fontSize);
+    if (fontSize <= 0 || !ttf_->init(fontSize)) { return; }
+    fontSize_ = fontSize;
+    std::size_t loadedFonts = 0;
     for (const auto &f: core::config.fonts()) {
-        ttf_->add(f);
+        if (ttf_->add(f)) { ++loadedFonts; }
     }
+    if (!core::config.fonts().empty() && loadedFonts == 0) { return; }
+    ready_ = true;
 }
 
 Renderer::~Renderer() {
     delete ttf_;
-    SDL_DestroyRenderer(static_cast<SDL_Renderer*>(renderer_));
+    if (renderer_) {
+        SDL_DestroyRenderer(static_cast<SDL_Renderer*>(renderer_));
+    }
 }
 
 void Renderer::enableLinear(bool linear) {
-    (void)this;
+    if (!renderer_) { return; }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, linear ? "linear" : "nearest");
 }
 
-void Renderer::setTargetTexture(Texture *tex) {
-    SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_), tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr);
+bool Renderer::setTargetTexture(Texture *tex) {
+    if (!renderer_ || (tex && !tex->valid())) { return false; }
+    if (SDL_SetRenderTarget(static_cast<SDL_Renderer*>(renderer_),
+                            tex ? static_cast<SDL_Texture*>(tex->data()) : nullptr) != 0) {
+        return false;
+    }
+    targetTexture_ = tex;
+    return true;
 }
 
 void Renderer::clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
@@ -94,7 +152,10 @@ void Renderer::fillCircle(int x, int y, int rad, std::uint8_t r, std::uint8_t g,
 }
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin) {
+    if (!tex || !tex->valid()) { return; }
+    if (!renderer_) { return; }
     auto w = tex->width(), h = tex->height();
+    if (!validSourceRect(tex, 0, 0, w, h)) { return; }
     SDL_Rect src {tex->x(), tex->y(), w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {x, y, w, h};
@@ -106,19 +167,34 @@ void Renderer::renderTexture(const Texture *tex, int x, int y, bool ignoreOrigin
 }
 
 void Renderer::renderTexture(const Texture *tex, int x, int y, std::pair<int, int> scale, bool ignoreOrigin) {
+    if (!tex || !tex->valid()) { return; }
+    if (!renderer_) { return; }
     auto w = tex->width(), h = tex->height();
+    if (!validSourceRect(tex, 0, 0, w, h)) { return; }
+    int destw = 0, desth = 0;
+    if (!scaledDimension(w, scale.first, scale.second, destw)
+        || !scaledDimension(h, scale.first, scale.second, desth)) {
+        return;
+    }
     SDL_Rect src {tex->x(), tex->y(), w, h};
     if (ignoreOrigin) {
-        SDL_Rect dst {x, y, w * scale.first / scale.second, h * scale.first / scale.second};
+        SDL_Rect dst {x, y, destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer*>(renderer_), static_cast<SDL_Texture*>(tex->data()), &src, &dst);
     } else {
-        SDL_Rect dst{x - tex->originX() * scale.first / scale.second, y - tex->originY() * scale.first / scale.second,
-                     w * scale.first / scale.second, h * scale.first / scale.second};
+        int originX = 0, originY = 0;
+        if (!scaledOffset(tex->originX(), scale.first, scale.second, originX)
+            || !scaledOffset(tex->originY(), scale.first, scale.second, originY)) {
+            return;
+        }
+        SDL_Rect dst{x - originX, y - originY, destw, desth};
         SDL_RenderCopy(static_cast<SDL_Renderer *>(renderer_), static_cast<SDL_Texture *>(tex->data()), &src, &dst);
     }
 }
 
 void Renderer::renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin) {
+    if (!tex || !tex->valid()) { return; }
+    if (!renderer_) { return; }
+    if (!validSourceRect(tex, x, y, w, h)) { return; }
     SDL_Rect src {tex->x() + x, tex->y() + y, w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {destx, desty, w, h};
@@ -130,6 +206,9 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int x, in
 }
 
 void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin) {
+    if (!tex || !tex->valid()) { return; }
+    if (!renderer_) { return; }
+    if (destw <= 0 || desth <= 0 || !validSourceRect(tex, x, y, w, h)) { return; }
     SDL_Rect src {tex->x() + x, tex->y() + y, w, h};
     if (ignoreOrigin) {
         SDL_Rect dst {destx, desty, destw, desth};
@@ -140,8 +219,7 @@ void Renderer::renderTexture(const Texture *tex, int destx, int desty, int destw
     }
 }
 
-bool Renderer::canRender() {
-    auto now = gWindow->currTime();
+bool Renderer::canRender(std::uint64_t now) {
     if (renderInterval_) {
         if (nextRenderTime_ > now) {
             return false;

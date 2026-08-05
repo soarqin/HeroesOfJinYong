@@ -1,166 +1,319 @@
-/*
- * Heroes of Jin Yong.
- * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
- * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
-
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
-
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
-
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 #include "menu.hh"
 
-#include "window.hh"
-#include "world/strings.hh"
 #include "core/config.hh"
+#include "world/strings.hh"
+
+#include <algorithm>
+#include <limits>
+#include <utility>
 
 namespace hojy::scene {
 
-void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
-    items_ = items;
-    currIndex_ = defaultIndex;
-    if (checkbox_) {
-        selected_.clear();
-        selected_.resize(items_.size(), false);
-        items_.emplace_back(GETTEXT(80));
+namespace {
+
+std::vector<std::int32_t> sequentialIds(std::size_t count) {
+    std::vector<std::int32_t> ids;
+    ids.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        if (index > static_cast<std::size_t>(
+                std::numeric_limits<std::int32_t>::max())) {
+            ids.push_back(-1);
+        } else {
+            ids.push_back(static_cast<std::int32_t>(index));
+        }
     }
-    setDirty();
+    return ids;
 }
 
-void Menu::popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex) {
+}
+
+void Menu::setInputMode(std::unique_ptr<MenuInputMode> mode) {
+    inputMode_ = std::move(mode);
+}
+
+std::unique_ptr<MenuInputMode> Menu::makeDefaultInputMode() const {
+    return horizonal_
+        ? std::unique_ptr<MenuInputMode>(new HorizontalMenuInputMode())
+        : std::unique_ptr<MenuInputMode>(new VerticalMenuInputMode());
+}
+
+void Menu::enableCheckBox(bool enabled) {
+    if (checkbox_ == enabled) { return; }
+    checkbox_ = enabled;
+    if (checkbox_) {
+        selected_.assign(items_.size(), false);
+        if (entryIds_.size() == items_.size()) {
+            items_.emplace_back(GETTEXT(80));
+            values_.emplace_back(L"");
+            entryIds_.push_back(MenuConfirmEntryId);
+            entryEnabled_.push_back(true);
+        }
+    } else {
+        if (!entryIds_.empty() && entryIds_.back() == MenuConfirmEntryId) {
+            items_.pop_back();
+            if (!values_.empty()) { values_.pop_back(); }
+            entryIds_.pop_back();
+            if (!entryEnabled_.empty()) { entryEnabled_.pop_back(); }
+        }
+        selected_.clear();
+    }
+    currIndex_ = std::clamp(currIndex_, 0, std::max(0, entryCount() - 1));
+    requestPresentationRefresh();
+}
+
+void Menu::enableHorizonal(bool enabled) {
+    horizonal_ = enabled;
+    setInputMode(makeDefaultInputMode());
+}
+
+void Menu::popup(const std::vector<std::wstring> &items, int defaultIndex) {
+    popup(items, {}, defaultIndex);
+}
+
+void Menu::popup(const std::vector<std::wstring> &items,
+                 const std::vector<std::wstring> &values,
+                 int defaultIndex) {
     items_ = items;
     values_ = values;
-    currIndex_ = defaultIndex;
+    entryIds_ = sequentialIds(items_.size());
+    entryEnabled_.assign(items_.size(), true);
+    selected_.assign(checkbox_ ? items_.size() : 0, false);
     if (checkbox_) {
-        selected_.clear();
-        selected_.resize(items_.size(), false);
         items_.emplace_back(GETTEXT(80));
         values_.emplace_back(L"");
+        entryIds_.push_back(MenuConfirmEntryId);
+        entryEnabled_.push_back(true);
     }
-    setDirty();
+    currIndex_ = std::clamp(
+        defaultIndex, 0, std::max(0, static_cast<int>(items_.size()) - 1));
+    requestPresentationRefresh();
 }
 
-void Menu::checkItem(size_t index, bool check) {
-    if (!checkbox_) { return; }
-    if (index >= selected_.size()) { return; }
+void Menu::popup(const MenuEntries &entries, int defaultIndex) {
+    items_.clear();
+    values_.clear();
+    entryIds_.clear();
+    entryEnabled_.clear();
+    selected_.clear();
+    items_.reserve(entries.size());
+    values_.reserve(entries.size());
+    entryIds_.reserve(entries.size());
+    entryEnabled_.reserve(entries.size());
+    for (const auto &entry: entries) {
+        items_.push_back(entry.label);
+        values_.push_back(entry.value);
+        entryIds_.push_back(entry.id);
+        entryEnabled_.push_back(entry.enabled);
+    }
+    selected_.assign(checkbox_ ? entries.size() : 0, false);
+    if (checkbox_) {
+        items_.emplace_back(GETTEXT(80));
+        values_.emplace_back(L"");
+        entryIds_.push_back(MenuConfirmEntryId);
+        entryEnabled_.push_back(true);
+    }
+    currIndex_ = std::clamp(
+        defaultIndex, 0, std::max(0, static_cast<int>(items_.size()) - 1));
+    requestPresentationRefresh();
+}
+
+void Menu::setEntryIds(const std::vector<std::int32_t> &ids) {
+    const auto count = checkbox_ && !entryIds_.empty()
+        && entryIds_.back() == MenuConfirmEntryId
+        ? entryIds_.size() - 1 : entryIds_.size();
+    if (ids.size() != count) { return; }
+    std::copy(ids.begin(), ids.end(), entryIds_.begin());
+}
+
+void Menu::setEntryEnabledById(std::int32_t entryId, bool enabled) {
+    for (std::size_t index = 0; index < entryIds_.size(); ++index) {
+        if (entryIds_[index] == entryId) {
+            if (index >= entryEnabled_.size()) {
+                entryEnabled_.resize(entryIds_.size(), true);
+            }
+            entryEnabled_[index] = enabled;
+            requestPresentationRefresh();
+            return;
+        }
+    }
+}
+
+void Menu::setSelectionSink(std::shared_ptr<MenuSelectionSink> sink) {
+    selectionSink_ = std::move(sink);
+}
+
+void Menu::checkItem(std::size_t index, bool check) {
+    if (!checkbox_ || index >= selected_.size()) { return; }
     selected_[index] = check;
+    requestPresentationRefresh();
 }
 
-bool Menu::itemChecked(size_t index) const {
-    if (!checkbox_) { return false; }
-    if (index >= selected_.size()) { return false; }
-    return selected_[index];
+bool Menu::itemChecked(std::size_t index) const {
+    return checkbox_ && index < selected_.size() && selected_[index];
 }
 
-void Menu::handleKeyInput(Key key) {
-    switch (key) {
-    case KeyUp:
-        if (horizonal_) {
-            if (currIndex_ == 0) { break; }
-            currIndex_ = 0;
-        } else {
-            if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
-        }
-        setDirty();
-        break;
-    case KeyDown:
-        if (horizonal_) {
-            if (currIndex_ == int(items_.size()) - 1) { break; }
-            currIndex_ = int(items_.size()) - 1;
-        } else {
-            if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
-        }
-        setDirty();
-        break;
-    case KeyLeft:
-        if (horizonal_) {
-            if (--currIndex_ < 0) { currIndex_ = int(items_.size()) - 1; }
-        } else {
-            if (currIndex_ == 0) { break; }
-            currIndex_ = 0;
-        }
-        setDirty();
-        break;
-    case KeyRight:
-        if (horizonal_) {
-            if (++currIndex_ >= items_.size()) { currIndex_ = 0; }
-        } else {
-            if (currIndex_ == int(items_.size()) - 1) { break; }
-            currIndex_ = int(items_.size()) - 1;
-        }
-        setDirty();
-        break;
-    case KeyOK: case KeySpace:
-        if (checkbox_) {
-            if (currIndex_ < 0) { break; }
-            if (currIndex_ >= selected_.size()) {
-                onOK();
-                break;
-            }
-            if (!onCheckBoxToggle_ || onCheckBoxToggle_(currIndex_)) {
-                selected_[currIndex_] = !selected_[currIndex_];
-            }
-            setDirty();
-        } else {
-            onOK();
-        }
-        break;
-    case KeyCancel:
-        onCancel();
-        break;
-    default:
-        break;
+std::int32_t Menu::currEntryId() const {
+    return entryIdAt(currIndex_);
+}
+
+std::int32_t Menu::entryIdAt(int index) const {
+    if (index < 0 || static_cast<std::size_t>(index) >= entryIds_.size()) {
+        return -1;
+    }
+    return entryIds_[static_cast<std::size_t>(index)];
+}
+
+void Menu::moveSelection(int delta, bool wrap) {
+    if (items_.empty() || delta == 0) { return; }
+    auto next = currIndex_ + delta;
+    const auto count = static_cast<int>(items_.size());
+    if (wrap) {
+        while (next < 0) { next += count; }
+        while (next >= count) { next -= count; }
+    } else {
+        next = std::clamp(next, 0, count - 1);
+    }
+    if (next != currIndex_) {
+        currIndex_ = next;
+        requestPresentationRefresh();
     }
 }
 
-void Menu::makeCache() {
-    auto *ttf = renderer_->ttf();
-    auto windowBorder = core::config.windowBorder();
-    int x = windowBorder, y = windowBorder, h, w = 0, wfill = 0, x2 = 0, w2 = 0;
-    auto lines = int(items_.size());
-    auto fontSize = ttf->fontSize();
-    auto rowHeight = fontSize + TextLineSpacing;
-    std::vector<std::pair<int, int>> itemsOff;
-    bool drawValue = false;
+void Menu::selectIndex(int index) {
+    if (items_.empty()) { return; }
+    const auto next = std::clamp(index, 0, static_cast<int>(items_.size()) - 1);
+    if (next != currIndex_) {
+        currIndex_ = next;
+        requestPresentationRefresh();
+    }
+}
+
+void Menu::submit(MenuGesture gesture) {
+    if (gesture == MenuGesture::Cancel) {
+        if (selectionSink_) {
+            selectionSink_->submit({nextSelectionToken_++, currEntryId(), gesture});
+        } else {
+            requestPresentationCleanup();
+        }
+        return;
+    }
+    if (currIndex_ < 0 || static_cast<std::size_t>(currIndex_) >= items_.size()) {
+        return;
+    }
+    const auto index = static_cast<std::size_t>(currIndex_);
+    if (index < entryEnabled_.size() && !entryEnabled_[index]) { return; }
+    if (checkbox_ && index < selected_.size()) {
+        if (gesture == MenuGesture::Activate) {
+            selected_[index] = !selected_[index];
+            requestPresentationRefresh();
+            if (selectionSink_) {
+                selectionSink_->submit({
+                    nextSelectionToken_++, currEntryId(), MenuGesture::Toggle});
+            }
+            return;
+        }
+    }
+    if (selectionSink_) {
+        selectionSink_->submit({nextSelectionToken_++, currEntryId(), gesture});
+    }
+}
+
+void Menu::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void Menu::applyInputLogic() {
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
+    if (!inputMode_) {
+        setInputMode(makeDefaultInputMode());
+    }
+    auto action = inputMode_->keyAction(key);
+    if (action) { action->execute(*this); }
+}
+
+void Menu::ensureLayout() {
+    const auto windowBorder = core::config.windowBorder();
+    int h = 0, w = 0, w2 = 0;
+    const auto lines = static_cast<int>(items_.size());
+    const auto fontSize = renderer_->fontSize();
+    const auto rowHeight = fontSize + TextLineSpacing;
     if (horizonal_) {
-        for (auto &s: items_) {
-            auto sw = ttf->stringWidth(s);
-            itemsOff.emplace_back(std::make_pair(w, sw));
-            w += sw + windowBorder;
+        for (const auto &item: items_) {
+            w += renderer_->ttf()->preparedStringWidth(item) + windowBorder;
         }
         w += windowBorder;
-        h = rowHeight * (title_.empty() ? 1 : 2) + windowBorder * 2 - TextLineSpacing;
+        h = rowHeight * (title_.empty() ? 1 : 2)
+            + windowBorder * 2 - TextLineSpacing;
     } else {
-        for (auto &s: items_) {
-            auto sw = ttf->stringWidth(s);
-            w = std::max(w, sw);
+        for (const auto &item: items_) {
+            w = std::max(w, renderer_->ttf()->preparedStringWidth(item));
         }
         if (!values_.empty()) {
-            drawValue = true;
-            x2 = x + w + windowBorder;
-            for (auto &s: values_) {
-                auto sw = ttf->stringWidth(s);
-                w2 = std::max(w2, sw);
+            for (const auto &value: values_) {
+                w2 = std::max(w2, renderer_->ttf()->preparedStringWidth(value));
             }
             w += w2 + windowBorder;
         }
         auto totalLines = lines;
         if (!title_.empty()) {
             ++totalLines;
-            w = std::max(w, ttf->stringWidth(title_));
+            w = std::max(w, renderer_->ttf()->preparedStringWidth(title_));
+        }
+        if (checkbox_) { w += renderer_->ttf()->preparedStringWidth(L"*"); }
+        w += windowBorder * 2;
+        h = rowHeight * totalLines + windowBorder * 2 - TextLineSpacing;
+    }
+    width_ = w;
+    height_ = h;
+}
+
+bool Menu::prepareTextResources() {
+    auto *ttf = renderer_->ttf();
+    bool ready = ttf->prepareText(title_);
+    for (const auto &item: items_) { ready = ttf->prepareText(item) && ready; }
+    for (const auto &value: values_) { ready = ttf->prepareText(value) && ready; }
+    return ttf->prepareText(L"*") && ready;
+}
+
+void Menu::makeCache() {
+    auto *ttf = renderer_->ttf();
+    const auto windowBorder = core::config.windowBorder();
+    int x = windowBorder, y = windowBorder, h, w = 0, wfill = 0, x2 = 0, w2 = 0;
+    const auto lines = static_cast<int>(items_.size());
+    const auto fontSize = ttf->fontSize();
+    const auto rowHeight = fontSize + TextLineSpacing;
+    std::vector<std::pair<int, int>> itemsOff;
+    bool drawValue = false;
+    if (horizonal_) {
+        for (const auto &item: items_) {
+            const auto sw = ttf->preparedStringWidth(item);
+            itemsOff.emplace_back(std::make_pair(w, sw));
+            w += sw + windowBorder;
+        }
+        w += windowBorder;
+        h = rowHeight * (title_.empty() ? 1 : 2)
+            + windowBorder * 2 - TextLineSpacing;
+    } else {
+        for (const auto &item: items_) {
+            w = std::max(w, ttf->preparedStringWidth(item));
+        }
+        if (!values_.empty()) {
+            drawValue = true;
+            x2 = x + w + windowBorder;
+            for (const auto &value: values_) {
+                w2 = std::max(w2, ttf->preparedStringWidth(value));
+            }
+            w += w2 + windowBorder;
+        }
+        auto totalLines = lines;
+        if (!title_.empty()) {
+            ++totalLines;
+            w = std::max(w, ttf->preparedStringWidth(title_));
         }
         wfill = w;
         if (checkbox_) {
-            auto checkBoxW = ttf->stringWidth(L"*");
+            const auto checkBoxW = ttf->preparedStringWidth(L"*");
             x += checkBoxW;
             x2 += checkBoxW;
             w += checkBoxW;
@@ -177,144 +330,81 @@ void Menu::makeCache() {
     renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
     if (!title_.empty()) {
         ttf->setColor(236, 200, 40);
-        ttf->render(title_, x, y, true);
+        ttf->renderPrepared(title_, x, y, true);
         y += rowHeight;
     }
     if (horizonal_) {
         for (int i = 0; i < lines; ++i) {
             if (i == currIndex_) {
                 ttf->setColor(236, 236, 236);
-                renderer_->fillRoundedRect(x + itemsOff[i].first - 2, y - 2, itemsOff[i].second + 4, fontSize + 4, 2, 96, 96, 96, 192);
+                renderer_->fillRoundedRect(
+                    x + itemsOff[i].first - 2, y - 2, itemsOff[i].second + 4,
+                    fontSize + 4, 2, 96, 96, 96, 192);
             } else {
                 ttf->setColor(252, 148, 16);
             }
-            ttf->render(items_[i], x + itemsOff[i].first, y, true);
+            ttf->renderPrepared(items_[i], x + itemsOff[i].first, y, true);
         }
     } else {
         for (int i = 0; i < lines; ++i, y += rowHeight) {
             if (i == currIndex_) {
                 ttf->setColor(236, 236, 236);
-                renderer_->fillRoundedRect(x - 2, y - 2, wfill + 4, fontSize + 4, 2, 96, 96, 96, 192);
+                renderer_->fillRoundedRect(
+                    x - 2, y - 2, wfill + 4, fontSize + 4, 2,
+                    96, 96, 96, 192);
+            } else if (i < static_cast<int>(entryEnabled_.size())
+                       && !entryEnabled_[i]) {
+                ttf->setColor(128, 128, 128);
             } else {
                 ttf->setColor(252, 148, 16);
             }
-            if (checkbox_ && i < selected_.size() && selected_[i]) {
-                ttf->render(L"*", windowBorder, y, true);
+            if (checkbox_ && i < static_cast<int>(selected_.size())
+                && selected_[i]) {
+                ttf->renderPrepared(L"*", windowBorder, y, true);
             }
-            ttf->render(items_[i], x, y, true);
-            if (drawValue) {
-                ttf->render(values_[i], x2, y, true);
+            ttf->renderPrepared(items_[i], x, y, true);
+            if (drawValue && i < static_cast<int>(values_.size())) {
+                ttf->renderPrepared(values_[i], x2, y, true);
             }
         }
     }
     cacheEnd();
 }
 
-void MenuTextList::onOK() {
-    if (currIndex_ < 0) { return; }
-    if (okHandler_) { okHandler_(); }
+void MenuYesNo::enableHorizonal(bool enabled) {
+    horizonal_ = enabled;
+    setInputMode(makeDefaultInputMode());
 }
 
-void MenuTextList::onCancel() {
-    if (!cancelHandler_ || cancelHandler_()) {
-        requestDelete();
+std::unique_ptr<MenuInputMode> MenuYesNo::makeDefaultInputMode() const {
+    if (yesNoInputMode_) {
+        return std::make_unique<YesNoMenuInputMode>();
     }
-}
-
-void MenuYesNo::handleKeyInput(Node::Key key) {
-    switch (key) {
-    case KeyUp:
-    case KeyLeft:
-        if (currIndex_ != 0) {
-            currIndex_ = 0;
-            setDirty();
-        }
-        break;
-    case KeyDown:
-    case KeyRight:
-        if (currIndex_ != 1) {
-            currIndex_ = 1;
-            setDirty();
-        }
-        break;
-    default:
-        Menu::handleKeyInput(key);
-        break;
-    }
+    return Menu::makeDefaultInputMode();
 }
 
 void MenuYesNo::popupWithYesNo() {
+    yesNoInputMode_ = true;
+    setInputMode(std::make_unique<YesNoMenuInputMode>());
     popup({GETTEXT(78), GETTEXT(79)}, -1);
 }
 
-void MenuYesNo::onOK() {
-    if (currIndex_ < 0) { return; }
-    if (currIndex_ == 0) {
-        yesHandler_();
-    } else {
-        noHandler_();
+std::unique_ptr<MenuInputMode> MenuOption::makeDefaultInputMode() const {
+    return horizonal_
+        ? std::unique_ptr<MenuInputMode>(new HorizontalOptionMenuInputMode())
+        : std::unique_ptr<MenuInputMode>(new VerticalOptionMenuInputMode());
+}
+
+void MenuOption::setValueById(
+        std::int32_t entryId, const std::wstring &value) {
+    for (std::size_t index = 0; index < entryIds_.size(); ++index) {
+        if (entryIds_[index] == entryId) {
+            if (index >= values_.size()) { values_.resize(entryIds_.size()); }
+            values_[index] = value;
+            requestPresentationRefresh();
+            return;
+        }
     }
-}
-
-void MenuYesNo::onCancel() {
-    noHandler_();
-}
-
-void MenuOption::setValue(int index, const std::wstring &value) {
-    if (index < 0 || index >= values_.size()) { return; }
-    values_[index] = value;
-    setDirty();
-}
-
-void MenuOption::handleKeyInput(Node::Key key) {
-    switch (key) {
-    case KeyUp:
-        if (!horizonal_) {
-            break;
-        }
-        if (handler_) {
-            handler_(1);
-        }
-        return;
-    case KeyDown:
-        if (!horizonal_) {
-            break;
-        }
-        if (handler_) {
-            handler_(2);
-        }
-        return;
-    case KeyLeft:
-        if (horizonal_) {
-            break;
-        }
-        if (handler_) {
-            handler_(1);
-        }
-        return;
-    case KeyRight:
-        if (horizonal_) {
-            break;
-        }
-        if (handler_) {
-            handler_(2);
-        }
-        return;
-    case KeyOK: case KeySpace:
-        if (handler_) {
-            handler_(3);
-        }
-        return;
-    case KeyCancel:
-        if (handler_) {
-            handler_(0);
-        }
-        requestDelete();
-        return;
-    default:
-        break;
-    }
-    Menu::handleKeyInput(key);
 }
 
 }

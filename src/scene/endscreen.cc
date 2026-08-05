@@ -20,6 +20,7 @@
 #include "endscreen.hh"
 
 #include "colorpalette.hh"
+#include "window_command.hh"
 #include "window.hh"
 #include "content/grpdata.hh"
 
@@ -30,24 +31,33 @@ enum {
     OrigHeight = 200,
 };
 
-void EndScreen::init() {
+bool EndScreen::init() {
     ::hojy::content::GrpData::DataSet dset;
-    if (::hojy::content::GrpData::loadData("ENDWORD.IDX", "ENDWORD.GRP", dset)) {
-        wordTexMgr_.setRenderer(renderer_);
-        wordTexMgr_.setPalette(gEndPalette);
-        wordTexMgr_.loadFromRLE(dset);
+    if (!::hojy::content::GrpData::loadData("ENDWORD.IDX", "ENDWORD.GRP", dset)) { return false; }
+    wordTexMgr_.setRenderer(renderer_);
+    wordTexMgr_.setPalette(gEndPalette);
+    wordTexMgr_.loadFromRLE(dset);
+    for (int id = 0; id <= 22; ++id) {
+        if (!wordTexMgr_[id]) { return false; }
     }
     dset.clear();
-    if (::hojy::content::GrpData::loadData("KEND.IDX", "KEND.GRP", dset)) {
-        imgTexMgr_.setRenderer(renderer_);
-        imgTexMgr_.setPalette(gEndPalette);
-        imgTexMgr_.loadFromRAW(dset, OrigWidth, OrigHeight);
-    }
+    if (!::hojy::content::GrpData::loadData("KEND.IDX", "KEND.GRP", dset)) { return false; }
+    imgTexMgr_.setRenderer(renderer_);
+    imgTexMgr_.setPalette(gEndPalette);
+    imgTexMgr_.loadFromRAW(dset, OrigWidth, OrigHeight);
+    if (!imgTexMgr_[0]) { return false; }
     stage_ = 0, frame_ = 0;
     frameTotal_ = 60;
+    return true;
 }
 
-void EndScreen::handleKeyInput(Node::Key key) {
+void EndScreen::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void EndScreen::applyInputLogic() {
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
     if (key == KeyOK || key == KeySpace || key == KeyCancel) {
         switch (stage_) {
         case 2:
@@ -56,11 +66,11 @@ void EndScreen::handleKeyInput(Node::Key key) {
             frame_ = 0;
             frameTotal_ = stage3FrameTotal();
             y_ = height_;
-            setDirty();
+            requestPresentationRefresh();
             break;
         case 3:
             if (frame_ + 1 < frameTotal_) { break; }
-            gWindow->forceQuit();
+            postSceneCommand(this, [](SceneCommandContext &context) { context.forceQuit(); });
             break;
         default:
             break;
@@ -77,7 +87,7 @@ void EndScreen::update() {
             stage_ = 1; frame_ = 0;
             frameTotal_ = 600;
             y_ = height_;
-            setDirty();
+            requestPresentationRefresh();
             break;
         }
         break;
@@ -88,14 +98,14 @@ void EndScreen::update() {
         } else {
             stage_ = 2; frame_ = 0;
             frameTotal_ = imgTexMgr_.idMax() + 1;
-            setDirty();
+            requestPresentationRefresh();
             break;
         }
         break;
     case 2:
         if (frame_ + 1 < frameTotal_) {
             ++ frame_;
-            setDirty();
+            requestPresentationRefresh();
         }
         break;
     case 3:
@@ -108,7 +118,7 @@ void EndScreen::update() {
     NodeWithCache::update();
 }
 
-void EndScreen::render() {
+void EndScreen::render() const {
     renderer_->clear(0, 0, 0, 255);
     if (cache_) {
         renderer_->renderTexture(cache_, x_, y_, w_, h_, 0, 0, tw_, th_, true);
@@ -141,7 +151,7 @@ void EndScreen::makeCache() {
     if (!cache_) {
         renderer_->enableLinear();
         cache_ = Texture::createAsTarget(renderer_, 512, 4096);
-        cache_->enableBlendMode(true);
+        if (!cache_ || !cache_->enableBlendMode(true)) { return; }
         renderer_->enableLinear(false);
     }
     cacheBegin();
@@ -156,6 +166,7 @@ void EndScreen::makeCache() {
     switch (stage_) {
     case 0: {
         const auto *tex = wordTexMgr_[0];
+        if (!tex) { cacheEnd(); return; }
         tw_ = tex->width(), th_ = tex->height();
         w_ = tw_ * w / OrigWidth, h_ = th_ * h / OrigHeight;
         x_ = x + (w - w_) / 2;
@@ -167,6 +178,7 @@ void EndScreen::makeCache() {
         int cy = 0; tw_ = 0;
         for (int i = 1; i <= 2; ++i) {
             const auto *tex = wordTexMgr_[i];
+            if (!tex) { cacheEnd(); return; }
             tw_ = std::max(tw_, tex->width());
             renderer_->renderTexture(tex, 0, cy);
             cy += 15 + tex->height();
@@ -179,6 +191,7 @@ void EndScreen::makeCache() {
     }
     case 2: {
         const auto *tex = imgTexMgr_[frame_];
+        if (!tex) { cacheEnd(); return; }
         renderer_->renderTexture(tex, 0, 0);
         x_ = x;
         y_ = y;
@@ -193,6 +206,7 @@ void EndScreen::makeCache() {
         tw_ = 0;
         for (int i = 3; i <= 22; ++i) {
             const auto *tex = wordTexMgr_[i];
+            if (!tex) { cacheEnd(); return; }
             tw_ = std::max<std::int16_t>(tw_, tex->width() + (i == 22 ? 10 : 20));
             renderer_->renderTexture(tex, i == 22 ? 10 : 20, cy);
             cy += (i >= 20 ? 100 : 15) + tex->height();

@@ -1,17 +1,18 @@
 #include "warfield.hh"
 #include "warfield_load.hh"
 
+#include "logic/rle.hh"
 #include "content/grpdata.hh"
 #include "content/warfielddata.hh"
 #include "world/action.hh"
 #include "world/savedata.hh"
-#include "statusview.hh"
-#include "window.hh"
+#include "window_command.hh"
 
 #include <fmt/xchar.h>
 #include <memory>
 #include <new>
 #include <cstdint>
+#include <limits>
 #include <set>
 #include <utility>
 #include <vector>
@@ -20,17 +21,110 @@ namespace hojy::scene {
 Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale):
     Map(renderer, x, y, width, height, scale),
     battleRandom_(battleGameRandom_),
-    drawingTerrainTex2_(Texture::create(renderer, auxWidth_, auxHeight_)) {
-    drawingTerrainTex2_->enableBlendMode(true);
-    fightTexData_.resize(FightTextureListCount);
-    for (size_t i = 0; i < FightTextureListCount; ++i) {
-        ::hojy::content::GrpData::loadData(fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i), fightTexData_[i]);
+    drawingTerrainTex2_(Texture::create(renderer, auxWidth_, auxHeight_)),
+    presentationOwnerState_(std::make_shared<PresentationOwnerState>()) {
+    presentationOwnerState_->owner = this;
+    resourcesReady_ = drawingTerrainTex_ != nullptr && drawingTerrainTex2_ != nullptr;
+    if (drawingTerrainTex2_) {
+        resourcesReady_ = drawingTerrainTex2_->enableBlendMode(true) && resourcesReady_;
+    }
+    setStage(Idle);
+    if (!resourcesReady_) { return; }
+    try {
+        std::vector<std::vector<std::string>> candidateFightTextures(FightTextureListCount);
+        for (size_t i = 0; i < candidateFightTextures.size(); ++i) {
+            if (!::hojy::content::GrpData::loadData(
+                    fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i),
+                    candidateFightTextures[i])) {
+                resourcesReady_ = false;
+                return;
+            }
+            for (const auto &texture: candidateFightTextures[i]) {
+                if (!texture.empty() && !logic::validateRleData(texture)) {
+                    resourcesReady_ = false;
+                    return;
+                }
+            }
+        }
+        fightTexData_ = std::move(candidateFightTextures);
+    } catch (const std::bad_alloc &) {
+        resourcesReady_ = false;
     }
 }
 
 Warfield::~Warfield() {
+    invalidatePresentationSession();
+    if (presentationOwnerState_) {
+        presentationOwnerState_->owner = nullptr;
+        presentationOwnerState_.reset();
+    }
     delete drawingTerrainTex2_;
     delete statusPanel_;
+}
+
+bool Warfield::beginPresentationSession() {
+    try {
+        return presentationSession_.begin() != 0;
+    } catch (const std::bad_alloc &) {
+        presentationSession_.invalidate();
+        return false;
+    }
+}
+
+void Warfield::invalidatePresentationSession() noexcept {
+    presentationSession_.invalidate();
+}
+
+std::uint64_t Warfield::presentationSessionToken() const noexcept {
+    return presentationSession_.token();
+}
+
+BattlePresentationSession::Handle Warfield::presentationSessionHandle() const noexcept {
+    return presentationSession_.handle();
+}
+
+std::weak_ptr<Warfield::PresentationOwnerState>
+Warfield::presentationOwnerHandle() const noexcept {
+    return presentationOwnerState_;
+}
+
+bool Warfield::isCurrentPresentationSession(std::uint64_t token) const noexcept {
+    return presentationSession_.matches(token);
+}
+
+bool Warfield::matchesPresentationContext(
+        std::uint64_t sessionToken, std::uint64_t actionGeneration,
+        BattlePresentationStage expectedStage,
+        std::int16_t expectedActorId) const noexcept {
+    if (!isCurrentPresentationSession(sessionToken)
+        || !isValidBattlePresentationRequest(
+            sessionToken, actionGeneration, expectedStage)
+        || actionGeneration != presentationGeneration_
+        || expectedStage != presentationStage_) {
+        return false;
+    }
+    switch (expectedStage) {
+    case BattlePresentationStage::Any:
+        break;
+    case BattlePresentationStage::PlayerMenu:
+        if (stage_ != PlayerMenu) { return false; }
+        break;
+    case BattlePresentationStage::DirectionSelection:
+    case BattlePresentationStage::SkillLevelUp:
+    case BattlePresentationStage::ItemResult:
+    case BattlePresentationStage::ItemSelection:
+    case BattlePresentationStage::StatusSelection:
+        if (stage_ != PoppingUp) { return false; }
+        break;
+    case BattlePresentationStage::FinishMessages:
+        if (stage_ != Finished) { return false; }
+        break;
+    }
+    if (expectedActorId >= 0
+        && (!currentActor_ || currentActor_->id != expectedActorId)) {
+        return false;
+    }
+    return true;
 }
 
 void Warfield::clearActionState(bool clearPopupNumbers) {
@@ -39,8 +133,14 @@ void Warfield::clearActionState(bool clearPopupNumbers) {
     actLevel_ = 0;
     actItemSlot_ = -1;
     skillLevelup_ = false;
+    pendingSkillLevelUpActorId_ = -1;
+    pendingSkillLevelUpSkillId_ = -1;
+    pendingSkillLevelUpSkillIndex_ = -1;
+    pendingItemResultActorId_ = -1;
+    pendingItemResultItemId_ = -1;
     effectId_ = -1;
     effectTexIdx_ = -1;
+    effectOverlaySnapshot_ = {};
     fightTexIdx_ = -1;
     fightTexCount_ = 0;
     fightFrame_ = 0;
@@ -53,15 +153,19 @@ void Warfield::clearActionState(bool clearPopupNumbers) {
 }
 
 void Warfield::cleanup() {
+    invalidatePresentationSession();
     discardBattleSession();
     battleRandom_.clear();
     battleBag_ = {};
     battleBagActive_ = false;
-    removeAllChildren();
-    fadeNode_ = nullptr;
-    fadePostAction_ = nullptr;
-    runFadePostAction_ = false;
+    pendingBattleMusic_ = -1;
+    presentationCleanupRequested_ = true;
+    pendingFinishMessages_.reset();
     pendingAutoAction_ = nullptr;
+    pendingSkillLevelUpContinuation_ = nullptr;
+    pendingInputAction_ = nullptr;
+    pendingModeKey_ = InputKey::None;
+    hasPendingModeKey_ = false;
     resumeAutoAttack_ = false;
     currentActor_ = nullptr;
     for (auto &cell: cellInfo_) {
@@ -72,7 +176,7 @@ void Warfield::cleanup() {
     charQueue_.clear();
     chars_.clear();
     round_ = 0;
-    stage_ = Idle;
+    setStage(Idle);
     knowledge_[0] = knowledge_[1] = 0;
     cursorX_ = 0;
     cursorY_ = 0;
@@ -80,8 +184,35 @@ void Warfield::cleanup() {
     won_ = false;
     selCells_.clear();
     movingPath_.clear();
-    drawDirty_ = true;
+    markWorldChanged();
     clearActionState(true);
+}
+
+void Warfield::abortPresentationState() noexcept {
+    invalidatePresentationSession();
+    discardBattleSession();
+    battleBag_ = {};
+    battleBagActive_ = false;
+    pendingBattleMusic_ = -1;
+    currentActor_ = nullptr;
+    pendingAutoAction_ = nullptr;
+    pendingSkillLevelUpContinuation_ = nullptr;
+    pendingSkillLevelUpActorId_ = -1;
+    pendingSkillLevelUpSkillId_ = -1;
+    pendingSkillLevelUpSkillIndex_ = -1;
+    pendingInputAction_ = nullptr;
+    pendingModeKey_ = InputKey::None;
+    hasPendingModeKey_ = false;
+    turnOrder_.clear();
+    charQueue_.clear();
+    movingPath_.clear();
+    selCells_.clear();
+    popupNumbers_.clear();
+    presentationCleanupRequested_ = true;
+    pendingFinishMessages_.reset();
+    resumeAutoAttack_ = false;
+    clearActionState(false);
+    setStage(Finished);
 }
 
 void Warfield::syncBattleParticipantsToWorking() noexcept {
@@ -130,10 +261,8 @@ battle::InventorySnapshot Warfield::battleInventorySnapshot() const {
 bool Warfield::recordBattleAction(const battle::BattleAction &action) {
     if (battleParticipants_.size() != chars_.size()
         || battleEngine_.status() != battle::EngineStatus::Active) {
-        discardBattleSession();
-        battleBag_ = {};
-        battleBagActive_ = false;
-        stage_ = Finished;
+        queueBattleAbortTransition();
+        abortPresentationState();
         return false;
     }
     try {
@@ -142,18 +271,27 @@ bool Warfield::recordBattleAction(const battle::BattleAction &action) {
             action, battleInventorySnapshot());
         syncBattleParticipantsFromWorking();
         if (!recorded) {
-            discardBattleSession();
-            battleBag_ = {};
-            battleBagActive_ = false;
-            stage_ = Finished;
+            queueBattleAbortTransition();
+            abortPresentationState();
         }
         return recorded;
     } catch (const std::bad_alloc &) {
-        discardBattleSession();
-        battleBag_ = {};
-        battleBagActive_ = false;
-        stage_ = Finished;
+        queueBattleAbortTransition();
+        abortPresentationState();
         return false;
+    }
+}
+
+void Warfield::queueBattleAbortTransition() noexcept {
+    const auto sessionToken = presentationSessionToken();
+    if (sessionToken == 0) { return; }
+    try {
+        postCommand([sessionToken](SceneCommandContext &context) {
+            context.abortBattle(BattleAbortRequest{sessionToken, false});
+        });
+    } catch (const std::bad_alloc &) {
+        // The engine failure must still roll back even if command allocation
+        // is unavailable; Window will reject any stale presentation callbacks.
     }
 }
 
@@ -182,6 +320,7 @@ void Warfield::commitBattleBag() noexcept {
 }
 
 bool Warfield::load(std::int16_t warId) {
+    if (!resourcesReady_) { return false; }
     const auto *info = ::hojy::content::gWarfieldData.info(warId);
     if (!info) { return false; }
     const auto warMapId = info->warFieldId;
@@ -213,10 +352,28 @@ bool Warfield::load(std::int16_t warId) {
     const int cellDiffY = loadedTextures.cellHeight / 2;
     const auto size = mapWidth * mapHeight;
     const auto &textureData = mapCached ? texData_ : loadedTextures.textures;
+    if (textureData.empty()
+        || textureData.size() > static_cast<std::size_t>(std::numeric_limits<std::int16_t>::max())) {
+        return false;
+    }
+    for (const auto &texture: textureData) {
+        if (!texture.empty() && !logic::validateRleData(texture)) {
+            return false;
+        }
+    }
     if (!detail::validateWarfieldTextureIds(
             layers[0], layers[1], static_cast<std::size_t>(size),
             textureData.size())) {
         return false;
+    }
+    for (std::size_t i = 0; i < static_cast<std::size_t>(size); ++i) {
+        const auto earthId = static_cast<std::size_t>(layers[0][i] >> 1);
+        if (textureData[earthId].empty()) { return false; }
+        const auto buildingId = layers[1][i] >> 1;
+        if (buildingId > 0
+            && textureData[static_cast<std::size_t>(buildingId)].empty()) {
+            return false;
+        }
     }
     std::vector<CellInfo> cellInfo(static_cast<size_t>(size));
 
@@ -240,12 +397,6 @@ bool Warfield::load(std::int16_t warId) {
         detail::commitWarfieldTextureCache(
             nextWarMapLoaded, warMapId, loadedTextures.shared);
     }
-    std::unique_ptr<StatusView> newStatusPanel;
-    if (!statusPanel_) {
-        newStatusPanel = std::make_unique<StatusView>(
-            renderer_, x_, y_, width_, height_);
-    }
-
     cleanup();
     warId_ = warId;
     mapWidth_ = mapWidth;
@@ -255,7 +406,7 @@ bool Warfield::load(std::int16_t warId) {
     offsetX_ = loadedTextures.offsetX;
     offsetY_ = loadedTextures.offsetY;
     if (!mapCached) {
-        textureMgr_.clear();
+        presentationTextureResetRequested_ = true;
         texData_ = std::move(loadedTextures.textures);
         warMapLoaded_ = std::move(nextWarMapLoaded);
     }
@@ -263,11 +414,11 @@ bool Warfield::load(std::int16_t warId) {
 
     subMapId_ = warMapId;
     resetFrame();
-    if (newStatusPanel) { statusPanel_ = newStatusPanel.release(); }
     return true;
 }
 
 bool Warfield::getDefaultChars(std::set<std::int16_t> &chars) const {
+    if (!resourcesReady_) { return false; }
     const auto *info = ::hojy::content::gWarfieldData.info(warId_);
     if (!info) { return false; }
     if (info->forceMembers[0] >= 0) { return false; }
@@ -278,6 +429,7 @@ bool Warfield::getDefaultChars(std::set<std::int16_t> &chars) const {
 }
 
 bool Warfield::putChars(const std::vector<std::int16_t> &chars) {
+    if (!resourcesReady_) { return false; }
     const auto *info = ::hojy::content::gWarfieldData.info(warId_);
     if (!info || cellInfo_.empty() || !chars_.empty() || !battleParticipants_.empty()) {
         return false;
@@ -420,9 +572,7 @@ bool Warfield::putChars(const std::vector<std::int16_t> &chars) {
     }
     recalcKnowledge();
     frameUpdate();
-    if (info->music >= 0) {
-        gWindow->playMusic(info->music);
-    }
+    pendingBattleMusic_ = info->music;
     return true;
 }
 

@@ -3,22 +3,76 @@
 #include "colorpalette.hh"
 #include "effect.hh"
 #include "node_helpers.hh"
+#include "statusview.hh"
 #include "warfield_load.hh"
 #include "content/constants.hh"
-#include "world/savedata.hh"
+#include "core/config.hh"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 
 namespace hojy::scene {
-void Warfield::render() {
-    Map::render();
-
+void Warfield::prepareRender() {
+    if (presentationTextureResetRequested_) {
+        textureMgr_.clear();
+        presentationTextureResetRequested_ = false;
+    }
+    if (presentationCleanupRequested_) {
+        removeAllChildren();
+        fadeNode_ = nullptr;
+        fadePostAction_ = nullptr;
+        runFadePostAction_ = false;
+        presentationCleanupRequested_ = false;
+    }
+    if (statusPanelReleaseRequested_) {
+        delete statusPanel_;
+        statusPanel_ = nullptr;
+        statusPanelReleaseRequested_ = false;
+        renderedStatusSnapshotRevision_ = 0;
+    }
+    if (pendingFinishMessages_) {
+        auto request = std::move(*pendingFinishMessages_);
+        pendingFinishMessages_.reset();
+        presentFinishMessages(std::move(request));
+    }
+    if (!resourcesReady_ || cellInfo_.empty() || cellWidth_ < 2 || cellHeight_ < 2) {
+        return;
+    }
+    Map::prepareRender();
+    if ((stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving)
+        && !statusPanel_ && renderer_) {
+        auto candidate = std::make_unique<StatusView>(
+            renderer_, x_, y_, width_, height_);
+        candidate->setHeadTextureProvider(headTextureProvider_);
+        statusPanel_ = candidate.release();
+    }
+    if ((stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving)
+        && statusPanel_ && statusSnapshot_
+        && renderedStatusSnapshotRevision_ != statusSnapshotRevision_) {
+        auto *status = dynamic_cast<StatusView *>(statusPanel_);
+        if (status) {
+            status->show(*statusSnapshot_);
+            status->setBattleAnchor(
+                currentActor_ && currentActor_->side == 1,
+                width_, height_,
+                core::config.windowBorder());
+            renderedStatusSnapshotRevision_ = statusSnapshotRevision_;
+        }
+    }
     bool acting = stage_ == Acting;
-    if (drawDirty_) {
+    if (acting && effectTexIdx_ >= 3) {
+        const auto fontSize = 12 * scale_.first / scale_.second;
+        for (const auto &number: popupNumbers_) {
+            if (!renderer_->ttf()->prepareText(number.str, fontSize)) {
+                return;
+            }
+        }
+    }
+    if (worldPresentationNeedsPrepare()) {
         std::vector<const std::string *> effectOverlay(cellInfo_.size(), nullptr);
-        drawDirty_ = false;
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int curX = cameraX_, curY = cameraY_;
@@ -38,102 +92,39 @@ void Warfield::render() {
         bool selecting = stage_ == MoveSelecting || stage_ == AttackSelecting;
         bool movingOrActing = acting || stage_ == Moving;
         auto *ch = currentActor_;
-        if (acting && ch && effectTexIdx_ >= 0
-            && effectId_ >= 0
-            && !gEffect[effectId_].empty()) {
-            const auto *skillInfo = actId_ > 0 ? ::hojy::world::state::gSaveData.skillInfo[actId_] : nullptr;
-            const auto &effTexData = gEffect[effectId_];
-            const auto *tex = effectTexIdx_ < effTexData.size() ? &effTexData[effectTexIdx_] : &effTexData.back();
-            auto mw = mapWidth_;
-            if (skillInfo == nullptr || skillInfo->attackAreaType == 0) {
-                auto sx = cursorX_, sy = cursorY_;
-                effectOverlay[sy * mw + sx] = tex;
-            } else {
-                switch (skillInfo->attackAreaType) {
-                case 1: {
-                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        switch (ch->direction) {
-                        case Map::DirUp:
-                            if (sy >= i) {
-                                auto &ci = cellInfo_[st - i * mw + sx];
-                                if (ci.buildingId <= 0) { effectOverlay[st - i * mw + sx] = tex; }
-                            }
-                            break;
-                        case Map::DirRight:
-                            if (sx + i < mapWidth_) {
-                                auto &ci = cellInfo_[st + sx + i];
-                                if (ci.buildingId <= 0) { effectOverlay[st + sx + i] = tex; }
-                            }
-                            break;
-                        case Map::DirLeft:
-                            if (sx >= i) {
-                                auto &ci = cellInfo_[st + sx - i];
-                                if (ci.buildingId <= 0) { effectOverlay[st + sx - i] = tex; }
-                            }
-                            break;
-                        case Map::DirDown:
-                            if (sy + i < mapHeight_) {
-                                auto &ci = cellInfo_[st + i * mw + sx];
-                                if (ci.buildingId <= 0) { effectOverlay[st + i * mw + sx] = tex; }
-                            }
-                            break;
-                        default:
-                            break;
-                        }
+        if (acting && effectOverlaySnapshot_.frameIndex >= 0) {
+            const auto &effectFrames = gEffect[
+                static_cast<std::int16_t>(effectOverlaySnapshot_.effectAssetId)];
+            if (!effectFrames.empty()) {
+                const auto frame = static_cast<std::size_t>(
+                    effectOverlaySnapshot_.frameIndex);
+                const auto *texture = frame < effectFrames.size()
+                    ? &effectFrames[frame] : &effectFrames.back();
+                for (const auto index: effectOverlaySnapshot_.cellIndices) {
+                    if (index < effectOverlay.size()) {
+                        effectOverlay[index] = texture;
                     }
-                    break;
-                }
-                case 2: {
-                    auto sx = cameraX_, sy = cameraY_, st = sy * mw;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int i = r; i; --i) {
-                        if (sy >= i) {
-                            auto &ci = cellInfo_[st - i * mw + sx];
-                            if (ci.buildingId <= 0) { effectOverlay[st - i * mw + sx] = tex; }
-                        }
-                        if (sx + i < mapWidth_) {
-                            auto &ci = cellInfo_[st + sx + i];
-                            if (ci.buildingId <= 0) { effectOverlay[st + sx + i] = tex; }
-                        }
-                        if (sx >= i) {
-                            auto &ci = cellInfo_[st + sx - i];
-                            if (ci.buildingId <= 0) { effectOverlay[st + sx - i] = tex; }
-                        }
-                        if (sy + i < mapHeight_) {
-                            auto &ci = cellInfo_[st + i * mw + sx];
-                            if (ci.buildingId <= 0) { effectOverlay[st + i * mw + sx] = tex; }
-                        }
-                    }
-                    break;
-                }
-                case 3: {
-                    auto sx = cursorX_, sy = cursorY_;
-                    int r = skillInfo->selRange[actLevel_];
-                    for (int j = -r; j <= r; ++j) {
-                        auto ry = sy + j;
-                        if (ry < 0 || ry >= mapHeight_) { continue; }
-                        for (int i = -r; i <= r; ++i) {
-                            auto rx = sx + i;
-                            if (rx < 0 || rx >= mapWidth_) { continue; }
-                            auto &ci = cellInfo_[ry * mw + rx];
-                            if (ci.buildingId <= 0) { effectOverlay[ry * mw + rx] = tex; }
-                        }
-                    }
-                    break;
-                }
-                default:
-                    break;
                 }
             }
         }
         const auto *colors = gNormalPalette.colors();
+        auto candidateTerrain = std::unique_ptr<Texture>(Texture::create(renderer_, auxWidth_, auxHeight_));
+        auto candidateOverlay = std::unique_ptr<Texture>(Texture::create(renderer_, auxWidth_, auxHeight_));
+        if (!candidateTerrain || !candidateOverlay
+            || !candidateTerrain->enableBlendMode(true)
+            || !candidateOverlay->enableBlendMode(true)) {
+            return;
+        }
         int pitch, pitch2;
-        std::uint32_t *pixels = drawingTerrainTex_->lock(pitch);
-        std::uint32_t *pixels2 = drawingTerrainTex2_->lock(pitch2);
+        TextureLock terrainLock(candidateTerrain.get(), pitch);
+        TextureLock overlayLock(candidateOverlay.get(), pitch2);
+        if (!terrainLock.valid() || !overlayLock.valid()) { return; }
+        std::uint32_t *pixels = terrainLock.pixels();
+        std::uint32_t *pixels2 = overlayLock.pixels();
         memset(pixels, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
-        memset(pixels2, 0, pitch * auxHeight_ * sizeof(std::uint32_t));
+        memset(pixels2, 0, pitch2 * auxHeight_ * sizeof(std::uint32_t));
+        bool renderOk = true;
+        std::array<std::uint32_t, 256> maskColors{};
         for (int j = hcount; j; --j) {
             int x = cx, y = cy;
             int dx = tx;
@@ -143,41 +134,40 @@ void Warfield::render() {
                     continue;
                 }
                 auto &ci = cellInfo_[offset];
-                Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.earthId),
-                                   colors, pixels, pitch, aheight, dx, ty);
+                renderOk = renderOk && Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.earthId),
+                                                          colors, pixels, pitch, aheight, dx, ty);
                 if (!movingOrActing) {
-                    static std::uint32_t maskColors[256] = {0};
                     if (ci.insideMovingArea == 2) {
                         maskColors[254] = 0xA0A0A0A0u;
-                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
-                                                   maskColors, pixels, pitch, aheight, dx, ty);
+                        renderOk = renderOk && Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                                          maskColors.data(), pixels, pitch, aheight, dx, ty);
                     } else if (ci.charInfo) {
                         maskColors[254] = 0x80A0A0A0u;
-                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
-                                                   maskColors, pixels, pitch, aheight, dx, ty);
+                        renderOk = renderOk && Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                                          maskColors.data(), pixels, pitch, aheight, dx, ty);
                     } else if (selecting && !ci.insideMovingArea) {
                         maskColors[254] = 0xD0A0A0A0u;
-                        Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
-                                                   maskColors, pixels, pitch, aheight, dx, ty);
+                        renderOk = renderOk && Texture::renderRLEBlending(detail::warfieldTextureAt(texData_, 0),
+                                                                          maskColors.data(), pixels, pitch, aheight, dx, ty);
                     }
                 }
                 if (ci.buildingId > 0) {
-                    Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.buildingId),
-                                       colors, pixels2, pitch2, aheight, dx, ty);
+                    renderOk = renderOk && Texture::renderRLE(detail::warfieldTextureAt(texData_, ci.buildingId),
+                                                              colors, pixels2, pitch2, aheight, dx, ty);
                 } else {
                     if (ci.charInfo) {
                         if (acting && ci.charInfo == ch && fightTex_ && fightTexIdx_ >= 0 && fightTexIdx_ < fightTex_->size()) {
-                            Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels2, pitch2, aheight, dx, ty);
+                            renderOk = renderOk && Texture::renderRLE((*fightTex_)[fightTexIdx_], colors, pixels2, pitch2, aheight, dx, ty);
                         } else {
                             const auto textureId = 2553 + 4 * ci.charInfo->texId
                                 + int(ci.charInfo->direction);
-                            Texture::renderRLE(detail::warfieldTextureAt(texData_, textureId),
-                                               colors, pixels2, pitch2, aheight, dx, ty);
+                            renderOk = renderOk && Texture::renderRLE(detail::warfieldTextureAt(texData_, textureId),
+                                                                      colors, pixels2, pitch2, aheight, dx, ty);
                         }
                     }
                     const auto *effectData = effectOverlay[offset];
                     if (effectData) {
-                        Texture::renderRLE(*effectData, colors, pixels2, pitch2, aheight, dx, ty);
+                        renderOk = renderOk && Texture::renderRLE(*effectData, colors, pixels2, pitch2, aheight, dx, ty);
                     }
                 }
             }
@@ -191,9 +181,27 @@ void Warfield::render() {
                 ty += cellDiffY;
             }
         }
-        drawingTerrainTex2_->unlock();
-        drawingTerrainTex_->unlock();
+        if (!renderOk) { return; }
+        overlayLock.unlock();
+        terrainLock.unlock();
+        delete drawingTerrainTex2_;
+        drawingTerrainTex2_ = candidateOverlay.release();
+        delete drawingTerrainTex_;
+        drawingTerrainTex_ = candidateTerrain.release();
+        commitWorldPresentation();
     }
+    if (stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving) {
+        detail::invokeIfPresent(
+            statusPanel_, [](Node &panel) { panel.dispatchPrepareRender(); });
+    }
+}
+
+void Warfield::render() const {
+    if (!resourcesReady_ || !renderer_ || !drawingTerrainTex_ || !drawingTerrainTex2_) {
+        return;
+    }
+    Map::render();
+    bool acting = stage_ == Acting;
     renderer_->clear(0, 0, 0, 0);
     renderer_->renderTexture(drawingTerrainTex_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
     renderer_->renderTexture(drawingTerrainTex2_, x_, y_, width_, height_, 0, 0, auxWidth_, auxHeight_);
@@ -201,22 +209,23 @@ void Warfield::render() {
         int cellDiffX = cellWidth_ / 2;
         int cellDiffY = cellHeight_ / 2;
         int ax = int(auxWidth_) / 2, ay = int(auxHeight_) / 2 + cellDiffY;
-        auto *ttf = renderer_->ttf();
         auto fsize = 12 * scale_.first / scale_.second;
         for (auto &n: popupNumbers_) {
             int deltax = n.x - cameraX_, deltay = n.y - cameraY_;
             int texX = (ax + (deltax - deltay) * cellDiffX) * scale_.first / scale_.second;
             int texY = (ay + (deltax + deltay) * cellDiffY - cellDiffY * 3 - fsize - effectTexIdx_ * 2) * scale_.first / scale_.second;
-            texX -= ttf->stringWidth(n.str, fsize) / 2;
-            ttf->setColor((n.r + 256) / 2, (n.g + 256) / 2, (n.b + 256) / 2);
-            ttf->render(n.str, texX + 1, texY, false, fsize);
-            ttf->setColor(n.r, n.g, n.b);
-            ttf->render(n.str, texX, texY, false, fsize);
+            auto *ttf = renderer_->ttf();
+            texX -= ttf->preparedStringWidth(n.str, fsize) / 2;
+            ttf->renderPrepared(n.str, texX + 1, texY, false, fsize,
+                                static_cast<std::uint8_t>((n.r + 256) / 2),
+                                static_cast<std::uint8_t>((n.g + 256) / 2),
+                                static_cast<std::uint8_t>((n.b + 256) / 2));
+            ttf->renderPrepared(n.str, texX, texY, false, fsize, n.r, n.g, n.b);
         }
     }
     if (stage_ == Idle || stage_ == PlayerMenu || stage_ == Moving) {
         detail::invokeIfPresent(
-            statusPanel_, [](Node &panel) { panel.render(); });
+            statusPanel_, [](Node &panel) { panel.dispatchRender(); });
     }
 }
 

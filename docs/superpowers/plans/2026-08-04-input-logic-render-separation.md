@@ -8,6 +8,16 @@
 
 **Tech Stack:** C++17、CMake、CTest、Python `unittest`、SDL2、现有 `hojy_app`/`hojy_scene`/`hojy_battle` 目标。
 
+## 恢复检查点（2026-08-05）
+
+- Task 0–8 的实现、对应行为测试和架构门禁已落地；计划复选框仍以本节证据为准，避免上下文压缩后重复入队。
+- Debug 全量 CTest：70/70 通过；架构门禁：14/14 通过。
+- Release 已重新配置并完成构建；逐事件输入屏障修复后的全量 CTest：70/70 通过。
+- 本轮新增回归门禁：`SceneCommandBoundaryTests.test_each_input_intent_reselects_focus_after_its_barrier`，先验证旧批量投递实现失败，再验证逐事件焦点重取和屏障实现通过。
+- 当前唯一实现变更：`Window::updateFixed()` 每个输入意图后执行节点/命令屏障，并在下一意图前重新解析 `popup_` 或 `map_`。
+- Task 3 的实际命令队列路径为 `src/scene/logic/command.hh/.cc`，与早期 Files 列表中的 `src/scene/command.hh/.cc` 不同。
+- 最终验证命令：Debug/Release 全量 CTest 均为 70/70；`git diff --check -- src tests docs tools` 退出码 0；失效 SDL2/fmt 子模块元数据仅影响不带路径的 Git 检查命令，未影响源码、构建或测试。
+
 ---
 
 ## 文件结构
@@ -337,8 +347,8 @@ git commit -m "refactor(input): consume intents during fixed logic"
 ## Task 3：引入多态场景命令队列
 
 **Files:**
-- Create: `src/scene/command.hh`
-- Create: `src/scene/command.cc`
+- Create: `src/scene/logic/command.hh`
+- Create: `src/scene/logic/command.cc`
 - Create: `tests/scene/command_queue_tests.cc`
 - Modify: `src/scene/window.hh`
 - Modify: `src/scene/window.cc`
@@ -363,14 +373,16 @@ Expected: 缺少 `scene/command.hh`。
 class SceneCommand {
 public:
     virtual ~SceneCommand() = default;
-    virtual void execute() = 0;
+    virtual void execute(SceneCommandContext &context) = 0;
 };
 
 class FunctionSceneCommand final : public SceneCommand {
 public:
     explicit FunctionSceneCommand(std::function<void()> function)
         : function_(std::move(function)) {}
-    void execute() override { if (function_) { function_(); } }
+    void execute(SceneCommandContext &context) override {
+        if (function_) { function_(context); }
+    }
 
 private:
     std::function<void()> function_;
@@ -379,9 +391,9 @@ private:
 class SceneCommandQueue final {
 public:
     void push(std::unique_ptr<SceneCommand> command);
-    void push(std::function<void()> function);
-    void executeGeneration();
-    void executeAllGenerations();
+    void push(std::function<void(SceneCommandContext &)> function);
+    void executeGeneration(SceneCommandContext &context);
+    void discardAfter(std::size_t checkpoint) noexcept;
     [[nodiscard]] bool empty() const { return commands_.empty(); }
 
 private:
@@ -389,11 +401,11 @@ private:
 };
 ```
 
-`executeGeneration()` 移动当前队列到局部批次；执行失败时把当前未执行命令按原顺序放回队首，再抛出异常。执行期间追加的命令留在下一 generation；`executeAllGenerations()` 在当前事件屏障内逐 generation 执行，直到进入屏障时已存在的命令全部完成，防止下一个输入看到半完成焦点状态。
+`executeGeneration(context)` 移动当前队列到局部批次；执行失败时把当前未执行命令按原顺序放回队首，再抛出异常。执行期间追加的命令留在下一 generation；Window 在每个 fixed-logic 事件屏障中显式执行当前 generation，并按事务检查点丢弃失败路径追加的命令，防止下一个输入看到半完成焦点状态。
 
 - [ ] **Step 4：用命令队列替换 Window 的裸函数队列**
 
-`Window::defer(std::function<void()>)` 保持公共兼容入口，但内部构造 `FunctionSceneCommand`。`deferredCommands_` 改为 `SceneCommandQueue`，`applyDeferredCommands()` 只负责重入保护并调用 `executeAllGenerations()`；单个 generation 内执行期间追加的新命令必须留到下一 generation，事件屏障返回前则继续执行所有已产生 generation。
+`Window::defer(std::function<void()>)` 保持公共兼容入口，但内部构造 `FunctionSceneCommand`。`deferredCommands_` 改为 `SceneCommandQueue`，`applyDeferredCommands()` 只负责重入保护并执行当前 generation；单个 generation 内执行期间追加的新命令必须留到下一 generation，并由 fixed-logic 事件屏障显式继续执行已产生的 generation。
 
 - [ ] **Step 5：运行命令、节点和窗口测试**
 
@@ -498,7 +510,7 @@ Expected: 缺少 `prepareRender()` 或 `render() const`。
 
 - [ ] **Step 4：迁移 NodeWithCache**
 
-`NodeWithCache::update()` 不再调用 `rebuildCache()`；`prepareRender()` 调用 `rebuildCache()`。`forceUpdate()` 只标记 dirty 并由显式 `prepareRender()` 构建；需要同步尺寸的创建路径改为先调用 `dispatchPrepareRender()`，再 `makeCenter()`。`render() const` 只提交现有 texture。
+`NodeWithCache::update()` 不再调用 `rebuildCache()`；`prepareRender()` 调用 `rebuildCache()`。逻辑阶段通过 `requestPresentationRefresh()` 递增 `requestedPresentationRevision_`，由显式 `prepareRender()` 构建缓存；需要同步尺寸的创建路径改为先调用 `dispatchPrepareRender()`，再 `makeCenter()`。`render() const` 只提交现有 texture。
 
 - [ ] **Step 5：批量修正所有 render 覆写为 const**
 

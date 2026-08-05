@@ -87,7 +87,15 @@ bool SaveData::newGame() {
     return load(0);
 }
 
+bool SaveData::newGame(Bag &bag) {
+    return load(0, bag);
+}
+
 bool SaveData::load(int num) {
+    return load(num, gBag);
+}
+
+bool SaveData::load(int num, Bag &bag) {
     std::string rangerFile, sinFile, defFile;
     buildSaveFilename(num, rangerFile, sinFile, defFile);
     ::hojy::content::GrpData::DataSet rangerData, sinData, defData;
@@ -126,9 +134,24 @@ bool SaveData::load(int num) {
         }
     }
 
-    *this = std::move(loaded);
-    gBag.syncFromSave();
+    Bag loadedBag;
+    if (!loadedBag.syncFrom(*loaded.baseInfo.operator->())) {
+        return false;
+    }
+    swap(loaded);
+    bag.swap(loadedBag);
     return true;
+}
+
+void SaveData::swap(SaveData &other) noexcept {
+    baseInfo.swap(other.baseInfo);
+    charInfo.swap(other.charInfo);
+    itemInfo.swap(other.itemInfo);
+    subMapInfo.swap(other.subMapInfo);
+    subMapLayerInfo.swap(other.subMapLayerInfo);
+    subMapEventInfo.swap(other.subMapEventInfo);
+    skillInfo.swap(other.skillInfo);
+    shopInfo.swap(other.shopInfo);
 }
 
 bool SaveData::save(int num) {

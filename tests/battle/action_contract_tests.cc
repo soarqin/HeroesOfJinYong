@@ -82,6 +82,38 @@ void levelExperienceRejectsNonPositiveLevels() {
     HOJY_CHECK_EQ(hojy::world::state::getExpForLevelUp(-1), 0);
 }
 
+void candidateEquipmentDoesNotTouchLiveSave() {
+    using namespace hojy::world::state;
+    SaveData candidate = gSaveData;
+    CharacterData characters[2]{};
+    characters[0].id = 0;
+    characters[0].equip[0] = characters[0].equip[1] = -1;
+    characters[0].mp = 100;
+    characters[0].attack = 80;
+    characters[0].speed = 80;
+    characters[0].defence = 80;
+    characters[0].potential = 80;
+    characters[1].id = 1;
+    characters[1].equip[0] = characters[1].equip[1] = -1;
+    loadRecords(candidate.charInfo, characters, 2);
+
+    ItemData item{};
+    item.id = 0;
+    item.itemType = 1;
+    item.equipType = 0;
+    item.user = -1;
+    item.reqMp = item.reqAttack = item.reqSpeed = item.reqPoison = 0;
+    item.reqMedic = item.reqDepoison = item.reqFist = item.reqSword = 0;
+    item.reqBlade = item.reqSpecial = item.reqThrowing = item.reqPotential = 0;
+    loadRecords(candidate.itemInfo, &item, 1);
+
+    HOJY_CHECK_EQ(equipItem(candidate, 0, 0), true);
+    HOJY_CHECK_EQ(candidate.charInfo[0]->equip[0], 0);
+    HOJY_CHECK_EQ(candidate.itemInfo[0]->user, 0);
+    HOJY_CHECK_EQ(gSaveData.charInfo.size(), 0U);
+    HOJY_CHECK_EQ(gSaveData.itemInfo.size(), 2U);
+}
+
 void skillBookUsesItsOwnPropertyContract() {
     auto character = makeCharacter();
     character.hp = 50;
@@ -209,6 +241,7 @@ int main() {
         prepareData();
         experienceRequirementsUseOriginalPotentialTier();
         levelExperienceRejectsNonPositiveLevels();
+        candidateEquipmentDoesNotTouchLiveSave();
         skillBookUsesItsOwnPropertyContract();
         postDamageChargesOnceAndKeepsStoredProgress();
         injectedPostDamageRandomPreservesCallOrder();

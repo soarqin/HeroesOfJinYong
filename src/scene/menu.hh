@@ -1,115 +1,105 @@
-/*
- * Heroes of Jin Yong.
- * A reimplementation of the DOS game `The legend of Jin Yong Heroes`.
- * Copyright (C) 2021, Soar Qin<soarchin@gmail.com>
-
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
-
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
-
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 #pragma once
 
+#include "logic/menu.hh"
 #include "nodewithcache.hh"
-#include <functional>
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace hojy::scene {
 
-class Menu: public NodeWithCache {
+class Menu: public NodeWithCache, protected MenuInputExecutionContext {
 public:
     using NodeWithCache::NodeWithCache;
 
     [[nodiscard]] int currIndex() const { return currIndex_; }
+    [[nodiscard]] std::int32_t currEntryId() const;
     inline void setTitle(const std::wstring &title) { title_ = title; }
-    virtual void enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) {
-        checkbox_ = b;
-        onCheckBoxToggle_ = b ? onCheckBoxToggle : nullptr;
-    }
-    inline void enableHorizonal(bool b) { horizonal_ = b; }
+    void enableCheckBox(bool enabled);
+    virtual void enableHorizonal(bool enabled);
     void popup(const std::vector<std::wstring> &items, int defaultIndex = 0);
-    void popup(const std::vector<std::wstring> &items, const std::vector<std::wstring> &values, int defaultIndex = 0);
-    void checkItem(size_t index, bool check);
-    [[nodiscard]] bool itemChecked(size_t index) const;
+    void popup(const std::vector<std::wstring> &items,
+               const std::vector<std::wstring> &values,
+               int defaultIndex = 0);
+    void popup(const MenuEntries &entries, int defaultIndex = 0);
+    void setEntryIds(const std::vector<std::int32_t> &ids);
+    void setEntryEnabledById(std::int32_t entryId, bool enabled);
+    void setSelectionSink(std::shared_ptr<MenuSelectionSink> sink);
+    void checkItem(std::size_t index, bool check);
+    [[nodiscard]] bool itemChecked(std::size_t index) const;
 
-    void handleKeyInput(Key key) override;
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
 
 protected:
-    virtual void onOK() {}
-    virtual void onCancel() {}
+    // MenuInputExecutionContext
+    [[nodiscard]] int currentIndex() const noexcept override { return currIndex_; }
+    [[nodiscard]] int entryCount() const noexcept override {
+        return static_cast<int>(items_.size());
+    }
+    [[nodiscard]] bool checkboxEnabled() const noexcept override { return checkbox_; }
+    void moveSelection(int delta, bool wrap) override;
+    void selectIndex(int index) override;
+    [[nodiscard]] std::int32_t entryIdAt(int index) const override;
+    void submit(MenuGesture gesture) override;
+
+    void setInputMode(std::unique_ptr<MenuInputMode> mode);
+    [[nodiscard]] virtual std::unique_ptr<MenuInputMode>
+    makeDefaultInputMode() const;
+    void markSelectionDirty() { requestPresentationRefresh(); }
 
 private:
+    bool prepareTextResources() override;
+    void ensureLayout() override;
     void makeCache() override;
 
 protected:
     std::wstring title_;
     std::vector<std::wstring> items_;
     std::vector<std::wstring> values_;
+    std::vector<std::int32_t> entryIds_;
+    std::vector<bool> entryEnabled_;
     std::vector<bool> selected_;
     int currIndex_ = 0;
     bool checkbox_ = false;
     bool horizonal_ = false;
-    std::function<bool(std::int16_t)> onCheckBoxToggle_;
+    std::shared_ptr<MenuSelectionSink> selectionSink_;
+    std::unique_ptr<MenuInputMode> inputMode_;
+    std::uint64_t nextSelectionToken_ = 1;
+    Key pendingInput_ = KeyNone;
 };
 
 class MenuTextList: public Menu {
 public:
     using Menu::Menu;
-
-    inline void setHandler(const std::function<void()> &okHandler,
-                           const std::function<bool()> &cancelHandler = nullptr) {
-        okHandler_ = okHandler;
-        cancelHandler_ = cancelHandler;
-    }
-
-protected:
-    void onOK() override;
-    void onCancel() override;
-
-protected:
-    std::function<void()> okHandler_;
-    std::function<bool()> cancelHandler_;
 };
 
 class MenuYesNo: public Menu {
 public:
     using Menu::Menu;
 
+    void enableHorizonal(bool enabled) override;
     void popupWithYesNo();
 
-    void handleKeyInput(Key key) override;
-
-    void setHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
-        yesHandler_ = yesHandler;
-        noHandler_ = noHandler;
-    }
-
 protected:
-    void onOK() override;
-    void onCancel() override;
+    [[nodiscard]] std::unique_ptr<MenuInputMode>
+    makeDefaultInputMode() const override;
 
 private:
-    std::function<void()> yesHandler_, noHandler_;
+    bool yesNoInputMode_ = false;
 };
 
 class MenuOption: public Menu {
 public:
     using Menu::Menu;
 
-    void setValue(int index, const std::wstring &value);
-    void setHandler(const std::function<void(int)> &handler) { handler_ = handler; }
-    void handleKeyInput(Key key) override;
+    void setValueById(std::int32_t entryId, const std::wstring &value);
 
 protected:
-    std::function<void(int)> handler_;
+    [[nodiscard]] std::unique_ptr<MenuInputMode>
+    makeDefaultInputMode() const override;
 };
 
 }

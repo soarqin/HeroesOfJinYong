@@ -21,48 +21,153 @@
 
 #include "texture.hh"
 
+#include <stdexcept>
+
 namespace hojy::scene {
 
 NodeWithCache::~NodeWithCache() {
+    if (renderer_) {
+        auto *bound = renderer_->targetTexture();
+        if (bound == buildingCache_ || bound == cache_) {
+            if (!renderer_->setTargetTexture(nullptr)) {
+                // Never destroy a texture that the renderer still targets.
+                // Retaining it is safer than leaving a dangling GPU target.
+                return;
+            }
+        }
+    }
+    delete buildingCache_;
     delete cache_;
 }
 
 void NodeWithCache::update() {
-    rebuildCache();
 }
 
-void NodeWithCache::rebuildCache() {
-    if (!cacheDirty_) { return; }
-    makeCache();
+void NodeWithCache::prepareRender() {
+    const auto requestedPresentationRevision = requestedPresentationRevision_;
+    if (preparedPresentationRevision_ != requestedPresentationRevision) {
+        cacheDirty_ = true;
+    }
+    const auto oldX = x_;
+    const auto oldY = y_;
+    const auto oldWidth = width_;
+    const auto oldHeight = height_;
+    if (!prepareTextResources()) {
+        onPrepareFailed();
+        return;
+    }
+    try {
+        ensureLayout();
+    } catch (...) {
+        x_ = oldX;
+        y_ = oldY;
+        width_ = oldWidth;
+        height_ = oldHeight;
+        onPrepareFailed();
+        throw;
+    }
+    if (width_ != oldWidth || height_ != oldHeight) {
+        cacheDirty_ = true;
+    }
+    if (!rebuildCache()) {
+        x_ = oldX;
+        y_ = oldY;
+        width_ = oldWidth;
+        height_ = oldHeight;
+        onPrepareFailed();
+    } else {
+        preparedPresentationRevision_ = requestedPresentationRevision;
+    }
+}
+
+bool NodeWithCache::rebuildCache() {
+    if (!cacheDirty_) { return true; }
+    // A committed cache must never be destroyed while it is still bound by
+    // the renderer.  This can happen when a nested preparation failed to
+    // restore its caller's target; preserve the old cache and retry later.
+    if (renderer_ && renderer_->targetTexture() == cache_) {
+        return false;
+    }
+    if (buildingCache_) {
+        if (renderer_ && renderer_->targetTexture() == buildingCache_
+            && !renderer_->setTargetTexture(nullptr)) {
+            return false;
+        }
+        delete buildingCache_;
+        buildingCache_ = nullptr;
+    }
+    auto *candidate = Texture::createAsTarget(renderer_, width_, height_);
+    if (!candidate || !candidate->enableBlendMode(true)) {
+        delete candidate;
+        return false;
+    }
+    auto *previousTarget = renderer_ ? renderer_->targetTexture() : nullptr;
+    buildingCache_ = candidate;
+    try {
+        makeCache();
+    } catch (...) {
+        const bool restored = !renderer_
+            || renderer_->setTargetTexture(previousTarget);
+        if (!restored && renderer_->targetTexture() == candidate) {
+            buildingCache_ = candidate;
+            return false;
+        }
+        buildingCache_ = nullptr;
+        delete candidate;
+        return false;
+    }
+    if (renderer_ && !renderer_->setTargetTexture(previousTarget)) {
+        if (renderer_->targetTexture() == candidate) {
+            buildingCache_ = candidate;
+            return false;
+        }
+        buildingCache_ = nullptr;
+        delete candidate;
+        return false;
+    }
+    buildingCache_ = nullptr;
+    delete cache_;
+    cache_ = candidate;
     cacheDirty_ = false;
+    return true;
 }
 
 void NodeWithCache::makeCenter(int w, int h, int x, int y) {
-    rebuildCache();
     Node::makeCenter(w, h, x, y);
+    requestPresentationRefresh();
 }
 
 void NodeWithCache::close() {
+    if (renderer_) {
+        auto *bound = renderer_->targetTexture();
+        if (bound == buildingCache_ || bound == cache_) {
+            if (!renderer_->setTargetTexture(nullptr)) {
+                return;
+            }
+        }
+    }
+    delete buildingCache_;
+    buildingCache_ = nullptr;
     delete cache_;
     cache_ = nullptr;
     Node::close();
 }
 
-void NodeWithCache::render() {
+void NodeWithCache::render() const {
     if (!cache_) { return; }
-    renderer_->renderTexture(cache_, x_, y_, 0, 0, width_, height_, true);
+    renderer_->renderTexture(cache_, x_, y_, 0, 0, cache_->width(), cache_->height(), true);
 }
 
 void NodeWithCache::cacheBegin() {
-    if (!cache_) {
-        cache_ = Texture::createAsTarget(renderer_, width_, height_);
-        cache_->enableBlendMode(true);
+    if (!buildingCache_ || !renderer_ || !renderer_->setTargetTexture(buildingCache_)) {
+        throw std::runtime_error("failed to bind render cache target");
     }
-    renderer_->setTargetTexture(cache_);
 }
 
 void NodeWithCache::cacheEnd() {
-    renderer_->setTargetTexture(nullptr);
+    if (!renderer_ || !renderer_->setTargetTexture(nullptr)) {
+        throw std::runtime_error("failed to release render cache target");
+    }
 }
 
 }

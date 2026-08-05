@@ -23,6 +23,7 @@
 #include "texture.hh"
 
 #include <cstdint>
+#include <string>
 
 namespace hojy::scene {
 
@@ -43,6 +44,10 @@ public:
     ~Map() override;
 
     [[nodiscard]] std::int16_t subMapId() const { return subMapId_; }
+    [[nodiscard]] bool ready() const noexcept { return resourcesReady_; }
+    [[nodiscard]] bool validMapCoordinate(int x, int y) const noexcept {
+        return x >= 0 && y >= 0 && x < mapWidth_ && y < mapHeight_;
+    }
     [[nodiscard]] const std::string &texData(std::int16_t id) const;
     [[nodiscard]] const Texture *getOrLoadTexture(std::int16_t id);
 
@@ -53,11 +58,26 @@ public:
     // from render.
     void advanceCompatibilityFrame();
 
-    void render() override;
+    void prepareRender() override;
+    void render() const override;
 
 protected:
+    struct MiniPanelSnapshot final {
+        std::wstring mapName;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+    };
+
     Direction calcDirection(int fx, int fy, int tx, int ty);
-    void showMiniPanel();
+    void markWorldChanged() noexcept;
+    void markMiniPanelChanged() noexcept;
+    void commitMiniPanelSnapshot(std::wstring mapName,
+                                 std::int32_t x,
+                                 std::int32_t y);
+    [[nodiscard]] bool worldPresentationNeedsPrepare() const noexcept;
+    void commitWorldPresentation() noexcept;
+    void prepareMiniPanel();
+    void renderMiniPanel() const;
 
     virtual void resetTime() {}
     virtual void frameUpdate() {}
@@ -73,7 +93,12 @@ protected:
     std::int32_t currX_ = 0, currY_ = 0;
     std::int32_t miniMapX_ = 0, miniMapY_ = 0, miniMapW_ = 0, miniMapH_ = 0;
     std::int32_t miniMapAuxX_ = 0, miniMapAuxY_ = 0, miniMapAuxW_ = 0, miniMapAuxH_ = 0;
-    bool drawDirty_ = false, miniPanelDirty_ = true;
+    std::uint64_t worldRevision_ = 1;
+    std::uint64_t preparedWorldRevision_ = 0;
+    std::uint64_t miniPanelRevision_ = 1;
+    std::uint64_t preparedMiniPanelRevision_ = 0;
+    MiniPanelSnapshot miniPanelSnapshot_;
+    bool resourcesReady_ = false;
     std::uint64_t nextFrameTime_ = 0;
     std::uint64_t eachFrameTime_ = 0;
     std::int32_t mapWidth_ = 0, mapHeight_ = 0, cellWidth_ = 0, cellHeight_ = 0;
@@ -83,6 +108,7 @@ protected:
     Texture *miniMapTex_ = nullptr;
     Texture *miniPanelTex_ = nullptr;
     std::int32_t miniPanelX_ = 0, miniPanelY_ = 0;
+    bool miniPanelReady_ = false;
 };
 
 }

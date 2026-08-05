@@ -21,6 +21,8 @@
 
 #include "node.hh"
 
+#include <cstdint>
+
 namespace hojy::scene {
 
 class NodeWithCache: public Node {
@@ -29,23 +31,39 @@ public:
 
     ~NodeWithCache() override;
 
-    inline void setDirty() { cacheDirty_ = true; }
-    inline void forceUpdate() { rebuildCache(); }
+    void requestPresentationRefresh() noexcept {
+        ++requestedPresentationRevision_;
+        if (requestedPresentationRevision_ == 0) {
+            requestedPresentationRevision_ = 1;
+            preparedPresentationRevision_ = 0;
+        }
+    }
 
     void update() override;
+    void prepareRender() override;
     void makeCenter(int w, int h, int x, int y) override;
     void close() override;
-    void render() override;
+    void render() const override;
+    [[nodiscard]] bool renderCacheReady() const noexcept {
+        return cache_ != nullptr && !cacheDirty_
+            && preparedPresentationRevision_ == requestedPresentationRevision_;
+    }
 
 protected:
+    virtual bool prepareTextResources() { return true; }
+    virtual void ensureLayout() {}
+    virtual void onPrepareFailed() {}
     virtual void makeCache() = 0;
-    void rebuildCache();
+    bool rebuildCache();
     void cacheBegin();
     void cacheEnd();
 
 protected:
     Texture *cache_ = nullptr;
+    Texture *buildingCache_ = nullptr;
     bool cacheDirty_ = true;
+    std::uint64_t requestedPresentationRevision_ = 1;
+    std::uint64_t preparedPresentationRevision_ = 0;
 };
 
 }

@@ -20,41 +20,53 @@
 #pragma once
 
 #include "nodewithcache.hh"
-#include "messagebox.hh"
-#include "world/action.hh"
+#include "item_selection_controller.hh"
 
 #include <vector>
 #include <functional>
 #include <cstdint>
+#include <memory>
 
 namespace hojy::scene {
 
-class ItemView: public NodeWithCache {
+class ItemView: public NodeWithCache, private ItemSelectionHost {
 public:
     using NodeWithCache::NodeWithCache;
+    using ItemEntry = ItemViewEntrySnapshot;
 
-    inline void setCharInfo(::hojy::world::state::CharacterData *charInfo) { charInfo_ = charInfo; }
-    inline void setCloseHandler(const std::function<void()> &func) { closeHandler_ = func; }
-    void show(bool inBattle, const std::function<void(std::int16_t)> &resultFunc);
+    ~ItemView() override;
+
+    void show(std::vector<ItemEntry> items,
+              std::unique_ptr<ItemSelectionController> selectionController);
+    void setItems(std::vector<ItemEntry> items);
     void update() override;
-    void handleKeyInput(Key key) override;
-
-    static MessageBox *popupUseResult(Node *parent, std::int16_t id,
-                                      const std::map<::hojy::world::state::PropType, std::int16_t> &changes);
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
+    void prepareRender() override;
 
 protected:
+    void closeItemSelection() override;
+    void replaceItemSelection(std::vector<ItemViewEntrySnapshot> items) override;
+    void showCharacterSelection(CharacterSelectionRequest request) override;
+    void showItemMessage(ItemMessageRequest request) override;
+    void useQuestItem(std::int16_t itemId) override;
+
+    bool prepareTextResources() override;
     void makeCache() override;
     void normalizeSelection();
 
 protected:
-    std::vector<std::pair<std::int16_t, std::int16_t>> items_;
-    bool inBattle_ = false;
+    std::vector<ItemViewEntrySnapshot> items_;
     int cols_ = 0, rows_ = 0;
     int scale_ = 1, cellWidth_ = 0, cellHeight_ = 0;
     int currTop_ = 0, currSel_ = 0;
-    ::hojy::world::state::CharacterData *charInfo_ = nullptr;
-    std::function<void(std::int16_t)> resultFunc_;
-    std::function<void()> closeHandler_;
+    std::unique_ptr<ItemSelectionController> selectionController_;
+    std::shared_ptr<ItemSelectionLifetime> selectionLifetime_;
+    const Texture *itemAtlas_ = nullptr;
+    int itemTexW_ = 0, itemTexH_ = 0;
+    int layoutBoundsWidth_ = 0, layoutBoundsHeight_ = 0;
+    bool presentationGeometryReady_ = false;
+    Key pendingInput_ = KeyNone;
 };
 
 }

@@ -19,36 +19,88 @@
 
 #include "statusview.hh"
 
-#include "window.hh"
-#include "world/savedata.hh"
-#include "world/action.hh"
-#include "world/strings.hh"
 #include "core/config.hh"
+#include "texture.hh"
 #include "util/math.hh"
 #include <fmt/xchar.h>
 #include <algorithm>
+#include <utility>
 
 namespace hojy::scene {
 
-void StatusView::show(const ::hojy::world::state::CharacterData *data, bool calcEquip, bool simpleMode) {
-    if (!data) { return; }
-    data_ = *data;
-    simpleMode_ = simpleMode;
-    if (calcEquip) { ::hojy::world::state::addUpPropFromEquipToChar(&data_); }
+void StatusView::show(CharacterStatusSnapshot snapshot) {
+    simpleMode_ = snapshot.simpleMode;
+    data_ = std::move(snapshot);
+    requestPresentationRefresh();
 }
 
-void StatusView::show(std::int16_t charId) {
-    show(::hojy::world::state::gSaveData.charInfo[charId], true);
+void StatusView::setBattleAnchor(bool left, int width, int height, int border) noexcept {
+    battleAnchorEnabled_ = true;
+    battleAnchorLeft_ = left;
+    battleAreaWidth_ = width;
+    battleAreaHeight_ = height;
+    battleAnchorBorder_ = border;
+    setInputEnabled(false);
 }
 
-void StatusView::handleKeyInput(Node::Key key) {
+void StatusView::prepareRender() {
+    NodeWithCache::prepareRender();
+    if (!battleAnchorEnabled_ || !renderCacheReady()) { return; }
+    setPosition(battleAnchorLeft_ ? battleAnchorBorder_ * 4
+                                  : battleAreaWidth_ - battleAnchorBorder_ * 4 - width_,
+                battleAreaHeight_ * 2 / 5 - height_ / 2);
+}
+
+void StatusView::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void StatusView::applyInputLogic() {
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
-        requestDelete();
+        requestPresentationCleanup();
         break;
     default:
         break;
     }
+}
+
+bool StatusView::prepareTextResources() {
+    auto *ttf = renderer_->ttf();
+    bool ready = ttf->prepareText(L"0123456789 +-=/()=");
+    ready = ttf->prepareText(data_.name) && ready;
+    for (const auto &label: data_.labels) {
+        ready = ttf->prepareText(label) && ready;
+    }
+    for (int i = 0; i < ::hojy::content::LearnSkillCount; ++i) {
+        ready = ttf->prepareText(data_.skillNames[static_cast<std::size_t>(i)]) && ready;
+    }
+    for (const auto &name: data_.equipNames) {
+        ready = ttf->prepareText(name) && ready;
+    }
+    ready = ttf->prepareText(data_.learningItemName) && ready;
+    return ready;
+}
+
+void StatusView::ensureLayout() {
+    auto fontSize = renderer_->fontSize();
+    auto lineheight = fontSize + TextLineSpacing;
+    auto windowBorder = core::config.windowBorder();
+    int x0 = windowBorder;
+    int x1 = x0 + fontSize * 5 / 2;
+    if (simpleMode_) {
+        width_ = x1 + fontSize * 9 / 2 + windowBorder;
+        height_ = windowBorder * 2 + lineheight * 8 - TextLineSpacing;
+        return;
+    }
+    int x2 = x1 + fontSize * 9 / 2 + windowBorder;
+    int x3 = x2 + fontSize * 9 / 2;
+    int x4 = x3 + fontSize * 2 + windowBorder;
+    int x5 = x4 + fontSize * 5;
+    width_ = x5 + fontSize * 3 / 2 + windowBorder;
+    height_ = windowBorder * 2 + lineheight * 15 - TextLineSpacing;
 }
 
 void StatusView::makeCache() {
@@ -69,7 +121,7 @@ void StatusView::makeCache() {
         renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
         renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
         int y = windowBorder;
-        const auto *headTex = gWindow->headTexture(data_.headId);
+        const auto *headTex = headTextureProvider_ ? headTextureProvider_(data_.headId) : nullptr;
         if (headTex) {
             auto height = headTex->height();
             std::pair<int, int> scale = util::calcSmallestDivision(lineheight * 4 - TextLineSpacing, height);
@@ -83,13 +135,13 @@ void StatusView::makeCache() {
         ttf->setAltColor(6, 28, 104, 16);
         ttf->setAltColor(7, 96, 176, 64);
         y += lineheight * 4;
-        auto name = GETCHARNAME(data_.id);
-        ttf->render(name, (w - ttf->stringWidth(name)) / 2, y, true);
+        const auto &name = data_.name;
+        ttf->renderPrepared(name, (w - ttf->preparedStringWidth(name)) / 2, y, true);
         y += lineheight;
-        ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-        ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
+        ttf->renderPrepared(L"\3" + data_.text(4), x0, y, true);
+        ttf->renderPrepared(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
         y += lineheight;
-        ttf->render(L"\3" + GETTEXT(25), x0, y, true);
+        ttf->renderPrepared(L"\3" + data_.text(25), x0, y, true);
         wchar_t c1 = L'\2', c2 = L'\3';
         if (data_.hurt > 66) {
             c1 = L'\4';
@@ -101,13 +153,11 @@ void StatusView::makeCache() {
         } else if (data_.poisoned > 0) {
             c2 = L'\7';
         }
-        ttf->render(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
+        ttf->renderPrepared(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
         y += lineheight;
-        ttf->render(L"\3" + GETTEXT(26), x0, y, true);
-        std::uint8_t r, g, b;
-        std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(data_.mpType);
-        ttf->setAltColor(16, r, g, b);
-        ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
+        ttf->renderPrepared(L"\3" + data_.text(26), x0, y, true);
+        ttf->setAltColor(16, data_.mpColorR, data_.mpColorG, data_.mpColorB);
+        ttf->renderPrepared(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
         cacheEnd();
         return;
     }
@@ -116,7 +166,7 @@ void StatusView::makeCache() {
     int x4 = x3 + fontSize * 2 + windowBorder;
     int x5 = x4 + fontSize * 5;
     int w = x5 + fontSize * 3 / 2 + windowBorder;
-    bool showPotential = core::config.showPotential();
+    const bool showPotential = data_.showPotential;
     int h = windowBorder * 2 + lineheight * 15 - TextLineSpacing;
     width_ = w;
     height_ = h;
@@ -126,7 +176,7 @@ void StatusView::makeCache() {
     renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
     renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 224, 224, 224, 255);
     int y = windowBorder;
-    const auto *headTex = gWindow->headTexture(data_.headId);
+    const auto *headTex = headTextureProvider_ ? headTextureProvider_(data_.headId) : nullptr;
     if (headTex) {
         auto height = headTex->height();
         std::pair<int, int> scale = util::calcSmallestDivision(lineheight * 4 - TextLineSpacing, height);
@@ -141,29 +191,29 @@ void StatusView::makeCache() {
     ttf->setAltColor(5, 244, 128, 132);
     ttf->setAltColor(6, 28, 104, 16);
     ttf->setAltColor(7, 96, 176, 64);
-    ttf->render(GETTEXT(8), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.attack), x3, y, true);
+    ttf->renderPrepared(data_.text(8), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.attack), x3, y, true);
     y += lineheight;
-    ttf->render(GETTEXT(10), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.defence), x3, y, true);
+    ttf->renderPrepared(data_.text(10), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.defence), x3, y, true);
     y += lineheight;
-    ttf->render(GETTEXT(9), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.speed), x3, y, true);
+    ttf->renderPrepared(data_.text(9), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.speed), x3, y, true);
     y += lineheight;
-    ttf->render(GETTEXT(11), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.medic), x3, y, true);
+    ttf->renderPrepared(data_.text(11), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.medic), x3, y, true);
     y += lineheight;
-    auto name = GETCHARNAME(data_.id);
-    ttf->render(name, (x2 - ttf->stringWidth(name)) / 2, y, true);
-    ttf->render(GETTEXT(12), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.poison), x3, y, true);
+    const auto &name = data_.name;
+    ttf->renderPrepared(name, (x2 - ttf->preparedStringWidth(name)) / 2, y, true);
+    ttf->renderPrepared(data_.text(12), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.poison), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(24), x0, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.level), x1, y, true);
-    ttf->render(GETTEXT(13), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.depoison), x3, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(24), x0, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.level), x1, y, true);
+    ttf->renderPrepared(data_.text(13), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.depoison), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(25), x0, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(25), x0, y, true);
     wchar_t c1 = L'\2', c2 = L'\3';
     if (data_.hurt > 66) {
         c1 = L'\4';
@@ -175,85 +225,78 @@ void StatusView::makeCache() {
     } else if (data_.poisoned > 0) {
         c2 = L'\7';
     }
-    ttf->render(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
-    ttf->render(GETTEXT(15), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.fist), x3, y, true);
+    ttf->renderPrepared(fmt::format(c1 + std::wstring(L"{:>3}\1/") + c2 + L"{:>3}", data_.hp, data_.maxHp), x1, y, true);
+    ttf->renderPrepared(data_.text(15), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.fist), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(26), x0, y, true);
-    std::uint8_t r, g, b;
-    std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(data_.mpType);
-    ttf->setAltColor(16, r, g, b);
-    ttf->render(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
-    ttf->render(GETTEXT(16), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.sword), x3, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(26), x0, y, true);
+    ttf->setAltColor(16, data_.mpColorR, data_.mpColorG, data_.mpColorB);
+    ttf->renderPrepared(fmt::format(L"\x10{:>3}/{:>3}", data_.mp, data_.maxMp), x1, y, true);
+    ttf->renderPrepared(data_.text(16), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.sword), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(4), x0, y, true);
-    ttf->render(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
-    ttf->render(GETTEXT(17), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.blade), x3, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(4), x0, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}\1/\3{:>3}", data_.stamina, int(::hojy::content::StaminaMax)), x1, y, true);
+    ttf->renderPrepared(data_.text(17), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.blade), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(27), x0, y, true);
-    ttf->render(fmt::format(L"\2{:>5}", data_.exp), x1, y, true);
-    ttf->render(GETTEXT(18), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.special), x3, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(27), x0, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>5}", data_.exp), x1, y, true);
+    ttf->renderPrepared(data_.text(18), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.special), x3, y, true);
     y += lineheight;
-    ttf->render(L"\3" + GETTEXT(28), x0, y, true);
-    auto exp = ::hojy::world::state::getExpForLevelUp(data_.level);
+    ttf->renderPrepared(L"\3" + data_.text(28), x0, y, true);
+    const auto exp = data_.expForLevelUp;
     if (exp) {
-        ttf->render(fmt::format(L"\2{:>5}", exp), x1, y, true);
+        ttf->renderPrepared(fmt::format(L"\2{:>5}", exp), x1, y, true);
     } else {
-        ttf->render(L"\2  =", x1, y, true);
+        ttf->renderPrepared(L"\2  =", x1, y, true);
     }
-    ttf->render(GETTEXT(19), x2, y, true);
-    ttf->render(fmt::format(L"\2{:>3}", data_.throwing), x3, y, true);
+    ttf->renderPrepared(data_.text(19), x2, y, true);
+    ttf->renderPrepared(fmt::format(L"\2{:>3}", data_.throwing), x3, y, true);
     if (showPotential) {
         y += lineheight;
-        ttf->render(L"\3" + GETTEXT(29), x0, y, true);
-        ttf->render(fmt::format(L"\2{:>5}", data_.potential), x1, y, true);
+        ttf->renderPrepared(L"\3" + data_.text(29), x0, y, true);
+        ttf->renderPrepared(fmt::format(L"\2{:>5}", data_.potential), x1, y, true);
         y += lineheight;
-        ttf->render(L"\3" + GETTEXT(20), x0, y, true);
-        ttf->render(fmt::format(L"\2{:>5}", data_.knowledge), x1, y, true);
+        ttf->renderPrepared(L"\3" + data_.text(20), x0, y, true);
+        ttf->renderPrepared(fmt::format(L"\2{:>5}", data_.knowledge), x1, y, true);
         if (data_.id == 0) {
             y += lineheight;
-            ttf->render(L"\3" + GETTEXT(21), x0, y, true);
-            ttf->render(fmt::format(L"\2{:>5}", data_.integrity), x1, y, true);
+            ttf->renderPrepared(L"\3" + data_.text(21), x0, y, true);
+            ttf->renderPrepared(fmt::format(L"\2{:>5}", data_.integrity), x1, y, true);
             y += lineheight;
-            ttf->render(L"\3" + GETTEXT(114), x0, y, true);
-            ttf->render(fmt::format(L"\2{:>5}", data_.reputation), x1, y, true);
+            ttf->renderPrepared(L"\3" + data_.text(114), x0, y, true);
+            ttf->renderPrepared(fmt::format(L"\2{:>5}", data_.reputation), x1, y, true);
         }
     }
     y = windowBorder;
-    ttf->render(L"\3" + GETTEXT(30), x4, y, true);
-    std::int16_t learningSkillId = -1, learningLevel = 0;
-    if (data_.learningItem >= 0) {
-        learningSkillId = ::hojy::world::state::gSaveData.itemInfo[data_.learningItem]->skillId;
-    }
+    ttf->renderPrepared(L"\3" + data_.text(30), x4, y, true);
+    const auto learningSkillId = data_.learningSkillId;
+    const auto learningLevel = data_.learningLevel;
     for (int i = 0; i < ::hojy::content::LearnSkillCount; ++i) {
         y += lineheight;
         if (data_.skillId[i] <= 0) { continue; }
-        ttf->render(L'\2' + GETSKILLNAME(data_.skillId[i]), x4, y, true);
+        ttf->renderPrepared(L'\2' + data_.skillNames[static_cast<std::size_t>(i)], x4, y, true);
         std::int16_t level = std::clamp<std::int16_t>(data_.skillLevel[i] / 100, 0, 9) + 1;
-        ttf->render(fmt::format(L"{:>2}", level), x5, y, true);
-        if (data_.skillId[i] == learningSkillId) {
-            learningLevel = level;
-        }
+        ttf->renderPrepared(fmt::format(L"{:>2}", level), x5, y, true);
     }
     y = windowBorder + lineheight * 12;
-    ttf->render(L"\3" + GETTEXT(31), x2, y, true); ttf->render(L"\3" + GETTEXT(32), x4, y, true);
+    ttf->renderPrepared(L"\3" + data_.text(31), x2, y, true); ttf->renderPrepared(L"\3" + data_.text(32), x4, y, true);
     y += lineheight;
     if (data_.equip[0] >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.equip[0]), x2, y, true);
+        ttf->renderPrepared(L'\2' + data_.equipNames[0], x2, y, true);
     }
     if (data_.learningItem >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.learningItem), x4, y, true);
+        ttf->renderPrepared(L'\2' + data_.learningItemName, x4, y, true);
     }
     y += lineheight;
     if (data_.equip[1] >= 0) {
-        ttf->render(L'\2' + GETITEMNAME(data_.equip[1]), x2, y, true);
+        ttf->renderPrepared(L'\2' + data_.equipNames[1], x2, y, true);
     }
     if (data_.learningItem >= 0) {
-        std::uint16_t expForItem = ::hojy::world::state::getExpForSkillLearn(data_.learningItem, learningLevel - 1, data_.potential);
-        ttf->render(L'\2' + fmt::format(L"{:>5}/{:>5}", data_.expForItem, expForItem), x4, y, true);
+        ttf->renderPrepared(L'\2' + fmt::format(L"{:>5}/{:>5}", data_.expForItem,
+                                                data_.expForSkillLearn), x4, y, true);
     }
     cacheEnd();
 }

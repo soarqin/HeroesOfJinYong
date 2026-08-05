@@ -1,34 +1,31 @@
 #include "mapwithevent.hh"
 
-#include "window.hh"
-#include "menu.hh"
+#include "logic/submap_contract.hh"
+
+#include "window_command.hh"
 #include "content/constants.hh"
 #include "content/event.hh"
 #include "world/bag.hh"
 #include "world/savedata.hh"
 #include "util/conv.hh"
-#include "util/math.hh"
 #include "util/random.hh"
 
 #include <fmt/format.h>
 #include <fmt/printf.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace hojy::scene {
 namespace {
-
-enum {
-    OrigWidth = 320,
-    OrigHeight = 200,
-};
 
 event::VmResult completed() {
     return {event::VmStatus::Completed, 1, {}};
@@ -41,6 +38,7 @@ event::VmResult waiting() {
 event::VmResult fault(const char *message) {
     return {event::VmStatus::Faulted, 0, message};
 }
+
 
 bool resolve(event::EventMemory &memory, std::int16_t flags, std::int16_t operand,
              std::int16_t bit, std::int16_t &value) {
@@ -117,24 +115,13 @@ bool writeSubMapEventWord(::hojy::world::state::SubMapEvent &eventData, std::int
     }
 }
 
-inline std::pair<int, int> transformOffset(std::int16_t &x, std::int16_t &y,
-                                            int ww, int wh) {
-    int w = ww, h = ww * OrigHeight / OrigWidth;
-    if (h > wh) {
-        h = wh;
-        w = wh * OrigWidth / OrigHeight;
-    }
-    x = (ww - w) / 2 + w * x / OrigWidth;
-    y = (wh - h) / 2 + h * y / OrigHeight;
-    return util::calcSmallestDivision(w, OrigWidth);
 }
 
-}
-
-void MapWithEvent::ensureExtendedNode() {
-    if (!extendedNode_) {
-        extendedNode_ = new ExtendedNode(this, 0, 0, width_, height_);
-    }
+template <typename Table>
+auto entryAt(Table &table, std::int16_t index) -> decltype(table[0]) {
+    using Entry = decltype(table[0]);
+    if (index < 0) { return static_cast<Entry>(nullptr); }
+    return table[static_cast<std::size_t>(index)];
 }
 
 event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
@@ -190,11 +177,11 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         }
         bool ok = false;
         switch (v2) {
-        case 0: if (auto *p = ::hojy::world::state::gSaveData.charInfo[index]) { ok = writeFieldWord(*p, offset, value); } break;
-        case 1: if (auto *p = ::hojy::world::state::gSaveData.itemInfo[index]) { ok = writeFieldWord(*p, offset, value); } break;
-        case 2: if (auto *p = ::hojy::world::state::gSaveData.subMapInfo[index]) { ok = writeFieldWord(*p, offset, value); } break;
-        case 3: if (auto *p = ::hojy::world::state::gSaveData.skillInfo[index]) { ok = writeFieldWord(*p, offset, value); } break;
-        case 4: if (auto *p = ::hojy::world::state::gSaveData.shopInfo[index]) { ok = writeFieldWord(*p, offset, value); } break;
+        case 0: if (auto *p = entryAt(::hojy::world::state::gSaveData.charInfo, index)) { ok = writeFieldWord(*p, offset, value); } break;
+        case 1: if (auto *p = entryAt(::hojy::world::state::gSaveData.itemInfo, index)) { ok = writeFieldWord(*p, offset, value); } break;
+        case 2: if (auto *p = entryAt(::hojy::world::state::gSaveData.subMapInfo, index)) { ok = writeFieldWord(*p, offset, value); } break;
+        case 3: if (auto *p = entryAt(::hojy::world::state::gSaveData.skillInfo, index)) { ok = writeFieldWord(*p, offset, value); } break;
+        case 4: if (auto *p = entryAt(::hojy::world::state::gSaveData.shopInfo, index)) { ok = writeFieldWord(*p, offset, value); } break;
         default: return fault("unknown event field table");
         }
         return ok ? completed() : fault("event field write out of range");
@@ -206,11 +193,11 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         }
         bool ok = false;
         switch (v2) {
-        case 0: if (auto *p = ::hojy::world::state::gSaveData.charInfo[index]) { ok = readFieldWord(*p, offset, value); } break;
-        case 1: if (auto *p = ::hojy::world::state::gSaveData.itemInfo[index]) { ok = readFieldWord(*p, offset, value); } break;
-        case 2: if (auto *p = ::hojy::world::state::gSaveData.subMapInfo[index]) { ok = readFieldWord(*p, offset, value); } break;
-        case 3: if (auto *p = ::hojy::world::state::gSaveData.skillInfo[index]) { ok = readFieldWord(*p, offset, value); } break;
-        case 4: if (auto *p = ::hojy::world::state::gSaveData.shopInfo[index]) { ok = readFieldWord(*p, offset, value); } break;
+        case 0: if (auto *p = entryAt(::hojy::world::state::gSaveData.charInfo, index)) { ok = readFieldWord(*p, offset, value); } break;
+        case 1: if (auto *p = entryAt(::hojy::world::state::gSaveData.itemInfo, index)) { ok = readFieldWord(*p, offset, value); } break;
+        case 2: if (auto *p = entryAt(::hojy::world::state::gSaveData.subMapInfo, index)) { ok = readFieldWord(*p, offset, value); } break;
+        case 3: if (auto *p = entryAt(::hojy::world::state::gSaveData.skillInfo, index)) { ok = readFieldWord(*p, offset, value); } break;
+        case 4: if (auto *p = entryAt(::hojy::world::state::gSaveData.shopInfo, index)) { ok = readFieldWord(*p, offset, value); } break;
         default: return fault("unknown event field table");
         }
         if (!ok || !write(destination, value)) {
@@ -221,7 +208,8 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
     case 18: {
         std::int16_t index = 0, value = 0;
         if (!mov(v2, 1, index) || !mov(v3, 2, value)
-            || index < 0 || index >= ::hojy::content::TeamMemberCount) {
+            || index < 0 || index >= ::hojy::content::TeamMemberCount
+            || !::hojy::world::state::gSaveData.baseInfo.operator->()) {
             return fault("event team member index out of range");
         }
         ::hojy::world::state::gSaveData.baseInfo->members[index] = value;
@@ -230,6 +218,7 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
     case 19: {
         std::int16_t index = 0;
         if (!mov(v2, 1, index) || index < 0 || index >= ::hojy::content::TeamMemberCount
+            || !::hojy::world::state::gSaveData.baseInfo.operator->()
             || !write(v3, ::hojy::world::state::gSaveData.baseInfo->members[index])) {
             return fault("event team member read out of range");
         }
@@ -237,7 +226,9 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
     }
     case 20: {
         std::int16_t item = 0;
-        if (!mov(v2, 1, item) || item < 0 || !write(v3, ::hojy::world::state::gBag[item])) {
+        if (!mov(v2, 1, item) || item < 0
+            || item >= ::hojy::content::BagItemCount
+            || !write(v3, ::hojy::world::state::gBag[item])) {
             return fault("event inventory read out of range");
         }
         return completed();
@@ -251,9 +242,32 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             || wordIndex < 0 || wordIndex > 10) {
             return fault("event sub-map event index out of range");
         }
-        auto &eventData = ::hojy::world::state::gSaveData.subMapEventInfo[mapIndex]->events[eventIndex];
-        return writeSubMapEventWord(eventData, wordIndex, value)
-            ? completed() : fault("event sub-map event field is invalid");
+        auto *eventInfo = ::hojy::world::state::gSaveData
+            .subMapEventInfo[mapIndex].operator->();
+        auto *layerInfo = mapIndex < static_cast<std::int16_t>(
+            ::hojy::world::state::gSaveData.subMapLayerInfo.size())
+            ? ::hojy::world::state::gSaveData.subMapLayerInfo[mapIndex].operator->()
+            : nullptr;
+        if (!eventInfo || !layerInfo) {
+            return fault("event sub-map state is unavailable");
+        }
+        auto candidateEvents = *eventInfo;
+        if (!writeSubMapEventWord(
+                candidateEvents.events[eventIndex], wordIndex, value)) {
+            return fault("event sub-map event field is invalid");
+        }
+        std::vector<std::int16_t> candidateLayer(
+            layerInfo->data[3],
+            layerInfo->data[3] + ::hojy::content::SubMapWidth
+                * ::hojy::content::SubMapHeight);
+        logic::SubMapStateSnapshot snapshot;
+        if (!validateSubMapStateCandidate(
+                mapIndex, candidateEvents, candidateLayer, snapshot)) {
+            return fault("event sub-map event candidate is invalid");
+        }
+        *eventInfo = candidateEvents;
+        synchronizeCommittedSubMapState(mapIndex, snapshot);
+        return completed();
     }
     case 22: {
         std::int16_t mapIndex = 0, eventIndex = 0, wordIndex = 0, destination = v5;
@@ -264,7 +278,12 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             || wordIndex < 0 || wordIndex > 10) {
             return fault("event sub-map event index out of range");
         }
-        const auto &eventData = ::hojy::world::state::gSaveData.subMapEventInfo[mapIndex]->events[eventIndex];
+        const auto *eventInfo = ::hojy::world::state::gSaveData
+            .subMapEventInfo[static_cast<std::size_t>(mapIndex)].operator->();
+        if (!eventInfo) {
+            return fault("event sub-map state is unavailable");
+        }
+        const auto &eventData = eventInfo->events[eventIndex];
         std::int16_t value = 0;
         return readSubMapEventWord(eventData, wordIndex, value) && write(destination, value)
             ? completed() : fault("event sub-map event field is invalid");
@@ -278,8 +297,43 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             || x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight) {
             return fault("event sub-map layer index out of range");
         }
-        ::hojy::world::state::gSaveData.subMapLayerInfo[mapIndex]->data[layer][x + y * ::hojy::content::SubMapWidth] = value;
-        if (mapIndex == subMapId_) { setCellTexture(x, y, layer, value >> 1); drawDirty_ = true; }
+        auto *layerInfo = ::hojy::world::state::gSaveData
+            .subMapLayerInfo[static_cast<std::size_t>(mapIndex)].operator->();
+        if (!layerInfo) {
+            return fault("event sub-map layer is unavailable");
+        }
+        if (value < -1) {
+            return fault("event sub-map layer value is invalid");
+        }
+        std::vector<std::int16_t> candidateLayer(
+            layerInfo->data[3],
+            layerInfo->data[3] + ::hojy::content::SubMapWidth
+                * ::hojy::content::SubMapHeight);
+        const auto cellIndex = static_cast<std::size_t>(y)
+            * ::hojy::content::SubMapWidth + static_cast<std::size_t>(x);
+        logic::SubMapStateSnapshot snapshot;
+        if (layer == 3) {
+            if (static_cast<std::size_t>(mapIndex)
+                    >= ::hojy::world::state::gSaveData.subMapEventInfo.size()) {
+                return fault("event sub-map event table is unavailable");
+            }
+            auto *eventInfo = ::hojy::world::state::gSaveData
+                .subMapEventInfo[mapIndex].operator->();
+            if (!eventInfo) {
+                return fault("event sub-map event table is unavailable");
+            }
+            candidateLayer[cellIndex] = value;
+            if (!validateSubMapStateCandidate(
+                    mapIndex, *eventInfo, candidateLayer, snapshot)) {
+                return fault("event sub-map event reference is invalid");
+            }
+        }
+        layerInfo->data[layer][cellIndex] = value;
+        if (layer == 3) {
+            synchronizeCommittedSubMapState(mapIndex, snapshot);
+        } else if (mapIndex == subMapId_) {
+            setCellSpriteId(x, y, layer, value < 0 ? -1 : value / 2);
+        }
         return completed();
     }
     case 24: {
@@ -289,7 +343,10 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             || mapIndex < 0 || static_cast<std::size_t>(mapIndex) >= ::hojy::world::state::gSaveData.subMapLayerInfo.size()
             || layer < 0 || layer >= ::hojy::content::SubMapLayerCount
             || x < 0 || x >= ::hojy::content::SubMapWidth || y < 0 || y >= ::hojy::content::SubMapHeight
-            || !write(v6, ::hojy::world::state::gSaveData.subMapLayerInfo[mapIndex]->data[layer][x + y * ::hojy::content::SubMapWidth])) {
+            || !::hojy::world::state::gSaveData.subMapLayerInfo[static_cast<std::size_t>(mapIndex)].operator->()
+            || !write(v6, ::hojy::world::state::gSaveData
+                .subMapLayerInfo[static_cast<std::size_t>(mapIndex)]
+                ->data[layer][x + y * ::hojy::content::SubMapWidth])) {
             return fault("event sub-map layer read out of range");
         }
         return completed();
@@ -303,10 +360,10 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         const char *name = nullptr;
         std::size_t length = 0;
         switch (v2) {
-        case 0: if (auto *p = ::hojy::world::state::gSaveData.charInfo[index]) { name = p->name; length = sizeof(p->name); } break;
-        case 1: if (auto *p = ::hojy::world::state::gSaveData.itemInfo[index]) { name = p->name; length = sizeof(p->name); } break;
-        case 2: if (auto *p = ::hojy::world::state::gSaveData.subMapInfo[index]) { name = p->name; length = sizeof(p->name); } break;
-        case 3: if (auto *p = ::hojy::world::state::gSaveData.skillInfo[index]) { name = p->name; length = sizeof(p->name); } break;
+        case 0: if (auto *p = entryAt(::hojy::world::state::gSaveData.charInfo, index)) { name = p->name; length = sizeof(p->name); } break;
+        case 1: if (auto *p = entryAt(::hojy::world::state::gSaveData.itemInfo, index)) { name = p->name; length = sizeof(p->name); } break;
+        case 2: if (auto *p = entryAt(::hojy::world::state::gSaveData.subMapInfo, index)) { name = p->name; length = sizeof(p->name); } break;
+        case 3: if (auto *p = entryAt(::hojy::world::state::gSaveData.skillInfo, index)) { name = p->name; length = sizeof(p->name); } break;
         default: return fault("unknown event name table");
         }
         if (!name) {
@@ -336,9 +393,8 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         const auto text = memory.readCString(v2);
         if (!text) { return fault("event text is not terminated"); }
         auto str = util::big5Conv.toUnicode(text->c_str());
-        transformOffset(x, y, gWindow->width(), gWindow->height());
-        ensureExtendedNode();
-        extendedNode_->addText(x, y, str, color & 0xFF, color >> 8);
+        postEventOverlay(std::make_shared<EventOverlayTextOperation>(
+            x, y, std::move(str), color & 0xFF, color >> 8));
         return completed();
     }
     case 34: {
@@ -346,28 +402,15 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         if (!mov(v2, 1, x0) || !mov(v3, 2, y0) || !mov(v4, 4, x1) || !mov(v5, 8, y1)) {
             return fault("event box position out of range");
         }
-        transformOffset(x0, y0, gWindow->width(), gWindow->height());
-        transformOffset(x1, y1, gWindow->width(), gWindow->height());
-        ensureExtendedNode();
-        extendedNode_->addBox(x0, y0, x1, y1);
+        postEventOverlay(std::make_shared<EventOverlayBoxOperation>(
+            x0, y0, x1, y1));
         return completed();
     }
     case 35: {
-        ensureExtendedNode();
-        auto *node = extendedNode_;
-        node->setWaitForKeyPress();
-        node->setHandler([this, node, v1] {
-            std::int16_t value = 0;
-            switch (node->keyPressed()) {
-            case Node::KeyLeft: value = 154; break;
-            case Node::KeyRight: value = 156; break;
-            case Node::KeyUp: value = 158; break;
-            case Node::KeyDown: value = 152; break;
-            default: break;
-            }
-            (void)eventVm_.memory().writeWord(v1, value);
-            continueEvents(false);
-        });
+        const auto token = beginEventContinuation();
+        auto continuation = createEventInputContinuation(token, v1, true);
+        postEventOverlay(std::make_shared<EventOverlayDirectionalInputOperation>(
+            token, std::move(continuation)));
         return waiting();
     }
     case 36: {
@@ -377,15 +420,13 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         }
         const auto text = memory.readCString(v2);
         if (!text) { return fault("event text is not terminated"); }
-        transformOffset(x, y, gWindow->width(), gWindow->height());
-        ensureExtendedNode();
-        auto *node = extendedNode_;
-        node->addText(x, y, util::big5Conv.toUnicode(text->c_str()), color & 0xFF, color >> 8);
-        node->setWaitForKeyPress();
-        node->setHandler([this, node] {
-            (void)eventVm_.memory().writeWord(0x7000, node->keyPressed() == Node::KeyOK ? 0 : 1);
-            continueEvents(false);
-        });
+        postEventOverlay(std::make_shared<EventOverlayTextOperation>(
+            x, y, util::big5Conv.toUnicode(text->c_str()),
+            color & 0xFF, color >> 8));
+        const auto token = beginEventContinuation();
+        auto continuation = createEventInputContinuation(token, 0x7000, true);
+        postEventOverlay(std::make_shared<EventOverlayConfirmInputOperation>(
+            token, std::move(continuation)));
         return waiting();
     }
     case 37: {
@@ -393,14 +434,18 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
         if (!mov(v2, 1, millisec) || millisec < 0) {
             return fault("event timeout out of range");
         }
-        ensureExtendedNode();
-        extendedNode_->setTimeToClose(static_cast<std::uint32_t>(millisec));
-        extendedNode_->setHandler([this] { continueEvents(false); });
+        const auto token = beginEventContinuation();
+        postEventOverlay(std::make_shared<EventOverlayKeepAliveOperation>());
+        const auto delay = static_cast<std::uint64_t>(millisec) * 1000ULL;
+        eventTimeoutDeadline_ = phaseTime() > std::numeric_limits<std::uint64_t>::max() - delay
+            ? std::numeric_limits<std::uint64_t>::max()
+            : phaseTime() + delay;
+        eventTimeoutContinuationToken_ = token;
         return waiting();
     }
     case 38: {
         std::int16_t range = 0;
-        if (!mov(v2, 1, range) || range < 0 || !write(v3, util::gRandom(range))) {
+        if (!mov(v2, 1, range) || range <= 0 || !write(v3, util::gRandom(range))) {
             return fault("event random operand out of range");
         }
         return completed();
@@ -418,29 +463,28 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             if (!text) { return fault("event menu string is not terminated"); }
             strings.emplace_back(util::big5Conv.toUnicode(text->c_str()));
         }
-        transformOffset(x, y, gWindow->width(), gWindow->height());
-        auto *menu = new MenuTextList(this, x, y, gWindow->width() - x, gWindow->height() - y);
-        menu->setHandler([this, v4, menu] {
-            (void)eventVm_.memory().writeWord(v4, static_cast<std::int16_t>(menu->currIndex() + 1));
-            menu->requestDelete();
-        }, [this, v4]() -> bool {
-            (void)eventVm_.memory().writeWord(v4, 0);
-            return true;
+        const auto token = beginEventContinuation();
+        auto continuation = createEventMenuContinuation(token, v4);
+        const auto sessionToken = eventSessionToken();
+        postSceneCommand(this, [x, y, strings = std::move(strings), sessionToken,
+                                token, continuation](SceneCommandContext &context) mutable {
+            context.showEventMenu(EventMenuRequest{
+                std::move(strings), sessionToken, x, y, 0, 0,
+                token, std::move(continuation)});
         });
-        menu->popup(strings);
-        return completed();
+        return waiting();
     }
     case 41: {
         std::int16_t kind = 0, x = 0, y = 0, id = 0;
         if (!mov(v3, 1, x) || !mov(v4, 2, y) || !mov(v5, 4, id)) {
             return fault("event texture operand out of range");
         }
-        transformOffset(x, y, gWindow->width(), gWindow->height());
-        ensureExtendedNode();
         if (v2 == 0) {
-            extendedNode_->addTexture(x, y, gWindow->smpTexture(id), util::calcSmallestDivision(gWindow->width(), OrigWidth));
+            postEventOverlay(std::make_shared<EventOverlaySubMapSpriteOperation>(
+                x, y, id));
         } else if (v2 == 1) {
-            extendedNode_->addTexture(x, y, gWindow->headTexture(id), util::calcSmallestDivision(gWindow->width(), OrigWidth));
+            postEventOverlay(std::make_shared<EventOverlayHeadSpriteOperation>(
+                x, y, id));
         } else {
             return fault("unknown event texture table");
         }
@@ -450,8 +494,9 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
     case 42: {
         std::int16_t x = 0, y = 0;
         if (!mov(v2, 1, x) || !mov(v3, 1, y)) { return fault("event map position out of range"); }
-        if (!gWindow->globalMap()) { return fault("global map is unavailable"); }
-        gWindow->globalMap()->setPosition(x, y, false);
+        postSceneCommand(this, [x, y](SceneCommandContext &context) {
+            context.setGlobalMapPosition(x, y);
+        });
         return completed();
     }
     case 43: {
@@ -467,7 +512,8 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
     }
     case 48: {
         std::int32_t end = static_cast<std::int32_t>(v1) + v2;
-        if (end < event::EventMemory::MinWordAddress || end > event::EventMemory::MaxWordAddress) {
+        if (v2 < 0 || end < event::EventMemory::MinWordAddress
+            || end > event::EventMemory::MaxWordAddress) {
             return fault("event debug range out of bounds");
         }
         for (std::int32_t address = v1; address < end; ++address) {
@@ -483,7 +529,7 @@ event::VmResult MapWithEvent::execute(const event::Instruction &instruction,
             || charId < 0 || skillIndex < 0 || skillIndex >= ::hojy::content::LearnSkillCount) {
             return fault("event skill operand out of range");
         }
-        auto *character = ::hojy::world::state::gSaveData.charInfo[charId];
+        auto *character = entryAt(::hojy::world::state::gSaveData.charInfo, charId);
         if (!character || !write(0x7000,
                 std::clamp<std::int16_t>(character->skillLevel[skillIndex] / 100, 0, 9) + 1 >= required ? 0 : 1)) {
             return fault("event skill lookup failed");

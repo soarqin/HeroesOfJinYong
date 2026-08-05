@@ -41,6 +41,7 @@ public:
 
     void swap(Bag &other) noexcept;
 
+    [[nodiscard]] bool syncFrom(const BaseData &base) noexcept;
     void syncFromSave();
     void syncTo(BaseData &base) const;
     void syncToSave();

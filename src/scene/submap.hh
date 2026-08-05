@@ -20,7 +20,9 @@
 #pragma once
 
 #include "mapwithevent.hh"
+#include "logic/submap_contract.hh"
 
+#include <array>
 #include <set>
 
 namespace hojy::scene {
@@ -35,16 +37,23 @@ public:
     SubMap(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale);
     ~SubMap() override;
 
-    bool load(std::int16_t subMapId);
+    // Loading can be staged without invalidating the currently visible event
+    // session.  The owner commits presentation cleanup only after the whole
+    // scene transaction has succeeded.
+    bool load(std::int16_t subMapId, bool clearPresentation = true);
+    bool unload(bool clearPresentation = true);
     void forceMainCharTexture(std::int16_t id);
 
-    void render() override;
-    void handleKeyInput(Key key) override;
+    void prepareRender() override;
+    void render() const override;
 
 protected:
     bool tryMove(int x, int y, bool checkEvent) override;
-    void updateMainCharTexture() override;
-    void setCellTexture(int x, int y, int layer, std::int16_t tex) override;
+    void updateMainCharSpriteId() override;
+    void setCellSpriteId(int x, int y, int layer, std::int16_t spriteId) override;
+    void synchronizeCommittedSubMapState(
+        std::int16_t subMapId,
+        const logic::SubMapStateSnapshot &snapshot) noexcept override;
     void frameUpdate() override;
 
 private:
@@ -52,7 +61,8 @@ private:
     std::vector<CellInfo> cellInfo_;
     Texture *drawingTerrainTex2_ = nullptr;
     std::set<std::int16_t> subMapLoaded_;
-    std::vector<std::int16_t> eventLoop_, eventDelay_;
+    std::vector<std::int32_t> eventLoop_, eventDelay_;
+    std::array<bool, logic::SubMapEventCount> activeEvents_{};
 };
 
 }

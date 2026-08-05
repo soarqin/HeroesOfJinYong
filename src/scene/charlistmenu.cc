@@ -20,120 +20,9 @@
 #include "charlistmenu.hh"
 
 #include "messagebox.hh"
-#include "window.hh"
-#include "world/strings.hh"
-#include "world/savedata.hh"
 #include "core/config.hh"
-#include <fmt/xchar.h>
 
 namespace hojy::scene {
-
-std::int16_t getValueFromType(const ::hojy::world::state::CharacterData *info, CharListMenu::ValueType t) {
-    switch (t) {
-    case CharListMenu::LEVEL:
-        return info->level;
-    case CharListMenu::HP:
-        return info->hp;
-    case CharListMenu::MAXHP:
-        return info->maxHp;
-    case CharListMenu::MP:
-        return info->mp;
-    case CharListMenu::MAXMP:
-        return info->maxMp;
-    case CharListMenu::MEDIC:
-        return info->medic;
-    case CharListMenu::DEPOISON:
-        return info->depoison;
-    case CharListMenu::POISONED:
-        return info->poisoned;
-    default:
-        return 0;
-    }
-}
-
-void getNameFromTypeList(const std::vector<CharListMenu::ValueType> &valueTypes, std::wstring &result) {
-    result.clear();
-    for (auto &t: valueTypes) {
-        if (!result.empty()) { result += L'|'; }
-        switch (t) {
-        case CharListMenu::LEVEL:
-            result.append(GETTEXT(24));
-            break;
-        case CharListMenu::HP:
-            result.append(GETTEXT(1));
-            break;
-        case CharListMenu::MAXHP:
-            result.append(GETTEXT(2));
-            break;
-        case CharListMenu::MP:
-            result.append(GETTEXT(6));
-            break;
-        case CharListMenu::MAXMP:
-            result.append(GETTEXT(7));
-            break;
-        case CharListMenu::MEDIC:
-            result.append(GETTEXT(11));
-            break;
-        case CharListMenu::DEPOISON:
-            result.append(GETTEXT(13));
-            break;
-        case CharListMenu::POISONED:
-            result.append(GETTEXT(3));
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-void listNamesFromTypeList(const std::vector<std::int16_t> &charIdList,
-                           const std::vector<CharListMenu::ValueType> &valueTypes,
-                           std::vector<std::wstring> &names, std::vector<std::wstring> &values) {
-    names.clear();
-    for (auto id: charIdList) {
-        auto *charInfo = ::hojy::world::state::gSaveData.charInfo[std::abs(id)];
-        if (!charInfo) { continue; }
-        if (id < 0) {
-            names.emplace_back(L'\x0F' + GETCHARNAME(-id));
-        } else {
-            names.emplace_back(GETCHARNAME(id));
-        }
-        if (valueTypes.empty()) { continue; }
-        std::wstring value;
-        for (auto t: valueTypes) {
-            if (!value.empty()) { value += L'|'; }
-            switch (t) {
-            case CharListMenu::LEVEL:
-                value.append(fmt::format(L"{:>3}", charInfo->level));
-                break;
-            case CharListMenu::HP:
-                value.append(fmt::format(L"{:>3}/{:>3}", charInfo->hp, charInfo->maxHp));
-                break;
-            case CharListMenu::MAXHP:
-                value.append(fmt::format(L"{:>3}", charInfo->maxHp));
-                break;
-            case CharListMenu::MP:
-                value.append(fmt::format(L"{:>3}/{:>3}", charInfo->mp, charInfo->maxMp));
-                break;
-            case CharListMenu::MAXMP:
-                value.append(fmt::format(L"{:>3}", charInfo->maxMp));
-                break;
-            case CharListMenu::MEDIC:
-                value.append(fmt::format(L"{:>3}", charInfo->medic));
-                break;
-            case CharListMenu::DEPOISON:
-                value.append(fmt::format(L"{:>3}", charInfo->depoison));
-                break;
-            case CharListMenu::POISONED:
-                value.append(fmt::format(L"{:>3}", charInfo->poisoned));
-                break;
-            default:
-                break;
-            }
-        }
-        values.emplace_back(value);
-    }
-}
 
 CharListMenu::~CharListMenu() {
     delete msgBox_;
@@ -142,109 +31,89 @@ CharListMenu::~CharListMenu() {
 std::vector<std::int16_t> CharListMenu::getSelectedCharIds() const {
     std::vector<std::int16_t> res;
     if (checkbox_) {
-        for (size_t i = 0; i < selected_.size(); ++i) {
+        const auto count = std::min(selected_.size(), charIdList_.size());
+        for (size_t i = 0; i < count; ++i) {
             if (selected_[i]) {
-                res.emplace_back(std::abs(charIdList_[i]));
+                res.emplace_back(charIdList_[i]);
             }
         }
-    } else {
-        if (currIndex_ >= 0) {
-            res.emplace_back(std::abs(charIdList_[currIndex_]));
-        }
+    } else if (currIndex_ >= 0
+               && static_cast<std::size_t>(currIndex_) < charIdList_.size()) {
+        res.emplace_back(charIdList_[static_cast<std::size_t>(currIndex_)]);
     }
     return res;
 }
 
-void CharListMenu::init(const std::vector<std::wstring> &title, const std::vector<std::int16_t> &charIds,
-                        const std::vector<ValueType> &valueTypes,
-                        const std::function<void(std::int16_t)> &okHandler, const std::function<bool()> &cancelHandler,
-                        const std::function<bool(ValueType, std::int16_t)> &filterFunc) {
-    if (!valueTypes.empty() && filterFunc) {
-        charIdList_.clear();
-        for (auto id: charIds) {
-            auto *charInfo = ::hojy::world::state::gSaveData.charInfo[id];
-            if (!charInfo) { continue; }
-            bool add = true;
-            for (auto t: valueTypes) {
-                if (!filterFunc(t, getValueFromType(charInfo, t))) {
-                    add = false;
-                    break;
-                }
-            }
-            if (add) {
-                charIdList_.emplace_back(id);
-            }
-        }
-    } else {
-        charIdList_ = charIds;
+void CharListMenu::init(
+        CharacterListSnapshot snapshot,
+        std::shared_ptr<MenuSelectionSink> selectionSink) {
+    layoutAnchorX_ = x_;
+    layoutAnchorY_ = y_;
+    charIdList_.clear();
+    std::vector<std::wstring> names;
+    std::vector<std::wstring> values;
+    charIdList_.reserve(snapshot.rows.size());
+    names.reserve(snapshot.rows.size());
+    values.reserve(snapshot.rows.size());
+    for (auto &row: snapshot.rows) {
+        if (row.characterId < 0) { continue; }
+        charIdList_.push_back(row.characterId);
+        names.push_back(std::move(row.name));
+        values.push_back(std::move(row.valueText));
     }
-    if (!title.empty()) {
-        auto *msgBox = new MessageBox(renderer_, x_, y_, gWindow->width() - x_, gWindow->height() - y_);
+    if (!snapshot.title.empty()) {
+        auto *msgBox = new MessageBox(renderer_, x_, y_, rootWidth() - x_, rootHeight() - y_);
         msgBox_ = msgBox;
-        msgBox->popup(title, MessageBox::Normal, MessageBox::TopLeft);
-        msgBox->forceUpdate();
-        y_ += msgBox->height() + core::config.windowBorder();
+        msgBox->popup(snapshot.title, MessageBox::Normal, MessageBox::TopLeft);
     }
-    std::vector<std::wstring> names, values;
-    listNamesFromTypeList(charIdList_, valueTypes, names, values);
-    if (!valueTypes.empty()) {
-        std::wstring subTitle;
-        getNameFromTypeList(valueTypes, subTitle);
-        setTitle(subTitle);
-    }
-    auto *ttf = renderer_->ttf();
-    ttf->setAltColor(15, 252, 100, 12);
+    setTitle(std::move(snapshot.columnTitle));
     popup(names, values);
-    setHandler([this, okHandler]() {
-        if (!okHandler) { return; }
-        if (checkbox_) {
-            okHandler(0);
-            return;
-        }
-        if (currIndex_ >= 0) {
-            okHandler(std::abs(charIdList_[currIndex_]));
-        }
-    }, [cancelHandler]()->bool {
-        if (cancelHandler) { return cancelHandler(); }
-        return true;
-    });
-}
-
-void CharListMenu::initWithTeamMembers(const std::vector<std::wstring> &title, const std::vector<ValueType> &valueTypes,
-                                       const std::function<void(std::int16_t)> &okHandler,
-                                       const std::function<bool()> &cancelHandler,
-                                       const std::function<bool(ValueType, std::int16_t)> &filterFunc) {
-    std::vector<std::int16_t> charIds;
-    for (auto id: ::hojy::world::state::gSaveData.baseInfo->members) {
-        if (id >= 0) {
-            charIds.emplace_back(id);
-        }
+    std::vector<std::int32_t> entryIds;
+    entryIds.reserve(charIdList_.size());
+    for (const auto id: charIdList_) {
+        entryIds.push_back(id);
     }
-    init(title, charIds, valueTypes, okHandler, cancelHandler, filterFunc);
-}
-
-void CharListMenu::enableCheckBox(bool b, const std::function<bool(std::int16_t)> &onCheckBoxToggle) {
-    if (!b) {
-        Menu::enableCheckBox(false, nullptr);
-    } else {
-        onCheckBoxToggle2_ = onCheckBoxToggle;
-        Menu::enableCheckBox(true, [this](int index)->bool {
-            if (index < 0) { return false; }
-            return onCheckBoxToggle2_(std::abs(charIdList_[currIndex_]));
-        });
-    }
+    setEntryIds(entryIds);
+    setSelectionSink(std::move(selectionSink));
 }
 
 void CharListMenu::makeCenter(int w, int h, int x, int y) {
-    NodeWithCache::makeCenter(w, h, x, y);
+    centerWidth_ = w;
+    centerHeight_ = h;
+    centerX_ = x;
+    centerY_ = y;
+    centerRequested_ = true;
+    requestPresentationRefresh();
+}
+
+void CharListMenu::prepareRender() {
+    if (renderer_ && renderer_->ttf()) {
+        renderer_->ttf()->setAltColor(15, 252, 100, 12);
+    }
     if (msgBox_) {
-        msgBox_->setPosition(x_, y_);
-        y_ += msgBox_->height() + core::config.windowBorder();
+        msgBox_->dispatchPrepareRender();
+    }
+    NodeWithCache::prepareRender();
+    if (!renderCacheReady() || msgBox_ && !static_cast<NodeWithCache *>(msgBox_)->renderCacheReady()) {
+        return;
+    }
+
+    int baseX = layoutAnchorX_;
+    int baseY = layoutAnchorY_;
+    if (centerRequested_) {
+        baseX = centerX_ + (centerWidth_ - width_) / 2;
+        baseY = centerY_ + (centerHeight_ - height_) / 2;
+    }
+    if (msgBox_) {
+        msgBox_->setPosition(baseX, baseY);
+        setPosition(baseX, baseY + msgBox_->height() + core::config.windowBorder());
+    } else {
+        setPosition(baseX, baseY);
     }
 }
 
-void CharListMenu::render() {
-    if (msgBox_) { msgBox_->render(); }
+void CharListMenu::render() const {
+    if (msgBox_) { msgBox_->dispatchRender(); }
     NodeWithCache::render();
 }
 

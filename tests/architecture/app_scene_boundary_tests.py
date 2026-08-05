@@ -43,19 +43,25 @@ class AppSceneBoundaryTests(unittest.TestCase):
         self.assertIn('SdlInputCollector inputCollector_', header)
         self.assertIn('inputCollector_.collect(inputQueue_)', implementation)
 
-    def test_title_validates_new_game_state_before_name_entry(self):
+    def test_title_prepares_a_world_candidate_and_defers_scene_activation(self):
         header = (ROOT / "src/scene/title.hh").read_text(encoding="utf-8")
-        self.assertIn("bool prepareNewGame()", header)
-        prepare = function_body("src/scene/title.cc", "bool Title::prepareNewGame")
-        self.assertIn("if (!::hojy::world::state::gSaveData.newGame())", prepare)
-        self.assertIn("gSaveData.charInfo[0]", prepare)
-        self.assertIn("gSaveData.subMapInfo", prepare)
-        handler = function_body("src/scene/title.cc", "void Title::handleKeyInput")
-        self.assertGreaterEqual(handler.count("if (!prepareNewGame())"), 2)
-        confirmation = function_body(
-            "src/scene/title.cc", "void Title::ensureConfirmationMenu"
-        )
-        self.assertIn("if (!charInfo || !subMap)", confirmation)
+        logic = (ROOT / "src/scene/title_logic.cc").read_text(encoding="utf-8")
+        command = (ROOT / "src/scene/logic/command.hh").read_text(encoding="utf-8")
+        persistence = (ROOT / "src/scene/window_persistence.cc").read_text(encoding="utf-8")
+
+        self.assertIn("TitleInputExecutionContext", header)
+        self.assertIn("TitleScreenSnapshot", header)
+        self.assertIn("NewGameCandidate", header)
+        self.assertIn("prepareNewGameCandidate", logic)
+        self.assertIn("setIdentity", logic)
+        self.assertIn("StartNewGameCommand", logic)
+        self.assertIn("startNewGame", command)
+        self.assertIn("activateNewGameCandidate", persistence)
+        self.assertIn("finalize()", persistence)
+
+        title = (ROOT / "src/scene/title.cc").read_text(encoding="utf-8")
+        self.assertNotIn("world/character.hh", title)
+        self.assertNotIn("gSaveData.newGame()", title)
 
 
 if __name__ == '__main__':

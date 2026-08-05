@@ -39,13 +39,18 @@ RectPacker::RectPacker(int width, int height): width_(width), height_(height) {
 }
 
 RectPacker::~RectPacker() {
-    for (auto *rpd: rectpackData_) {
-        delete rpd;
-    }
-    rectpackData_.clear();
+    resetPacks();
 }
 
 int RectPacker::pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y) {
+    const auto rpidx = packInternal(w, h, x, y);
+    if (rpidx >= 0) {
+        allocations_.push_back({w, h, x, y, rpidx});
+    }
+    return rpidx;
+}
+
+int RectPacker::packInternal(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int16_t &y) {
     if (rectpackData_.empty()) {
         newRectPack();
     }
@@ -71,6 +76,41 @@ int RectPacker::pack(std::uint16_t w, std::uint16_t h, std::int16_t &x, std::int
     x = rc.x;
     y = rc.y;
     return rpidx;
+}
+
+void RectPacker::rollbackLast() {
+    if (allocations_.empty()) { return; }
+    allocations_.pop_back();
+
+    // stb_rect_pack mutates its skyline in place and has no delete operation.
+    // Replaying the committed rectangles gives a deterministic, leak-free
+    // rollback without exposing stb's internal node representation.
+    auto committed = allocations_;
+    resetPacks();
+    allocations_.clear();
+    for (auto &allocation: committed) {
+        std::int16_t x = 0, y = 0;
+        const auto rpidx = packInternal(allocation.w, allocation.h, x, y);
+        if (rpidx < 0) {
+            // This can only happen after an allocation failure.  Keep the
+            // packer usable for future callers rather than retaining stale
+            // skyline state.
+            resetPacks();
+            allocations_.clear();
+            return;
+        }
+        allocation.x = x;
+        allocation.y = y;
+        allocation.packIndex = rpidx;
+        allocations_.push_back(allocation);
+    }
+}
+
+void RectPacker::resetPacks() {
+    for (auto *rpd: rectpackData_) {
+        delete rpd;
+    }
+    rectpackData_.clear();
 }
 
 void RectPacker::newRectPack() {
