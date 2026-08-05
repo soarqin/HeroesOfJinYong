@@ -10,13 +10,13 @@
 
 ## 恢复检查点（2026-08-05）
 
-- Task 0–8 的实现、对应行为测试和架构门禁已落地；计划复选框仍以本节证据为准，避免上下文压缩后重复入队。
-- Debug 全量 CTest：70/70 通过；架构门禁：14/14 通过。
-- Release 已重新配置并完成构建；逐事件输入屏障修复后的全量 CTest：70/70 通过。
+- Task 0–9 的实现、对应行为测试和架构门禁已落地；63 个计划步骤均已标记为完成，避免上下文压缩后重复入队。
+- 2026-08-05 重新配置并完成 Debug 构建，Debug 全量 CTest：70/70 通过；独立架构 Python 套件：163/163 通过。
+- 2026-08-05 重新配置并完成 Release 构建；Release 全量 CTest：70/70 通过。Release 仅保留既有第三方 LTO/ODR 与 GCC 宽字符串优化警告。
 - 本轮新增回归门禁：`SceneCommandBoundaryTests.test_each_input_intent_reselects_focus_after_its_barrier`，先验证旧批量投递实现失败，再验证逐事件焦点重取和屏障实现通过。
 - 当前唯一实现变更：`Window::updateFixed()` 每个输入意图后执行节点/命令屏障，并在下一意图前重新解析 `popup_` 或 `map_`。
 - Task 3 的实际命令队列路径为 `src/scene/logic/command.hh/.cc`，与早期 Files 列表中的 `src/scene/command.hh/.cc` 不同。
-- 最终验证命令：Debug/Release 全量 CTest 均为 70/70；`git diff --check -- src tests docs tools` 退出码 0；失效 SDL2/fmt 子模块元数据仅影响不带路径的 Git 检查命令，未影响源码、构建或测试。
+- 最终验证命令：Debug/Release 全量 CTest 均为 70/70；独立架构 Python 套件为 163/163；`git diff --check -- src tests docs tools` 退出码 0；失效 SDL2/fmt 子模块元数据仅影响不带路径的 Git 检查命令，未影响源码、构建或测试。
 
 ---
 
@@ -43,7 +43,7 @@
 - Create: `tests/app/input_event_contract_tests.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，验证 app 与 scene 可共享无 SDL 输入值**
+- [x] **Step 1：写失败测试，验证 app 与 scene 可共享无 SDL 输入值**
 
 ```cpp
 #include "core/input_event.hh"
@@ -58,7 +58,7 @@ int main() {
 }
 ```
 
-- [ ] **Step 2：运行测试确认头文件缺失**
+- [x] **Step 2：运行测试确认头文件缺失**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -67,11 +67,11 @@ cmake --build cmake-build-debug --target input_event_contract_tests
 
 Expected: 缺少 `core/input_event.hh`。
 
-- [ ] **Step 3：移动值类型并保持 app API 兼容**
+- [x] **Step 3：移动值类型并保持 app API 兼容**
 
 把 `InputDevice`、`InputAction`、`InputEvent` 移到 `hojy::core`；`src/app/input.hh` 使用 `using core::InputDevice`、`using core::InputAction`、`using core::InputEvent` 保留既有调用方。`InputQueue` 继续位于 `hojy::app`。新增 `hojy_scene_logic` 静态库，源文件只来自 `src/scene/logic/*.cc/*.hh`，不链接 SDL；`hojy_scene` 链接它，`hojy_app` 仍链接 `hojy_scene`。
 
-- [ ] **Step 4：运行目标边界测试**
+- [x] **Step 4：运行目标边界测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -82,7 +82,7 @@ ctest --test-dir cmake-build-debug -R input_event_contract_tests --output-on-fai
 
 Expected: `1/1` passed。
 
-- [ ] **Step 5：提交纯值类型边界**
+- [x] **Step 5：提交纯值类型边界**
 
 ```powershell
 git add src/core/input_event.hh src/app/input.hh src/app/input.cc src/CMakeLists.txt tests/app/input_event_contract_tests.cc tests/CMakeLists.txt
@@ -97,7 +97,7 @@ git commit -m "refactor(app): move input values below scene"
 - Create: `tests/scene/input_port_tests.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，定义期望接口与 FIFO 语义**
+- [x] **Step 1：写失败测试，定义期望接口与 FIFO 语义**
 
 ```cpp
 #include "scene/logic/input.hh"
@@ -151,7 +151,7 @@ int main() {
 }
 ```
 
-- [ ] **Step 2：配置并运行测试，确认因接口缺失失败**
+- [x] **Step 2：配置并运行测试，确认因接口缺失失败**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -161,7 +161,7 @@ cmake --build cmake-build-debug --target scene_input_port_tests
 
 Expected: 编译失败，提示缺少 `scene/logic/input.hh` 或 `QueuedInputPort`。
 
-- [ ] **Step 3：实现输入意图和端口**
+- [x] **Step 3：实现输入意图和端口**
 
 ```cpp
 // src/scene/logic/input.hh
@@ -244,7 +244,7 @@ private:
 
 `src/scene/logic/input.cc` 不直接依赖 `app::InputEvent`；端口只提供 `enqueue(std::unique_ptr<SceneInputIntent>)`，由 `window_input.cc` 把 `core::InputEvent` 映射为 `KeyIntent` 或 `TextIntent`。`Quit` 不进入场景端口。`deliverNext()` 先移动队首智能指针，再调用 `deliver()`，确保消费期间追加的新输入不会破坏当前对象生命周期；意图在构造时保存原始 `timestamp`、`device` 和 `sequence` 元数据。
 
-- [ ] **Step 4：运行输入端口测试并确认通过**
+- [x] **Step 4：运行输入端口测试并确认通过**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -254,7 +254,7 @@ ctest --test-dir cmake-build-debug -R scene_input_port_tests --output-on-failure
 
 Expected: `1/1` passed。
 
-- [ ] **Step 5：提交输入契约**
+- [x] **Step 5：提交输入契约**
 
 ```powershell
 git add src/scene/logic/input.hh src/scene/logic/input.cc tests/scene/input_port_tests.cc tests/CMakeLists.txt
@@ -274,11 +274,11 @@ git commit -m "refactor(input): add polymorphic scene intents"
 - Modify: `tests/scene/node_lifetime_tests.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，证明入队阶段不执行逻辑**
+- [x] **Step 1：写失败测试，证明入队阶段不执行逻辑**
 
 新增 `ProbeNode`，其 `consumeKeyIntent()` 增加计数。测试先调用 `QueuedInputPort::enqueue(...)`，断言计数仍为 `0`；随后调用 `deliverNext(root)`，断言计数变为 `1`。再排入两个意图，第一个创建/删除焦点子节点，应用删除屏障后投递第二个意图，断言第二个意图按更新后的焦点树消费。
 
-- [ ] **Step 2：运行测试，确认旧同步派发行为导致失败**
+- [x] **Step 2：运行测试，确认旧同步派发行为导致失败**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -288,7 +288,7 @@ ctest --test-dir cmake-build-debug -R scene_node_phase_tests --output-on-failure
 
 Expected: 缺少 `dispatchIntent()` 或输入仍在 `dispatchInput()` 中立即执行。
 
-- [ ] **Step 3：实现节点输入消费者契约**
+- [x] **Step 3：实现节点输入消费者契约**
 
 `Node` 继承 `InputConsumer`，新增：
 
@@ -302,7 +302,7 @@ virtual void consumeTextIntent(const std::wstring &text) {}
 
 两个 `consume()` 重载保留现有「最后一个活动子节点优先」规则：存在活动子节点时继续调用子节点的同名 `consume()`，到达叶节点后才转发到业务虚函数。业务函数只会由 fixed logic 阶段调用。删除 `doHandleKeyInput()`、`doTextInput()` 及公开的同步输入派发方法。
 
-- [ ] **Step 4：实现 Window 输入队列与逐事件屏障**
+- [x] **Step 4：实现 Window 输入队列与逐事件屏障**
 
 `Window` 新增 `QueuedInputPort inputPort_`。`dispatchInput()` 只把 `core::InputEvent` 映射为意图并入队，不访问 `Node`、`map_`、`popup_` 或 `processingStage_`；`Application` 在看到 `InputAction::Quit` 时直接 `window_.requestQuit()`，不把系统退出传给场景。
 
@@ -322,11 +322,11 @@ while (!inputPort_.empty()) {
 
 随后再执行节点 `update()`。每个意图之后应用屏障，保持旧实现中同 tick 多事件、焦点变化和 deferred command 的可观察顺序。
 
-- [ ] **Step 5：把所有业务输入覆写改名为逻辑消费函数**
+- [x] **Step 5：把所有业务输入覆写改名为逻辑消费函数**
 
 在 `endscreen`、`dead`、`extendednode`、`itemview`、`mapwithevent`、`menu`、`messagebox`、`statusview`、`submap`、`talkbox`、`title`、`warfield` 中，将 `handleKeyInput()` 改为 `consumeKeyIntent()`，将 `handleTextInput()` 改为 `consumeTextIntent()`，参数改为 `InputKey`。保留每个具体类原有行为，不在本步骤重写业务分支。
 
-- [ ] **Step 6：运行节点、输入和应用测试**
+- [x] **Step 6：运行节点、输入和应用测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -337,7 +337,7 @@ ctest --test-dir cmake-build-debug -R "scene_node_(phase|lifetime)_tests|applica
 
 Expected: 全部通过。
 
-- [ ] **Step 7：提交 fixed logic 输入消费**
+- [x] **Step 7：提交 fixed logic 输入消费**
 
 ```powershell
 git add src/app/application.cc src/scene tests/scene/node_phase_tests.cc tests/scene/node_lifetime_tests.cc tests/CMakeLists.txt
@@ -354,11 +354,11 @@ git commit -m "refactor(input): consume intents during fixed logic"
 - Modify: `src/scene/window.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，覆盖 FIFO、重入和异常保留**
+- [x] **Step 1：写失败测试，覆盖 FIFO、重入和异常保留**
 
 测试定义两个 `SceneCommand` 子类。第一个执行时追加第三个命令；一次 `executeGeneration()` 只执行原始批次，第二次才执行第三个。另一个命令抛出异常，测试要求未执行的命令仍留在队列中，避免静默丢失。
 
-- [ ] **Step 2：运行测试并确认接口缺失**
+- [x] **Step 2：运行测试并确认接口缺失**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -367,7 +367,7 @@ cmake --build cmake-build-debug --target scene_command_queue_tests
 
 Expected: 缺少 `scene/command.hh`。
 
-- [ ] **Step 3：实现命令模式**
+- [x] **Step 3：实现命令模式**
 
 ```cpp
 class SceneCommand {
@@ -403,11 +403,11 @@ private:
 
 `executeGeneration(context)` 移动当前队列到局部批次；执行失败时把当前未执行命令按原顺序放回队首，再抛出异常。执行期间追加的命令留在下一 generation；Window 在每个 fixed-logic 事件屏障中显式执行当前 generation，并按事务检查点丢弃失败路径追加的命令，防止下一个输入看到半完成焦点状态。
 
-- [ ] **Step 4：用命令队列替换 Window 的裸函数队列**
+- [x] **Step 4：用命令队列替换 Window 的裸函数队列**
 
 `Window::defer(std::function<void()>)` 保持公共兼容入口，但内部构造 `FunctionSceneCommand`。`deferredCommands_` 改为 `SceneCommandQueue`，`applyDeferredCommands()` 只负责重入保护并执行当前 generation；单个 generation 内执行期间追加的新命令必须留到下一 generation，并由 fixed-logic 事件屏障显式继续执行已产生的 generation。
 
-- [ ] **Step 5：运行命令、节点和窗口测试**
+- [x] **Step 5：运行命令、节点和窗口测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -417,7 +417,7 @@ ctest --test-dir cmake-build-debug -R "scene_(command_queue|node_phase)_tests" -
 
 Expected: 全部通过。
 
-- [ ] **Step 6：提交命令模式**
+- [x] **Step 6：提交命令模式**
 
 ```powershell
 git add src/scene/command.hh src/scene/command.cc src/scene/window.hh src/scene/window.cc tests/scene/command_queue_tests.cc tests/CMakeLists.txt
@@ -437,11 +437,11 @@ git commit -m "refactor(scene): execute deferred work as commands"
 - Create: `tests/scene/warfield_input_mode_tests.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，定义输入模式多态行为**
+- [x] **Step 1：写失败测试，定义输入模式多态行为**
 
 测试使用独立的 `WarfieldInputContext` 假对象验证：`PassiveWarfieldInputMode` 只响应取消自动控制；`MoveSelectingInputMode` 在确认时提交移动目标；`AttackSelectingInputMode` 在确认时提交攻击目标；取消时两种选择模式都调用统一撤销操作。
 
-- [ ] **Step 2：运行测试并确认模式类型缺失**
+- [x] **Step 2：运行测试并确认模式类型缺失**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -450,17 +450,17 @@ cmake --build cmake-build-debug --target scene_warfield_input_mode_tests
 
 Expected: 缺少 `warfield_input_mode.hh`。
 
-- [ ] **Step 3：实现 OOP 输入模式**
+- [x] **Step 3：实现 OOP 输入模式**
 
 定义 `WarfieldInputContext` 抽象接口，提供 `moveCursor()`、`confirmMove()`、`confirmAttack()`、`cancelSelection()` 和 `cancelAutoControl()`。定义 `WarfieldInputMode` 基类及三个具体类；各具体类通过虚函数调用上下文，不访问 `Warfield` 字段，也不包含阶段分支。
 
-- [ ] **Step 4：让 Warfield 实现上下文并集中阶段切换**
+- [x] **Step 4：让 Warfield 实现上下文并集中阶段切换**
 
 `Warfield` 实现 `WarfieldInputContext`，持有 `std::unique_ptr<WarfieldInputMode> inputMode_`。新增 `setStage(Stage)`，设置 `stage_` 后根据目标阶段从工厂创建对应模式。把所有 `stage_ = ...` 改为 `setStage(...)`；`consumeKeyIntent()` 只调用 `inputMode_->consume(*this, key)`。
 
 工厂中的阶段选择只在状态转换时执行一次；每个输入事件不再检查 `stage_`。
 
-- [ ] **Step 5：运行战场输入与既有战斗测试**
+- [x] **Step 5：运行战场输入与既有战斗测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -471,7 +471,7 @@ ctest --test-dir cmake-build-debug -R "scene_warfield_input_mode_tests|battle_(e
 
 Expected: 全部通过。
 
-- [ ] **Step 6：提交战场输入模式**
+- [x] **Step 6：提交战场输入模式**
 
 ```powershell
 git add src/scene/warfield* tests/scene/warfield_input_mode_tests.cc tests/CMakeLists.txt
@@ -491,11 +491,11 @@ git commit -m "refactor(battle): model input states as polymorphic modes"
 - Create: `tests/scene/render_phase_tests.cc`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败测试，证明 prepare 与 render 分离**
+- [x] **Step 1：写失败测试，证明 prepare 与 render 分离**
 
 测试节点在 `prepareRender()` 中增加 prepare 计数，在 `render() const` 中只增加外部记录器计数。调用 `dispatchRender()` 前断言缓存未准备；调用 `dispatchPrepareRender()` 后缓存准备一次；连续调用两次 `dispatchRender()` 不改变节点逻辑快照和删除队列。
 
-- [ ] **Step 2：运行测试并确认接口缺失**
+- [x] **Step 2：运行测试并确认接口缺失**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -504,23 +504,23 @@ cmake --build cmake-build-debug --target scene_render_phase_tests
 
 Expected: 缺少 `prepareRender()` 或 `render() const`。
 
-- [ ] **Step 3：修改 Node 契约**
+- [x] **Step 3：修改 Node 契约**
 
 `Node` 新增 `dispatchPrepareRender()`、`doPrepareRender()` 和虚函数 `prepareRender()`；把 `render()`、`doRender()`、`dispatchRender()` 改为 `const`。渲染遍历不再修改 `dispatchDepth_`，因为渲染期命令和删除由门禁禁止；子节点通过只读快照遍历。
 
-- [ ] **Step 4：迁移 NodeWithCache**
+- [x] **Step 4：迁移 NodeWithCache**
 
 `NodeWithCache::update()` 不再调用 `rebuildCache()`；`prepareRender()` 调用 `rebuildCache()`。逻辑阶段通过 `requestPresentationRefresh()` 递增 `requestedPresentationRevision_`，由显式 `prepareRender()` 构建缓存；需要同步尺寸的创建路径改为先调用 `dispatchPrepareRender()`，再 `makeCenter()`。`render() const` 只提交现有 texture。
 
-- [ ] **Step 5：批量修正所有 render 覆写为 const**
+- [x] **Step 5：批量修正所有 render 覆写为 const**
 
 更新 `CharListMenu`、`EndScreen`、`GlobalMap`、`Map`、`Mask`、`NodeWithCache`、`SubMap`、`Warfield` 及其他直接覆写。只做签名和只读调用修正，不在本步骤迁移缓存代码。
 
-- [ ] **Step 6：Window 调用 prepare/render，且不切换逻辑 processing 标志**
+- [x] **Step 6：Window 调用 prepare/render，且不切换逻辑 processing 标志**
 
 `Window::render()` 先调用活动根节点的 `doPrepareRender()`，再调用 `doRender()`；删除对 `processingStage_` 的写入。渲染阶段不执行 deferred nodes 或 commands。
 
-- [ ] **Step 7：运行节点、缓存和架构测试**
+- [x] **Step 7：运行节点、缓存和架构测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -530,7 +530,7 @@ ctest --test-dir cmake-build-debug -R "scene_(render_phase|node_lifetime)_tests|
 
 Expected: 全部通过。
 
-- [ ] **Step 8：提交表现阶段契约**
+- [x] **Step 8：提交表现阶段契约**
 
 ```powershell
 git add src/scene tests/scene/render_phase_tests.cc tests/CMakeLists.txt
@@ -550,11 +550,11 @@ git commit -m "refactor(render): separate preparation from drawing"
 - Modify: `src/scene/warfield_render.cc`
 - Modify: `tests/architecture/render_purity_tests.py`
 
-- [ ] **Step 1：扩展失败门禁，禁止 render 内提交缓存状态**
+- [x] **Step 1：扩展失败门禁，禁止 render 内提交缓存状态**
 
 新增断言：`GlobalMap::render()`、`SubMap::render()`、`Warfield::render()` 不含 `drawDirty_ =`、`lock(`、`unlock(`、`memset(`；`Map::renderMiniPanel()` 不含 `miniPanelDirty_ =`、`setTargetTexture(`。测试还要求对应类存在 `prepareRender()` 或 `prepareMiniPanel()`。
 
-- [ ] **Step 2：运行门禁并确认现状失败**
+- [x] **Step 2：运行门禁并确认现状失败**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -563,23 +563,23 @@ python -m unittest tests/architecture/render_purity_tests.py -v
 
 Expected: 地图、战场 render 仍重建缓存而失败。
 
-- [ ] **Step 3：拆分 Map 小地图缓存**
+- [x] **Step 3：拆分 Map 小地图缓存**
 
 把 `showMiniPanel()` 拆成 `prepareMiniPanel()` 和 `renderMiniPanel() const`。`prepareMiniPanel()` 只在 dirty 时构建 target texture，构建完成后清 dirty 并更新布局；`renderMiniPanel()` 只绘制 texture 和角色位置标记。
 
-- [ ] **Step 4：迁移 GlobalMap terrain 缓存**
+- [x] **Step 4：迁移 GlobalMap terrain 缓存**
 
 把 `render()` 中 `if (drawDirty_)` 的完整块移动到 `prepareRender()`；完成 texture unlock 后才清 `drawDirty_`。`render() const` 只清屏、绘制两层 terrain、角色、云和小地图。
 
-- [ ] **Step 5：迁移 SubMap terrain 缓存**
+- [x] **Step 5：迁移 SubMap terrain 缓存**
 
 把 terrain RLE 解码、`charHeight_` 计算和 dirty 提交移到 `prepareRender()`。`render() const` 只绘制缓存、角色和小地图。
 
-- [ ] **Step 6：迁移 Warfield terrain/effect overlay 缓存**
+- [x] **Step 6：迁移 Warfield terrain/effect overlay 缓存**
 
 把 effect overlay 计算、terrain texture 锁定和 RLE 解码移到 `prepareRender()`；绘制阶段只使用两个 terrain texture、popup number 值和 status view。修复 status view 的直接 `render()` 调用，改为统一 `dispatchRender()` 或纳入节点树。
 
-- [ ] **Step 7：运行架构门禁和主程序构建**
+- [x] **Step 7：运行架构门禁和主程序构建**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -589,7 +589,7 @@ cmake --build cmake-build-debug --target HeroesOfJinYongMain
 
 Expected: 门禁通过，Debug 主程序构建成功。
 
-- [ ] **Step 8：提交缓存迁移**
+- [x] **Step 8：提交缓存迁移**
 
 ```powershell
 git add src/scene/map.* src/scene/globalmap.* src/scene/submap.* src/scene/warfield* tests/architecture/render_purity_tests.py
@@ -611,11 +611,11 @@ git commit -m "refactor(render): prepare map and battle caches before draw"
 - Modify: `tests/architecture/warfield_battle_boundary_tests.py`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写失败门禁**
+- [x] **Step 1：写失败门禁**
 
 门禁要求 `MapWithEvent` 保存 `mainCharSpriteId_` 而不是 `mainCharTex_`；`GlobalMap::update()` 不调用 `cloudTexMgr_` 或 `getOrLoadTexture()`；`warfield_actions.cc`、`warfield_turns.cc` 和输入消费文件不访问 `renderer_`；战斗 `ItemView` 路径不调用无参数 `world::state::useItem()` 或生产 `gBag`。
 
-- [ ] **Step 2：运行门禁并确认失败**
+- [x] **Step 2：运行门禁并确认失败**
 
 ```powershell
 python -m unittest tests/architecture/logic_render_boundary_tests.py tests/architecture/warfield_battle_boundary_tests.py -v
@@ -623,19 +623,19 @@ python -m unittest tests/architecture/logic_render_boundary_tests.py tests/archi
 
 Expected: 当前纹理指针和 `ItemView → gBag` 路径被检测到。
 
-- [ ] **Step 3：地图主角和云改存资源 ID**
+- [x] **Step 3：地图主角和云改存资源 ID**
 
 `MapWithEvent::updateMainCharTexture()` 只设置 `mainCharSpriteId_`；`prepareRender()` 通过 `getOrLoadTexture(mainCharSpriteId_)` 更新表现缓存指针。云逻辑保存 `cloudSpriteId_[3]`，`GlobalMap::prepareRender()` 解析为 `cloud_[3]`。
 
-- [ ] **Step 4：为 ItemView 注入物品使用策略**
+- [x] **Step 4：为 ItemView 注入物品使用策略**
 
 定义多态 `ItemUsePolicy`：普通地图策略调用世界背包，战场策略持有 `Warfield` 提供的事务背包/动作提交接口。`ItemView` 只把选择结果传给策略，不检查战斗类型，不直接访问 `gBag`。`Warfield::playerMenu()` 创建战斗策略并交给 `ItemView`。
 
-- [ ] **Step 5：删除逻辑文件中无用 Renderer 访问**
+- [x] **Step 5：删除逻辑文件中无用 Renderer 访问**
 
 删除 `warfield_actions.cc` 中未使用的 `renderer_->ttf()`；把仍用于表现请求的音效和消息转换为 deferred command 或表现事件，逻辑文件不直接进行绘制。
 
-- [ ] **Step 6：运行门禁、战斗与世界动作测试**
+- [x] **Step 6：运行门禁、战斗与世界动作测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -646,7 +646,7 @@ ctest --test-dir cmake-build-debug -R "action_contract_tests|battle_engine_tests
 
 Expected: 全部通过。
 
-- [ ] **Step 7：提交资源与背包边界**
+- [x] **Step 7：提交资源与背包边界**
 
 ```powershell
 git add src/scene tests/architecture tests/CMakeLists.txt
@@ -662,7 +662,7 @@ git commit -m "refactor(scene): isolate logic from render resources"
 - Modify: `tests/architecture/render_purity_tests.py`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1：写完整门禁并确认会捕获旧模式**
+- [x] **Step 1：写完整门禁并确认会捕获旧模式**
 
 `input_logic_boundary_tests.py` 扫描输入入口，要求 `Window::dispatchInput()` 只把事件映射为意图并调用 `inputPort_.enqueue()`，业务类不再定义 `handleKeyInput()`/`handleTextInput()`，`*_input.cc` 不访问 `gSaveData`、`gBag`、`gWindow` 或 `Renderer`。
 
@@ -670,11 +670,11 @@ git commit -m "refactor(scene): isolate logic from render resources"
 
 `render_purity_tests.py` 要求所有 Node `render()` 为 `const`，并禁止 render 函数体中的业务字段赋值、容器修改和生命周期调用。
 
-- [ ] **Step 2：注册门禁到 CTest**
+- [x] **Step 2：注册门禁到 CTest**
 
 在 `tests/CMakeLists.txt` 添加 `architecture_input_logic_boundary_tests`、`architecture_logic_render_boundary_tests` 和 `architecture_scene_command_boundary_tests`，工作目录设为 `${PROJECT_SOURCE_DIR}`。
 
-- [ ] **Step 3：运行全部架构测试**
+- [x] **Step 3：运行全部架构测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -684,7 +684,7 @@ ctest --test-dir cmake-build-debug -R architecture_ --output-on-failure
 
 Expected: 全部架构测试通过。
 
-- [ ] **Step 4：提交架构门禁**
+- [x] **Step 4：提交架构门禁**
 
 ```powershell
 git add tests/architecture tests/CMakeLists.txt
@@ -698,7 +698,7 @@ git commit -m "test(architecture): enforce input logic render boundaries"
 - Modify: affected `src/scene/*.hh` and `*.cc`
 - Delete: obsolete input/render compatibility methods and empty translation units
 
-- [ ] **Step 1：扫描过渡符号和反向依赖**
+- [x] **Step 1：扫描过渡符号和反向依赖**
 
 ```powershell
 rg -n 'handleKeyInput|handleTextInput|doHandleKeyInput|doTextInput|dispatchKeyInput|dispatchTextInput' src tests
@@ -708,15 +708,15 @@ rg -n 'renderer_->|Texture\s*\*' src/scene/warfield_actions.cc src/scene/warfiel
 
 Expected: 旧输入符号无匹配；render 函数体无状态提交；战场逻辑文件无渲染依赖。
 
-- [ ] **Step 2：删除空壳和过渡适配器**
+- [x] **Step 2：删除空壳和过渡适配器**
 
 删除不再引用的旧方法、字段和文件；若新增或删除 `*.cc`/`*.hh`，重新运行 Debug/Release CMake 配置。
 
-- [ ] **Step 3：更新设计文档的实际落地记录**
+- [x] **Step 3：更新设计文档的实际落地记录**
 
 在设计文档增加「实际落地」章节，列出最终接口、迁移文件、被删除的旧入口及原因；不保留未完成占位项。
 
-- [ ] **Step 4：运行 Debug 全量构建和测试**
+- [x] **Step 4：运行 Debug 全量构建和测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -727,7 +727,7 @@ ctest --test-dir cmake-build-debug -C Debug --output-on-failure
 
 Expected: 构建退出码 `0`，全部测试通过。
 
-- [ ] **Step 5：运行 Release 全量构建和测试**
+- [x] **Step 5：运行 Release 全量构建和测试**
 
 ```powershell
 $env:PATH='C:\msys64\ucrt64\bin;' + $env:PATH
@@ -738,7 +738,7 @@ ctest --test-dir cmake-build-release -C Release --output-on-failure
 
 Expected: 构建退出码 `0`，全部测试通过；既有第三方 LTO/ODR 警告单独记录，本轮新增警告为 `0`。
 
-- [ ] **Step 6：运行最终差异和工作区检查**
+- [x] **Step 6：运行最终差异和工作区检查**
 
 ```powershell
 git diff --check
@@ -748,7 +748,7 @@ git diff --cached
 
 Expected: `git diff --check` 返回 `0`；未包含构建产物、凭据或原工作区的 `debug*.txt`、`release*.txt`。
 
-- [ ] **Step 7：提交最终清理**
+- [x] **Step 7：提交最终清理**
 
 ```powershell
 git add src tests docs/superpowers/specs/2026-08-04-input-logic-render-separation-design.md
