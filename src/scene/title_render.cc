@@ -1,8 +1,8 @@
 #include "title.hh"
+#include "title_render.hh"
 
 #include "util/math.hh"
 
-#include <array>
 #include <stdexcept>
 #include <type_traits>
 
@@ -80,11 +80,7 @@ void Title::makeCache() {
             const auto x = (width_ - (logo->width() + logo->originX())
                             * layout.scale.first / layout.scale.second) / 2;
             const auto y = height_ - 65 * layout.scale.first / layout.scale.second;
-            const std::array<int, 3> offsets = {
-                y + 20 * layout.scale.first / layout.scale.second,
-                y + 40 * layout.scale.first / layout.scale.second,
-                y + 60 * layout.scale.first / layout.scale.second,
-            };
+            const auto offsets = detail::titleMenuSelectionOffsets(y, layout.scale);
             renderer_->renderTexture(logo, x, y, layout.scale);
             renderer_->renderTexture(
                 selection, x, offsets[static_cast<std::size_t>(snapshot.selectedIndex)],
@@ -98,11 +94,7 @@ void Title::makeCache() {
             const auto x = (width_ - (logo->width() + logo->originX())
                             * layout.scale.first / layout.scale.second) / 2;
             const auto y = height_ - 65 * layout.scale.first / layout.scale.second;
-            const std::array<int, 3> offsets = {
-                y + 20 * layout.scale.first / layout.scale.second,
-                y + 40 * layout.scale.first / layout.scale.second,
-                y + 60 * layout.scale.first / layout.scale.second,
-            };
+            const auto offsets = detail::titleMenuSelectionOffsets(y, layout.scale);
             renderer_->renderTexture(logo, x, y, layout.scale);
             renderer_->renderTexture(load, x, y, layout.scale);
             renderer_->renderTexture(

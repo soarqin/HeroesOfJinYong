@@ -308,6 +308,14 @@ target_link_libraries(scene_title_integration_tests PRIVATE hojy_scene)
 set_target_properties(scene_title_integration_tests PROPERTIES CXX_STANDARD 17)
 add_test(NAME scene_title_integration_tests COMMAND scene_title_integration_tests)
 
+add_executable(scene_title_render_layout_tests
+    scene/title_render_layout_tests.cc)
+target_include_directories(scene_title_render_layout_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(scene_title_render_layout_tests PROPERTIES CXX_STANDARD 17)
+add_test(NAME scene_title_render_layout_tests COMMAND scene_title_render_layout_tests)
+
 add_executable(scene_battle_presentation_session_tests
     scene/battle_presentation_session_tests.cc)
 target_include_directories(scene_battle_presentation_session_tests PRIVATE

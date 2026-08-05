@@ -32,20 +32,16 @@ Warfield::Warfield(Renderer *renderer, int x, int y, int width, int height, std:
     if (!resourcesReady_) { return; }
     try {
         std::vector<std::vector<std::string>> candidateFightTextures(FightTextureListCount);
-        for (size_t i = 0; i < candidateFightTextures.size(); ++i) {
-            if (!::hojy::content::GrpData::loadData(
-                    fmt::format("FIGHT{:03}.IDX", i), fmt::format("FIGHT{:03}.GRP", i),
-                    candidateFightTextures[i])) {
-                resourcesReady_ = false;
-                return;
-            }
-            for (const auto &texture: candidateFightTextures[i]) {
-                if (!texture.empty() && !logic::validateRleData(texture)) {
-                    resourcesReady_ = false;
-                    return;
-                }
-            }
-        }
+        detail::loadOptionalFightTextures(
+            candidateFightTextures.size(),
+            [](std::size_t index, ::hojy::content::GrpData::DataSet &loaded) {
+                return ::hojy::content::GrpData::loadData(
+                    fmt::format("FIGHT{:03}.IDX", index),
+                    fmt::format("FIGHT{:03}.GRP", index), loaded);
+            },
+            [](const std::string &texture) {
+                return logic::validateRleData(texture);
+            }, candidateFightTextures);
         fightTexData_ = std::move(candidateFightTextures);
     } catch (const std::bad_alloc &) {
         resourcesReady_ = false;

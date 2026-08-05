@@ -3,6 +3,7 @@
 #include "content/grpdata.hh"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <set>
@@ -20,6 +21,34 @@ inline bool validateUniqueWarfieldCharacterIds(
             return false;
         }
     }
+    return true;
+}
+
+/**
+ * Load optional FIGHT animation lists without making startup depend on them.
+ * Missing or unusable lists remain empty so battle rendering can fall back to
+ * the base character texture, matching the original startup behavior.
+ */
+template<typename Loader, typename Validator>
+bool loadOptionalFightTextures(
+        std::size_t count, Loader &&loader, Validator &&validator,
+        std::vector<::hojy::content::GrpData::DataSet> &result) {
+    std::vector<::hojy::content::GrpData::DataSet> candidate(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        ::hojy::content::GrpData::DataSet loaded;
+        if (!loader(i, loaded)) { continue; }
+        bool valid = true;
+        for (const auto &texture: loaded) {
+            if (!texture.empty() && !validator(texture)) {
+                valid = false;
+                break;
+            }
+        }
+        if (valid) {
+            candidate[i] = std::move(loaded);
+        }
+    }
+    result = std::move(candidate);
     return true;
 }
 

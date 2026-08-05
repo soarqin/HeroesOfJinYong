@@ -80,15 +80,18 @@ Window::Window(int w, int h):
         }
         ownsVideoSubsystem_ = true;
     }
-    if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER)) {
-        if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
-            ready_ = false;
-            quitRequested_ = true;
-            return;
-        }
-        ownsControllerSubsystem_ = true;
+    // Controller hot-plug support is optional.  On Windows, joystick
+    // notification setup can fail even though the video subsystem and window
+    // are fully usable; do not turn that optional failure into a startup
+    // failure.
+    bool controllerReady = SDL_WasInit(SDL_INIT_GAMECONTROLLER) != 0;
+    if (!controllerReady) {
+        controllerReady = SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == 0;
+        ownsControllerSubsystem_ = controllerReady;
     }
-    SDL_GameControllerEventState(SDL_ENABLE);
+    if (controllerReady) {
+        SDL_GameControllerEventState(SDL_ENABLE);
+    }
     auto *win = SDL_CreateWindow(GameWindowTitle,
                                  SDL_WINDOWPOS_CENTERED,
                                  SDL_WINDOWPOS_CENTERED,
@@ -160,8 +163,8 @@ Window::Window(int w, int h):
     warfield_->setCommandSink(commandSink);
 
     if (!initializeItemAtlas()) {
-        ready_ = false;
-        return;
+        // The atlas is a derived presentation cache.  It is safe to leave it
+        // unavailable; item views already fall back when no atlas is bound.
     }
     SDL_ShowWindow(win);
     if (audio::gMixer.init(3)) {
@@ -208,7 +211,9 @@ bool Window::initializeItemAtlas() {
         if (!Texture::validateRLE(data)) { return false; }
         std::int16_t header[4]{};
         std::memcpy(header, data.data(), sizeof(header));
-        if (header[0] != itemTexW || header[1] != itemTexH) { return false; }
+        if (header[0] != itemTexW || header[1] != itemTexH) {
+            return false;
+        }
         if (!Texture::renderRLE(data,
                                 colors,
                                 lock.pixels(),

@@ -85,7 +85,7 @@ bool NodeWithCache::rebuildCache() {
     // A committed cache must never be destroyed while it is still bound by
     // the renderer.  This can happen when a nested preparation failed to
     // restore its caller's target; preserve the old cache and retry later.
-    if (renderer_ && renderer_->targetTexture() == cache_) {
+    if (cache_ && renderer_ && renderer_->targetTexture() == cache_) {
         return false;
     }
     if (buildingCache_) {
