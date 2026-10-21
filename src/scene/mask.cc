@@ -19,7 +19,6 @@
 
 #include "mask.hh"
 
-#include "window.hh"
 #include "core/config.hh"
 
 #include <algorithm>
@@ -39,18 +38,18 @@ std::uint64_t microsPerAlpha(int interval) {
 
 Mask::Mask(Node *parent, Mask::Type type, int interval):
     Node(parent, parent->x(), parent->y(), parent->width(), parent->height()),
-    timeline_(gWindow->currTime(), microsPerAlpha(interval), type == FadeIn) {
+    timeline_(phaseTime(), microsPerAlpha(interval), type == FadeIn) {
 }
 
 void Mask::update() {
-    timeline_.advance(gWindow->currTime());
+    timeline_.advance(phaseTime());
     if (timeline_.completed() && !completionSignalled_) {
         completionSignalled_ = true;
         if (parent_) { parent_->fadeEnd(); }
     }
 }
 
-void Mask::render() {
+void Mask::render() const {
     renderer_->fillRect(x_, y_, width_, height_, 0, 0, 0, timeline_.alpha());
 }
 

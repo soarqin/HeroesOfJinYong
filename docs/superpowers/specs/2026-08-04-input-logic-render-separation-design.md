@@ -129,7 +129,7 @@ public:
 
 快照不得包含 `Renderer*`、`Texture*`、世界对象指针、命令回调或可变容器别名。地图快照至少包含位置、方向、相机目标、地形 revision、角色 `SpriteId`、事件帧和小地图数据；战斗快照至少包含参与者值副本、可选格、当前阶段、行动预览和效果值；菜单快照包含文本、选择索引、复选状态和尺寸。
 
-纹理解析、字体图集、target texture 和绘制缓存属于 `RenderView`。`prepare()` 位于表现阶段，只能修改视图私有的 `RenderCache`，不能修改快照或任何逻辑对象。缓存构建使用临时对象：构建、锁定、解码或上传全部成功后替换旧缓存并提交 revision；任一步骤失败都保留旧缓存。`render()` 只读取已准备好的缓存和快照，不得写入逻辑 dirty 标记、命令队列、节点删除状态或 `Window::processingStage_`。
+纹理解析、字体图集、target texture 和绘制缓存属于 `RenderView`。`prepare()` 位于表现阶段，可以修改视图私有的 `RenderCache`，并处理表现节点的延迟清理和生命周期；不得修改世界状态、逻辑快照或逻辑控制器。缓存构建使用临时对象：构建、锁定、解码或上传全部成功后替换旧缓存并提交 revision；任一步骤失败都保留旧缓存。`render()` 只读取已准备好的缓存和快照，不得写入逻辑 dirty 标记、命令队列、节点删除状态或 `Window::processingStage_`。
 
 ## 4. 多态输入消费方式
 
@@ -247,3 +247,41 @@ git diff --check
 4. 战斗道具、存档、商店和新游戏初始化没有全局状态绕行，失败路径不污染既有状态。
 5. 原版资源、存档、事件和战场格式保持兼容，随机调用顺序和固定逻辑频率保持兼容。
 6. Debug 与 Release 构建、全量 CTest、架构扫描和 `git diff --check` 均通过，且无本轮新增警告未处理。
+
+## 9. 实际落地（截至 2026 年 8 月 5 日）
+
+### 9.1 输入与 fixed logic
+
+- 跨应用和场景的输入值位于 `core::InputEvent`；`InputDevice`、`InputAction` 和事件元数据不再由场景依赖 SDL 类型。
+- 场景输入契约由 `SceneInputIntent`、`KeyIntent`、`TextIntent`、`InputPort` 和 `QueuedInputPort` 组成。输入意图按类型投递给 `InputConsumer`，消费方式由具体对象的虚函数实现。
+- `Window::dispatchInput()` 只把平台事件写入 `pendingInputEvents_`。`Window::updateFixed()` 按事件映射意图、投递当前焦点并执行节点和命令屏障；输入阶段不访问地图、弹窗或世界状态。
+- `consumeKeyIntent()` 和 `consumeTextIntent()` 只保存待处理值。移动、交互、战斗动作和菜单事务在 fixed logic 的 `applyInputLogic()` 或对应逻辑控制器中执行。
+
+### 9.2 地图、战场与事务
+
+- `map_input.cc` 只缓存原始键；`map_logic.cc` 通过 `MapInputMode` 生成 `MapInputAction`，`map_logic_movement.cc` 承载移动、阻挡、事件触发和转场命令。
+- 地图层值写入接口改名为 `setCellSpriteId()`，明确其保存的是序列化资源 ID，而不是 GPU `Texture`。
+- 战场输入由 `WarfieldInputMode` 和 `WarfieldInputAction` 多态对象承载。`PassiveWarfieldInputMode`、`MoveSelectingInputMode` 和 `AttackSelectingInputMode` 通过上下文生成动作；`Warfield::setStage()` 只在状态转换时更换模式，输入事件不再堆积阶段分支。
+- 菜单、标题、物品选择使用类型化选择结果、候选对象和事务提交。弹窗结果统一通过 `MessageBoxResultSink` 提交；战斗物品选择不直接访问生产背包。
+
+### 9.3 表现准备与只读绘制
+
+- `Window::prepareRender()` 先执行表现清理和节点的 `dispatchPrepareRender()`，随后 `Window::render() const` 只调用 `doRender()`。
+- 所有 `Node::render()` 覆写均为 `const`。`prepareRender()` 可以构建临时缓存并处理表现节点的延迟生命周期；世界状态、逻辑快照和命令队列不在该阶段改变。
+- `NodeWithCache` 使用 `requestedPresentationRevision_` 与 `preparedPresentationRevision_`。逻辑只调用 `requestPresentationRefresh()` 递增请求 revision；`cacheDirty_` 只在表现准备阶段计算和提交。缓存创建或 RLE 解码失败时保留旧缓存。
+- revision 回绕时同时清零 `preparedPresentationRevision_`，避免旧缓存恰好与新 revision 相等而跳过准备。
+- 地图主角、云和战场效果在逻辑阶段保存 `SpriteId` 或值快照，纹理、字体和 target texture 只在表现准备阶段解析。地图、子地图和战场加载路径统一使用 `logic::validateRleData`，不再通过 `Texture::validateRLE` 暴露渲染类型。
+- `MessageBox::popup()` 与 `TalkBox::popup()` 只提交文本、类型、角色 ID 和对齐值；字体度量、头像纹理解析、分页和弹窗尺寸在 `prepareRender()` 的 `ensureLayout()` 中完成。`CharListMenu::init()` 不再修改 `TTF` 表现状态，颜色配置延后到准备阶段。
+
+### 9.4 命令与生命周期
+
+- `SceneCommandQueue` 以 generation 执行命令；屏障内追加的命令进入下一 generation，异常时未执行命令按原顺序保留。
+- `OwnedSceneCommand`、节点 `LifetimeHandle`、`WindowLifetimeHandle` 和战斗 session token 使转场、淡入淡出、覆盖层、存档回调在对象失效后自动跳过。
+- 战场节点树清理、状态面板释放和淡出节点删除延迟到 `prepareRender()`，不在输入或 fixed logic 中直接删除表现节点。
+- 表现准备阶段清空节点树时，会同步清理根节点的 `pendingDeletes_` 和 `lastInputConsumer_` 中指向该子树的引用，避免逻辑阶段的延迟删除记录在准备阶段回收后悬空。
+
+### 9.5 删除的旧入口与验证
+
+已删除或替换的过渡路径包括：`src/scene/map_navigation.cc`、旧 `handleKeyInput()`／`handleTextInput()` 输入入口、`updateMainCharTexture`、`setCellTexture`、直接 `gWindow` 业务调用、旧 `data/mem` 命名空间，以及 `setDirty()`／`forceUpdate()` 表现脏标志兼容 API。
+
+截至本节日期，架构 Python 套件为 `163/163`；Debug 与 Release 的全量 CTest 均为 `70/70`。逐事件输入焦点重取、RLE、布局、revision、待删引用和 `SpriteId` 命名门禁均已纳入对应架构测试。

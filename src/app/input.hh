@@ -1,18 +1,18 @@
 #pragma once
 
+#include "core/input_event.hh"
+
 #include <cstdint>
 #include <deque>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "core/input_event.hh"
-
 namespace hojy::app {
 
-using core::InputAction;
-using core::InputDevice;
-using core::InputEvent;
+using InputDevice = core::InputDevice;
+using InputAction = core::InputAction;
+using InputEvent = core::InputEvent;
 
 class InputQueue final {
 public:

@@ -146,6 +146,20 @@ void testVmFaultsOnOutOfRangeMemoryWithoutPartialWrite() {
     HOJY_CHECK_EQ(value, 11);
 }
 
+void testVmFaultsOnArithmeticOverflowWithoutPartialWrite() {
+    hojy::event::Vm vm;
+    vm.load({{0, {10, 32767, 0, 0, 0, 0}},
+             {0, {12, 123, 0, 0, 0, 0}},
+             {3, {0, 0, 12, 10, 1, 0}}});
+    WaitingHost host;
+
+    const auto result = vm.run(host, 8);
+    HOJY_CHECK_EQ(result.status, hojy::event::VmStatus::Faulted);
+    std::int16_t value = 123;
+    HOJY_CHECK_EQ(vm.memory().readWord(12, value), true);
+    HOJY_CHECK_EQ(value, 123);
+}
+
 void testLegacyVmWaitsAndResumesConditionalBranches() {
     hojy::event::Vm vm;
     LegacyHost host;
@@ -222,6 +236,7 @@ int main() {
         testVmRunsPureInstructionsAndRespectsBudget();
         testVmWaitsAndResumesAfterHostInstruction();
         testVmFaultsOnOutOfRangeMemoryWithoutPartialWrite();
+        testVmFaultsOnArithmeticOverflowWithoutPartialWrite();
         testLegacyVmWaitsAndResumesConditionalBranches();
         testLegacyVmSequentialWaitIgnoresResumeResult();
         testLegacyVmRespectsBudgetAndPatchesRelativeToNextInstruction();

@@ -45,10 +45,10 @@ class WarfieldBattleBoundaryTests(unittest.TestCase):
         self.assertLess(body.index("discardBattleSession()"), body.index("chars_.clear()"))
 
     def test_window_does_not_fade_in_after_failed_character_setup(self):
-        text = (ROOT / "src/scene/window.cc").read_text(encoding="utf-8")
-        callback = text[text.index("const auto selectedChars"):text.index("}, []() -> bool", text.index("const auto selectedChars"))]
+        body = function_body("src/scene/window_transition.cc", "bool Window::enterWar")
+        callback = body[body.index("const auto selectedChars"):]
         self.assertIn("!wf->putChars(selectedChars)", callback)
-        self.assertLess(callback.index("!wf->putChars(selectedChars)"), callback.index("map_->fadeIn()"))
+        self.assertLess(callback.index("!wf->putChars(selectedChars)"), callback.index("fadeIn("))
 
     def test_legacy_single_target_step_is_not_double_applied_to_make_damage(self):
         body = function_body("src/scene/warfield_actions.cc", "void Warfield::makeDamage")
@@ -62,9 +62,21 @@ class WarfieldBattleBoundaryTests(unittest.TestCase):
             "src/scene/warfield_ai.cc",
             "src/scene/warfield_ai_skill.cc",
             "src/scene/warfield_results.cc",
+            "src/scene/warfield_ui.cc",
+            "src/scene/itemview.cc",
         ):
             text = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("gBag", text, path)
+        item_view = (ROOT / "src/scene/itemview.hh").read_text(encoding="utf-8")
+        self.assertNotIn("setCharInfo", item_view)
+        self.assertNotIn("CharacterData *charInfo_", item_view)
+        battle_items = function_body(
+            "src/scene/warfield_actions.cc", "void Warfield::selectBattleItem"
+        )
+        self.assertIn("useItem(candidateBag", battle_items)
+        self.assertIn("battleBag_ = std::move(candidateBag)", battle_items)
+        self.assertIn("recordBattleAction", battle_items)
+        self.assertIn("battle::ItemAction", battle_items)
         results = function_body("src/scene/warfield_results.cc", "void Warfield::endWar")
         self.assertIn("commitBattleBag()", results)
 

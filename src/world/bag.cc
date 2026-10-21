@@ -34,23 +34,35 @@ void Bag::swap(Bag &other) noexcept {
     std::swap(dirty_, other.dirty_);
 }
 
-void Bag::syncFromSave() {
-    items_.clear();
-    orderedItems_.clear();
-    for (auto &item : gSaveData.baseInfo->items) {
-        if (item.count) {
-            items_[item.id] += item.count;
-            auto ordered = std::find_if(
-                orderedItems_.begin(), orderedItems_.end(),
-                [&item](const ItemEntry &entry) { return entry.first == item.id; });
-            if (ordered == orderedItems_.end()) {
-                orderedItems_.emplace_back(item.id, item.count);
-            } else {
-                ordered->second += item.count;
+bool Bag::syncFrom(const BaseData &base) noexcept {
+    try {
+        Bag candidate;
+        for (const auto &item: base.items) {
+            if (item.count) {
+                candidate.items_[item.id] += item.count;
+                auto ordered = std::find_if(
+                    candidate.orderedItems_.begin(),
+                    candidate.orderedItems_.end(),
+                    [&item](const ItemEntry &entry) {
+                        return entry.first == item.id;
+                    });
+                if (ordered == candidate.orderedItems_.end()) {
+                    candidate.orderedItems_.emplace_back(item.id, item.count);
+                } else {
+                    ordered->second += item.count;
+                }
             }
         }
+        candidate.dirty_ = false;
+        swap(candidate);
+        return true;
+    } catch (...) {
+        return false;
     }
-    dirty_ = false;
+}
+
+void Bag::syncFromSave() {
+    (void)syncFrom(*gSaveData.baseInfo.operator->());
 }
 
 void Bag::syncTo(BaseData &base) const {

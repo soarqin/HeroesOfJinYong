@@ -1,4 +1,4 @@
-#include "scene/command.hh"
+#include "scene/logic/command.hh"
 
 #include "test_support.hh"
 
@@ -8,54 +8,63 @@
 
 namespace {
 
-void testGenerationDefersReentrantCommands() {
+void testCommandsAddedDuringExecutionBecomeNextGeneration() {
     hojy::scene::SceneCommandQueue queue;
-    std::vector<int> executed;
-
-    queue.push([&] {
-        executed.push_back(1);
-        queue.push([&] { executed.push_back(3); });
+    hojy::scene::SceneCommandContext context;
+    std::vector<int> order;
+    queue.push([&](hojy::scene::SceneCommandContext &) {
+        order.push_back(1);
+        queue.push([&](hojy::scene::SceneCommandContext &) { order.push_back(3); });
     });
-    queue.push([&] { executed.push_back(2); });
+    queue.push([&](hojy::scene::SceneCommandContext &) { order.push_back(2); });
 
-    queue.executeGeneration();
-    HOJY_CHECK_EQ(executed, std::vector<int>({1, 2}));
-    HOJY_CHECK_EQ(queue.empty(), false);
+    queue.executeGeneration(context);
+    HOJY_CHECK_EQ(order.size(), 2U);
+    HOJY_CHECK_EQ(order.at(0), 1);
+    HOJY_CHECK_EQ(order.at(1), 2);
+    HOJY_CHECK_EQ(queue.size(), 1U);
 
-    queue.executeGeneration();
-    HOJY_CHECK_EQ(executed, std::vector<int>({1, 2, 3}));
+    queue.executeGeneration(context);
+    HOJY_CHECK_EQ(order.size(), 3U);
+    HOJY_CHECK_EQ(order.at(2), 3);
     HOJY_CHECK_EQ(queue.empty(), true);
 }
 
-void testGenerationRestoresUnexecutedCommandsAfterFailure() {
+void testFailedGenerationKeepsUnexecutedCommands() {
     hojy::scene::SceneCommandQueue queue;
-    std::vector<int> executed;
+    hojy::scene::SceneCommandContext context;
+    int completed = 0;
+    queue.push([&](hojy::scene::SceneCommandContext &) { throw std::runtime_error("expected"); });
+    queue.push([&](hojy::scene::SceneCommandContext &) { ++completed; });
 
-    queue.push([&] {
-        executed.push_back(1);
-        queue.push([&] { executed.push_back(4); });
-    });
-    queue.push([&] {
-        executed.push_back(2);
-        throw std::runtime_error("stop");
-    });
-    queue.push([&] { executed.push_back(3); });
+    HOJY_CHECK_THROWS(std::runtime_error, queue.executeGeneration(context));
+    HOJY_CHECK_EQ(completed, 0);
+    HOJY_CHECK_EQ(queue.size(), 2U);
+}
 
-    HOJY_CHECK_THROWS(std::runtime_error, queue.executeGeneration());
-    HOJY_CHECK_EQ(executed, std::vector<int>({1, 2}));
-    HOJY_CHECK_EQ(queue.empty(), false);
+void testTransactionCheckpointDiscardsOnlyAppendedCommands() {
+    hojy::scene::SceneCommandQueue queue;
+    hojy::scene::SceneCommandContext context;
+    std::vector<int> order;
+    queue.push([&](hojy::scene::SceneCommandContext &) { order.push_back(1); });
+    const auto checkpoint = queue.size();
+    queue.push([&](hojy::scene::SceneCommandContext &) { order.push_back(2); });
+    queue.push([&](hojy::scene::SceneCommandContext &) { order.push_back(3); });
 
-    queue.executeAllGenerations();
-    HOJY_CHECK_EQ(executed, std::vector<int>({1, 2, 3, 4}));
-    HOJY_CHECK_EQ(queue.empty(), true);
+    queue.discardAfter(checkpoint);
+    HOJY_CHECK_EQ(queue.size(), checkpoint);
+    queue.executeGeneration(context);
+    HOJY_CHECK_EQ(order.size(), std::size_t(1));
+    HOJY_CHECK_EQ(order.front(), 1);
 }
 
 }
 
 int main() {
     try {
-        testGenerationDefersReentrantCommands();
-        testGenerationRestoresUnexecutedCommandsAfterFailure();
+        testCommandsAddedDuringExecutionBecomeNextGeneration();
+        testFailedGenerationKeepsUnexecutedCommands();
+        testTransactionCheckpointDiscardsOnlyAppendedCommands();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

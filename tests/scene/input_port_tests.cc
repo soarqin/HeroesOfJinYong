@@ -3,6 +3,8 @@
 #include "test_support.hh"
 
 #include <iostream>
+#include <memory>
+#include <string>
 #include <vector>
 
 namespace {
@@ -31,22 +33,30 @@ void testQueuedInputPortPreservesIntentOrder() {
     HOJY_CHECK_EQ(port.size(), 2U);
     HOJY_CHECK_EQ(port.deliverNext(consumer), true);
     HOJY_CHECK_EQ(port.deliverNext(consumer), true);
-
     HOJY_CHECK_EQ(consumer.keys.at(0), hojy::scene::InputKey::Left);
     HOJY_CHECK_EQ(consumer.texts.at(0), L"令狐冲");
     HOJY_CHECK_EQ(port.empty(), true);
     HOJY_CHECK_EQ(port.deliverNext(consumer), false);
 }
 
-void testIntentsRetainSourceMetadata() {
-    const hojy::scene::InputIntentMetadata metadata{
-        123, hojy::core::InputDevice::Controller, 7};
-    const hojy::scene::KeyIntent intent(hojy::scene::InputKey::Accept,
-                                        metadata);
+void testCoreEventMappingPreservesMetadata() {
+    const hojy::core::InputEvent event{
+        42,
+        hojy::core::InputDevice::Controller,
+        hojy::core::InputAction::Right,
+        7,
+        L"",
+        99};
+    auto intent = hojy::scene::makeIntent(event);
+    HOJY_CHECK_EQ(static_cast<bool>(intent), true);
+    HOJY_CHECK_EQ(intent->metadata().timestamp, 42ULL);
+    HOJY_CHECK_EQ(intent->metadata().device,
+                  hojy::core::InputDevice::Controller);
+    HOJY_CHECK_EQ(intent->metadata().sequence, 99ULL);
 
-    HOJY_CHECK_EQ(intent.timestamp(), 123ULL);
-    HOJY_CHECK_EQ(intent.device(), hojy::core::InputDevice::Controller);
-    HOJY_CHECK_EQ(intent.sequence(), 7ULL);
+    RecordingConsumer consumer;
+    intent->deliver(consumer);
+    HOJY_CHECK_EQ(consumer.keys.at(0), hojy::scene::InputKey::Right);
 }
 
 }
@@ -54,7 +64,7 @@ void testIntentsRetainSourceMetadata() {
 int main() {
     try {
         testQueuedInputPortPreservesIntentOrder();
-        testIntentsRetainSourceMetadata();
+        testCoreEventMappingPreservesMetadata();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

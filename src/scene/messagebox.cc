@@ -26,12 +26,46 @@
 
 namespace hojy::scene {
 
+namespace {
+
+class MessageBoxChoiceAction final: public MenuAction {
+public:
+    MessageBoxChoiceAction(MessageBox *owner, bool yes): owner_(owner), yes_(yes) {}
+
+    void execute(MenuSelection) override {
+        if (!owner_) { return; }
+        owner_->executeYesNoSelection(yes_);
+    }
+
+private:
+    MessageBox *owner_ = nullptr;
+    bool yes_ = false;
+};
+
+}
+
+void MessageBox::executeYesNoSelection(bool yes) {
+    if (resultSink_) {
+        submitResult({yes});
+        return;
+    }
+    postCommand([yes](SceneCommandContext &context) {
+        context.endPopup(true, yes);
+    });
+}
+
+void MessageBox::submitResult(MessageBoxResult result) {
+    auto sink = std::move(resultSink_);
+    if (sink) { sink->submit(std::move(result)); }
+}
+
 void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align align) {
-    if (!layoutReady_) {
+    if (!frameInitialized_) {
         frameX_ = x_;
         frameY_ = y_;
         frameWidth_ = width_;
         frameHeight_ = height_;
+        frameInitialized_ = true;
     }
     x_ = frameX_;
     y_ = frameY_;
@@ -40,44 +74,79 @@ void MessageBox::popup(const std::vector<std::wstring> &text, Type type, Align a
     text_ = text;
     type_ = type;
     align_ = align;
+    if (menu_) { presentationMenuCleanupRequested_ = true; }
+    layout_ = {};
     layoutReady_ = false;
-    if (type_ != YesNo && menu_) {
-        menu_->requestDelete();
-        menu_ = nullptr;
-    }
-    setDirty();
+    requestPresentationRefresh();
 }
 
 void MessageBox::update() {
-    if (!layoutReady_) {
-        layoutText();
-    }
-    if (type_ == YesNo) {
-        ensureYesNoMenu();
-    }
     NodeWithCache::update();
 }
 
-void MessageBox::handleKeyInput(Node::Key key) {
+void MessageBox::prepareRender() {
+    if (presentationParentCleanupRequested_) {
+        presentationParentCleanupRequested_ = false;
+        if (parent_) { parent_->requestPresentationCleanup(); }
+    }
+    NodeWithCache::prepareRender();
+}
+
+bool MessageBox::prepareTextResources() {
+    if (!renderer_ || !renderer_->ttf()) { return false; }
+    auto *ttf = renderer_->ttf();
+    bool ready = true;
+    for (const auto &line: text_) { ready = ttf->prepareText(line) && ready; }
+    return ttf->prepareText(L"*") && ready;
+}
+
+void MessageBox::ensureLayout() {
+    if (presentationMenuCleanupRequested_) {
+        if (menu_) {
+            menu_->requestDelete();
+            menu_ = nullptr;
+        }
+        presentationMenuCleanupRequested_ = false;
+    }
+    if (layoutReady_) { return; }
+    if (!buildLayoutSnapshot()) {
+        layout_.lines = text_;
+        layout_.width = std::max(0, frameWidth_);
+        layout_.height = std::max(0, frameHeight_);
+        x_ = frameX_;
+        y_ = frameY_;
+        width_ = frameWidth_;
+        height_ = frameHeight_;
+    }
+    layoutReady_ = true;
+    if (type_ == YesNo) { ensureYesNoMenu(); }
+}
+
+void MessageBox::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void MessageBox::applyInputLogic() {
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
     switch (key) {
     case KeyOK: case KeySpace: case KeyCancel:
         switch (type_) {
         case PressToCloseThis: {
-            auto fn = std::move(closeHandler_);
-            requestDelete();
-            if (fn) { fn(); }
+            requestPresentationCleanup();
+            submitResult({true});
             break;
         }
         case PressToCloseParent: {
-            auto fn = std::move(closeHandler_);
-            if (parent_) { parent_->requestDelete(); }
-            if (fn) { fn(); }
+            presentationParentCleanupRequested_ = true;
+            submitResult({true});
             break;
         }
         case PressToCloseTop: {
-            auto fn = std::move(closeHandler_);
-            gWindow->endPopup(true);
-            if (fn) { fn(); }
+            postCommand([](SceneCommandContext &context) {
+                context.endPopup(true);
+            });
+            submitResult({true});
             break;
         }
         default:
@@ -89,80 +158,65 @@ void MessageBox::handleKeyInput(Node::Key key) {
     }
 }
 
-void MessageBox::layoutText() {
+bool MessageBox::buildLayoutSnapshot() {
+    if (!renderer_ || !renderer_->ttf()) { return false; }
     auto *ttf = renderer_->ttf();
-    int rowHeight = ttf->fontSize() + TextLineSpacing;
-    auto windowBorder = core::config.windowBorder();
-
-    lines_.clear();
-    const int widthMax = std::max(0, frameWidth_ - windowBorder * 2);
-    int textW = 0, textH;
-    for (auto &l: text_) {
-        size_t w = 0;
-        size_t len = l.length();
-        size_t idx = 0;
-        for (size_t i = 0; i < len; ++i) {
-            auto ch = l[i];
-            std::uint8_t width;
-            std::int8_t y0, y1;
-            ttf->charDimension(ch, width, y0, y1);
-            w += width;
-            if (w > widthMax) {
-                textW = std::max(textW, int(w - width));
-                lines_.emplace_back(l.substr(idx, i - idx));
-                idx = i;
-                w = width;
-            }
-        }
-        if (idx < len) {
-            textW = std::max(textW, int(w));
-            lines_.emplace_back(l.substr(idx));
+    const auto rowHeight = renderer_->fontSize() + TextLineSpacing;
+    const auto windowBorder = core::config.windowBorder();
+    const auto maximumLineWidth = std::max(
+        0, frameWidth_ - windowBorder * 2);
+    const auto metricRequest = logic::collectTextMetricRequest(text_);
+    logic::TextMetricsSnapshot metrics;
+    for (const auto ch: metricRequest.characters) {
+        int advance = 0;
+        if (!ttf->measureCharAdvance(ch, advance)) { return false; }
+        metrics.advances.emplace(ch, advance);
+    }
+    for (const auto &pair: metricRequest.pairs) {
+        int adjustment = 0;
+        if (ttf->measureKerningAdvance(
+                pair.first, pair.second, adjustment)) {
+            metrics.pairAdjustments.emplace(pair, adjustment);
         }
     }
-    textW += windowBorder * 2;
-    textH = rowHeight * int(lines_.size()) + windowBorder * 2 - TextLineSpacing;
-    textWidth_ = textW;
-    textHeight_ = textH;
+    logic::TextBlockLayout candidate;
+    if (!logic::buildTextBlockLayout(
+            text_, maximumLineWidth, rowHeight, TextLineSpacing,
+            windowBorder, metrics, candidate)) {
+        return false;
+    }
     x_ = frameX_;
     y_ = frameY_;
     width_ = frameWidth_;
     height_ = frameHeight_;
     if (align_ == Center) {
-        x_ += (frameWidth_ - textW) / 2;
-        y_ += (frameHeight_ - textH) / 2;
+        x_ += (frameWidth_ - candidate.width) / 2;
+        y_ += (frameHeight_ - candidate.height) / 2;
     }
-    width_ = textW;
-    height_ = textH;
-    layoutReady_ = true;
+    width_ = candidate.width;
+    height_ = candidate.height;
+    layout_ = std::move(candidate);
+    return true;
 }
 
 void MessageBox::ensureYesNoMenu() {
     if (menu_ != nullptr || type_ != YesNo) { return; }
-    auto *m = new MenuYesNo(this, x_ + textWidth_ + 5, y_,
-                            gWindow->width() - (x_ + textWidth_ + 5),
-                            gWindow->height() - y_);
+    const auto menuX = x_ + layout_.width + 5;
+    auto *m = new MenuYesNo(this, menuX, y_,
+                            frameX_ + frameWidth_ - menuX,
+                            frameY_ + frameHeight_ - y_);
     m->enableHorizonal(true);
     m->popupWithYesNo();
-    m->setHandler([this]{
-        if (yesHandler_) {
-            yesHandler_();
-        } else {
-            gWindow->endPopup(true, true);
-        }
-    }, [this] {
-        if (noHandler_) {
-            noHandler_();
-        } else {
-            gWindow->endPopup(true, false);
-        }
-    });
+    auto controller = std::make_shared<ActionMenuController>();
+    controller->bind(0, std::make_unique<MessageBoxChoiceAction>(this, true));
+    controller->bind(1, std::make_unique<MessageBoxChoiceAction>(this, false));
+    controller->bindCancel(
+        std::make_unique<MessageBoxChoiceAction>(this, false));
+    m->setSelectionSink(std::move(controller));
     menu_ = m;
 }
 
 void MessageBox::makeCache() {
-    if (!layoutReady_) {
-        layoutText();
-    }
     auto *ttf = renderer_->ttf();
     int rowHeight = ttf->fontSize() + TextLineSpacing;
     auto windowBorder = core::config.windowBorder();
@@ -171,11 +225,11 @@ void MessageBox::makeCache() {
     renderer_->clear(0, 0, 0, 0);
     int x = windowBorder;
     int y = windowBorder;
-    renderer_->fillRoundedRect(0, 0, textWidth_, textHeight_, windowBorder, 64, 64, 64, 208);
-    renderer_->drawRoundedRect(0, 0, textWidth_, textHeight_, windowBorder, 224, 224, 224, 255);
+    renderer_->fillRoundedRect(0, 0, layout_.width, layout_.height, windowBorder, 64, 64, 64, 208);
+    renderer_->drawRoundedRect(0, 0, layout_.width, layout_.height, windowBorder, 224, 224, 224, 255);
     ttf->setColor(236, 200, 40);
-    for (auto &l: lines_) {
-        ttf->render(l, x, y, true);
+    for (const auto &l: layout_.lines) {
+        ttf->renderPrepared(l, x, y, true);
         y += rowHeight;
     }
     cacheEnd();

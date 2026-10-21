@@ -23,14 +23,14 @@ enum class InputKey {
     Backspace,
 };
 
-class KeyIntent;
-class TextIntent;
-
-struct InputIntentMetadata {
+struct InputMetadata final {
     std::uint64_t timestamp = 0;
     core::InputDevice device = core::InputDevice::Keyboard;
     std::uint64_t sequence = 0;
 };
+
+class KeyIntent;
+class TextIntent;
 
 class InputConsumer {
 public:
@@ -41,38 +41,25 @@ public:
 
 class SceneInputIntent {
 public:
-    explicit SceneInputIntent(InputIntentMetadata metadata = {})
+    explicit SceneInputIntent(InputMetadata metadata = {})
         : metadata_(metadata) {}
     virtual ~SceneInputIntent() = default;
 
-    virtual void deliver(InputConsumer &consumer) const = 0;
-
-    [[nodiscard]] const InputIntentMetadata &metadata() const {
+    [[nodiscard]] const InputMetadata &metadata() const noexcept {
         return metadata_;
     }
-    [[nodiscard]] std::uint64_t timestamp() const {
-        return metadata_.timestamp;
-    }
-    [[nodiscard]] core::InputDevice device() const {
-        return metadata_.device;
-    }
-    [[nodiscard]] std::uint64_t sequence() const {
-        return metadata_.sequence;
-    }
+    virtual void deliver(InputConsumer &consumer) const = 0;
 
 private:
-    InputIntentMetadata metadata_;
+    InputMetadata metadata_;
 };
 
 class KeyIntent final : public SceneInputIntent {
 public:
-    explicit KeyIntent(InputKey key, InputIntentMetadata metadata = {})
+    explicit KeyIntent(InputKey key, InputMetadata metadata = {})
         : SceneInputIntent(metadata), key_(key) {}
-    KeyIntent(InputKey key, std::uint64_t timestamp, core::InputDevice device,
-              std::uint64_t sequence)
-        : KeyIntent(key, {timestamp, device, sequence}) {}
 
-    [[nodiscard]] InputKey key() const { return key_; }
+    [[nodiscard]] InputKey key() const noexcept { return key_; }
     void deliver(InputConsumer &consumer) const override { consumer.consume(*this); }
 
 private:
@@ -81,13 +68,10 @@ private:
 
 class TextIntent final : public SceneInputIntent {
 public:
-    explicit TextIntent(std::wstring text, InputIntentMetadata metadata = {})
+    explicit TextIntent(std::wstring text, InputMetadata metadata = {})
         : SceneInputIntent(metadata), text_(std::move(text)) {}
-    TextIntent(std::wstring text, std::uint64_t timestamp,
-               core::InputDevice device, std::uint64_t sequence)
-        : TextIntent(std::move(text), {timestamp, device, sequence}) {}
 
-    [[nodiscard]] const std::wstring &text() const { return text_; }
+    [[nodiscard]] const std::wstring &text() const noexcept { return text_; }
     void deliver(InputConsumer &consumer) const override { consumer.consume(*this); }
 
 private:
@@ -100,12 +84,14 @@ public:
     virtual void enqueue(std::unique_ptr<SceneInputIntent> intent) = 0;
 };
 
+[[nodiscard]] std::unique_ptr<SceneInputIntent> makeIntent(
+    const core::InputEvent &event);
+
 class QueuedInputPort final : public InputPort {
 public:
     void enqueue(std::unique_ptr<SceneInputIntent> intent) override;
-
-    [[nodiscard]] bool empty() const { return intents_.empty(); }
-    [[nodiscard]] std::size_t size() const { return intents_.size(); }
+    [[nodiscard]] bool empty() const noexcept { return intents_.empty(); }
+    [[nodiscard]] std::size_t size() const noexcept { return intents_.size(); }
     bool deliverNext(InputConsumer &consumer);
 
 private:

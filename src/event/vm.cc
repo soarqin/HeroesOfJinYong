@@ -254,6 +254,11 @@ Vm::PureResult Vm::executePure(const Instruction &instruction, std::string &erro
         case 4: if (value != 0) { result = lhs % value; } break;
         default: break;
         }
+        if (result < std::numeric_limits<std::int16_t>::min()
+            || result > std::numeric_limits<std::int16_t>::max()) {
+            error = "event arithmetic result out of range";
+            return PureResult::Faulted;
+        }
         return memory_.writeWord(v3, static_cast<std::int16_t>(result)) ? PureResult::Handled :
             (error = "event memory write out of range", PureResult::Faulted);
     }

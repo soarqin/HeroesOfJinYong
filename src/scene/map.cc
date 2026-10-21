@@ -21,22 +21,48 @@
 
 #include "window.hh"
 #include "colorpalette.hh"
-#include "world/strings.hh"
 #include "core/config.hh"
 #include <fmt/xchar.h>
+
+#include <cmath>
+#include <limits>
+#include <utility>
+
+namespace {
+
+std::uint32_t scaledExtent(int extent, std::pair<int, int> scale) {
+    if (extent <= 0 || scale.first <= 0 || scale.second <= 0) { return 0; }
+    const auto value = static_cast<std::int64_t>(extent) * scale.second / scale.first;
+    if (value <= 0 || value > std::numeric_limits<std::int16_t>::max()) { return 0; }
+    return static_cast<std::uint32_t>(value);
+}
+
+std::uint64_t frameInterval() {
+    const auto speed = hojy::core::config.animationSpeed();
+    if (speed <= 0.f) { return 0; }
+    return static_cast<std::uint64_t>(std::round(1000000.f / 15.f / speed));
+}
+
+}
 
 namespace hojy::scene {
 
 Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale): Node(renderer, x, y, width, height),
-    scale_(scale), auxWidth_(width_ * scale.second / scale.first), auxHeight_(height_ * scale.second / scale.first),
-    drawDirty_(true), drawingTerrainTex_(Texture::create(renderer_, auxWidth_, auxHeight_)),
+    scale_(scale), auxWidth_(scaledExtent(width, scale)), auxHeight_(scaledExtent(height, scale)),
+    drawingTerrainTex_(Texture::create(renderer_, auxWidth_, auxHeight_)),
     miniPanelTex_(Texture::createAsTarget(renderer_, 256, 256)),
-    eachFrameTime_(std::round(1000000.f / 15.f / core::config.animationSpeed())) {
+    eachFrameTime_(frameInterval()) {
     textureMgr_.clear();
     textureMgr_.setRenderer(renderer_);
     textureMgr_.setPalette(gNormalPalette);
-    drawingTerrainTex_->enableBlendMode(true);
-    miniPanelTex_->enableBlendMode(true);
+    if (drawingTerrainTex_) { (void)drawingTerrainTex_->enableBlendMode(true); }
+    if (miniPanelTex_) { (void)miniPanelTex_->enableBlendMode(true); }
+
+    resourcesReady_ = renderer_ != nullptr && scale_.first > 0 && scale_.second > 0
+        && auxWidth_ > 0 && auxHeight_ > 0
+        && drawingTerrainTex_ != nullptr && drawingTerrainTex_->valid()
+        && miniPanelTex_ != nullptr && miniPanelTex_->valid();
+    if (!resourcesReady_) { return; }
 
     auto windowBorder = core::config.windowBorder();
     miniMapW_ = width_ / 4 - windowBorder;
@@ -50,6 +76,7 @@ Map::Map(Renderer *renderer, int x, int y, int width, int height, std::pair<int,
 Map::~Map() {
     delete miniMapTex_;
     delete drawingTerrainTex_;
+    delete miniPanelTex_;
 }
 
 const std::string &Map::texData(std::int16_t id) const {
@@ -62,7 +89,7 @@ const std::string &Map::texData(std::int16_t id) const {
 
 void Map::resetFrame() {
     frames_ = 0;
-    nextFrameTime_ = gWindow->currTime();
+    nextFrameTime_ = phaseTime();
     resetTime();
 }
 
@@ -71,7 +98,12 @@ void Map::advanceCompatibilityFrame() {
     frameUpdate();
 }
 
-void Map::render() {
+void Map::prepareRender() {
+    if (!resourcesReady_) { return; }
+    prepareMiniPanel();
+}
+
+void Map::render() const {
 }
 
 Map::Direction Map::calcDirection(int fx, int fy, int tx, int ty) {
@@ -85,7 +117,100 @@ Map::Direction Map::calcDirection(int fx, int fy, int tx, int ty) {
     return Map::DirDown;
 }
 
-void Map::showMiniPanel() {
+void Map::markWorldChanged() noexcept {
+    ++worldRevision_;
+    if (worldRevision_ == 0) {
+        worldRevision_ = 1;
+        preparedWorldRevision_ = 0;
+    }
+}
+
+void Map::markMiniPanelChanged() noexcept {
+    miniPanelSnapshot_.x = currX_;
+    miniPanelSnapshot_.y = currY_;
+    ++miniPanelRevision_;
+    if (miniPanelRevision_ == 0) {
+        miniPanelRevision_ = 1;
+        preparedMiniPanelRevision_ = 0;
+    }
+}
+
+void Map::commitMiniPanelSnapshot(std::wstring mapName,
+                                  std::int32_t x,
+                                  std::int32_t y) {
+    miniPanelSnapshot_.mapName = std::move(mapName);
+    miniPanelSnapshot_.x = x;
+    miniPanelSnapshot_.y = y;
+    ++miniPanelRevision_;
+    if (miniPanelRevision_ == 0) {
+        miniPanelRevision_ = 1;
+        preparedMiniPanelRevision_ = 0;
+    }
+}
+
+bool Map::worldPresentationNeedsPrepare() const noexcept {
+    return preparedWorldRevision_ != worldRevision_;
+}
+
+void Map::commitWorldPresentation() noexcept {
+    preparedWorldRevision_ = worldRevision_;
+}
+
+void Map::prepareMiniPanel() {
+    if (!core::config.showMapMiniPanel()
+        || preparedMiniPanelRevision_ == miniPanelRevision_) {
+        return;
+    }
+    std::unique_ptr<Texture> candidate(Texture::createAsTarget(renderer_, 256, 256));
+    if (!candidate || !candidate->enableBlendMode(true)) {
+        candidate.reset();
+        return;
+    }
+    int w = 0;
+    int h = 0;
+    try {
+        RenderTargetGuard target(renderer_, candidate.get());
+        if (!target.valid()) { return; }
+        renderer_->clear(0, 0, 0, 0);
+        auto *ttf = renderer_->ttf();
+        int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
+        auto lineheight = smallFontSize + TextLineSpacing;
+        auto windowBorder = core::config.windowBorder() * 2 / 3;
+        h = windowBorder * 2 + lineheight - TextLineSpacing;
+        int w0 = 0, w1;
+        const std::wstring *name = nullptr;
+        if (!miniPanelSnapshot_.mapName.empty()) {
+            name = &miniPanelSnapshot_.mapName;
+            h += lineheight;
+            if (!ttf->prepareText(*name, smallFontSize)) { return; }
+            w0 = ttf->preparedStringWidth(*name, smallFontSize);
+        }
+        std::wstring coordStr = fmt::format(
+            L"({},{})", miniPanelSnapshot_.x, miniPanelSnapshot_.y);
+        if (!ttf->prepareText(coordStr, smallFontSize)) { return; }
+        w1 = ttf->preparedStringWidth(coordStr, smallFontSize);
+        w = std::max(w0, w1) + windowBorder * 2;
+        renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
+        renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 208, 208, 208, 224);
+        ttf->setColor(192, 192, 192);
+        int y = windowBorder;
+        if (name) {
+            ttf->renderPrepared(*name, (w - w0) / 2, y, false, smallFontSize);
+            y += lineheight;
+        }
+        ttf->renderPrepared(coordStr, (w - w1) / 2, y, false, smallFontSize);
+    } catch (...) {
+        throw;
+    }
+    delete miniPanelTex_;
+    miniPanelTex_ = candidate.release();
+    miniPanelX_ = width_ - w - core::config.windowBorder();
+    miniPanelY_ = core::config.windowBorder();
+    miniPanelReady_ = true;
+    preparedMiniPanelRevision_ = miniPanelRevision_;
+}
+
+void Map::renderMiniPanel() const {
     auto minimap = core::config.showMinimap() && miniMapTex_ != nullptr;
     if (minimap) {
         renderer_->drawRoundedRect(miniMapX_ - 1, miniMapY_ - 1, miniMapW_ + 2, miniMapH_ + 2, 2, 208, 208, 208, 224);
@@ -97,45 +222,16 @@ void Map::showMiniPanel() {
             renderer_->drawCircle(miniMapX_ + miniMapW_ / 2, miniMapY_ + miniMapH_ / 2, rad, 252, 32, 32, 224);
         }
     }
-    if (core::config.showMapMiniPanel()) {
-        if (miniPanelDirty_) {
-            miniPanelDirty_ = false;
-            renderer_->setTargetTexture(miniPanelTex_);
-            renderer_->clear(0, 0, 0, 0);
-            auto *ttf = renderer_->ttf();
-            int smallFontSize = std::max(8, (ttf->fontSize() * 2 / 3 + 1) & ~1);
-            auto lineheight = smallFontSize + TextLineSpacing;
-            auto windowBorder = core::config.windowBorder() * 2 / 3;
-            int h = windowBorder * 2 + lineheight - TextLineSpacing;
-            int w0 = 0, w1;
-            const std::wstring *name = nullptr;
-            if (subMapId_ >= 0) {
-                name = &GETSUBMAPNAME(subMapId_);
-                h += lineheight;
-                w0 = ttf->stringWidth(*name, smallFontSize);
-            }
-            std::wstring coordStr = fmt::format(L"({},{})", currX_, currY_);
-            w1 = ttf->stringWidth(coordStr, smallFontSize);
-            int w = std::max(w0, w1) + windowBorder * 2;
-            renderer_->fillRoundedRect(0, 0, w, h, windowBorder, 64, 64, 64, 208);
-            renderer_->drawRoundedRect(0, 0, w, h, windowBorder, 208, 208, 208, 224);
-            ttf->setColor(192, 192, 192);
-            int y = windowBorder;
-            if (name) {
-                ttf->render(*name, (w - w0) / 2, y, false, smallFontSize);
-                y += lineheight;
-            }
-            ttf->render(coordStr, (w - w1) / 2, y, false, smallFontSize);
-            renderer_->setTargetTexture(nullptr);
-            miniPanelX_ = width_ - w - windowBorder;
-            miniPanelY_ = windowBorder;
-        }
+    if (core::config.showMapMiniPanel() && miniPanelReady_ && miniPanelTex_) {
         renderer_->renderTexture(miniPanelTex_, miniPanelX_,
                                  minimap ? (miniPanelY_ + core::config.windowBorder() + miniMapH_) : miniPanelY_, true);
     }
 }
 
 const Texture *Map::getOrLoadTexture(std::int16_t id) {
+    if (!resourcesReady_ || id < 0 || static_cast<std::size_t>(id) >= texData_.size()) {
+        return nullptr;
+    }
     const auto *tex = textureMgr_[id];
     if (tex) { return tex; }
     return textureMgr_.loadFromRLE(texData_[id], id);

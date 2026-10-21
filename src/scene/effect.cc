@@ -51,9 +51,9 @@ bool Effect::load(const std::string &filename) {
                         dset.begin() + static_cast<std::ptrdiff_t>(index + frameCount));
             index += static_cast<std::size_t>(frameCount);
         }
-        if (index != dset.size()) {
-            return false;
-        }
+        // The original loader consumed the frame slices and intentionally
+        // ignored a trailing IDX/GRP entry.  Some shipped EFT bundles contain
+        // exactly one such padding entry, so it is not a startup failure.
         effectTexData_ = std::move(loaded);
         return true;
     } catch (const std::bad_alloc &) {

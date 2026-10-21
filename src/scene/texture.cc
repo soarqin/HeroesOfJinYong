@@ -19,10 +19,18 @@
 
 #include "texture.hh"
 
+#include "logic/rle.hh"
+
 #include "renderer.hh"
 #include "colorpalette.hh"
 #include "rectpacker.hh"
 #include <SDL.h>
+
+#include <algorithm>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
 
 namespace hojy::scene {
 
@@ -37,6 +45,7 @@ int upToPowerOf2(int n) {
 }
 
 Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
+    if (!renderer || w <= 0 || h <= 0) { return nullptr; }
 #ifdef ALLOW_ODD_WIDTH
 #else
     w = upToPowerOf2(w);
@@ -46,6 +55,10 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
     if (!tex) { return nullptr; }
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
     auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
+    if (!texture) {
+        delete tex;
+        return nullptr;
+    }
     tex->data_ = texture;
     tex->width_ = w;
     tex->height_ = h;
@@ -53,10 +66,15 @@ Texture *Texture::createAsTarget(Renderer *renderer, int w, int h) {
 }
 
 Texture *Texture::create(Renderer *renderer, std::int16_t w, std::int16_t h) {
+    if (!renderer || w <= 0 || h <= 0) { return nullptr; }
     auto *tex = new(std::nothrow) Texture;
     if (!tex) { return nullptr; }
     auto *ren = static_cast<SDL_Renderer*>(renderer->renderer_);
     auto *texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+    if (!texture) {
+        delete tex;
+        return nullptr;
+    }
     tex->data_ = texture;
     tex->width_ = w;
     tex->height_ = h;
@@ -74,6 +92,10 @@ Texture::Texture(Texture &&other) noexcept: data_(other.data_), width_(other.wid
 }
 
 Texture &Texture::operator=(Texture &&other) noexcept {
+    if (this == &other) { return *this; }
+    if (data_) {
+        SDL_DestroyTexture(static_cast<SDL_Texture *>(data_));
+    }
     data_ = other.data_;
     width_ = other.width_;
     height_ = other.height_;
@@ -83,17 +105,22 @@ Texture &Texture::operator=(Texture &&other) noexcept {
     return *this;
 }
 
-void Texture::enableBlendMode(bool r) {
-    SDL_SetTextureBlendMode(static_cast<SDL_Texture*>(data_), r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+bool Texture::enableBlendMode(bool r) {
+    if (!data_) { return false; }
+    return SDL_SetTextureBlendMode(
+               static_cast<SDL_Texture*>(data_),
+               r ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE) == 0;
 }
 
 void Texture::setBlendColor(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a) {
+    if (!data_) { return; }
     auto *tex = static_cast<SDL_Texture*>(data_);
     SDL_SetTextureColorMod(tex, r, g, b);
     SDL_SetTextureAlphaMod(tex, a);
 }
 
 std::uint32_t *Texture::lock(int &pitch) {
+    if (!data_) { return nullptr; }
     std::uint32_t *pixels;
     if (SDL_LockTexture(static_cast<SDL_Texture*>(data_), nullptr, reinterpret_cast<void**>(&pixels), &pitch)) {
         return nullptr;
@@ -103,6 +130,7 @@ std::uint32_t *Texture::lock(int &pitch) {
 }
 
 std::uint32_t *Texture::lock(int &pitch, int x, int y, int w, int h) {
+    if (!data_) { return nullptr; }
     std::uint32_t *pixels;
     SDL_Rect rc {x, y, w, h};
     if (SDL_LockTexture(static_cast<SDL_Texture*>(data_), &rc, reinterpret_cast<void**>(&pixels), &pitch)) {
@@ -113,22 +141,25 @@ std::uint32_t *Texture::lock(int &pitch, int x, int y, int w, int h) {
 }
 
 void Texture::unlock() {
-    SDL_UnlockTexture(static_cast<SDL_Texture*>(data_));
+    if (data_) { SDL_UnlockTexture(static_cast<SDL_Texture*>(data_)); }
 }
 
 Texture *Texture::loadFromRLE(Renderer *renderer, const std::string &data, const ColorPalette &palette) {
-    if (data.empty()) { return nullptr; }
-    const auto *arr = reinterpret_cast<const uint16_t*>(data.data());
+    if (!renderer || !validateRLE(data)) { return nullptr; }
+    std::int16_t arr[4];
+    std::memcpy(arr, data.data(), sizeof(arr));
     auto w = arr[0], h = arr[1];
     auto *tex = Texture::create(renderer, w, h);
     if (!tex) { return nullptr; }
-    tex->enableBlendMode(true);
-    std::uint32_t *pixels;
+    if (!tex->enableBlendMode(true)) { delete tex; return nullptr; }
     int pitch;
-    SDL_LockTexture(static_cast<SDL_Texture*>(tex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-    pitch /= sizeof(std::uint32_t);
-    Texture::renderRLE(data, palette.colors(), pixels, pitch, h, 0, 0, true);
-    SDL_UnlockTexture(static_cast<SDL_Texture*>(tex->data()));
+    auto *pixels = tex->lock(pitch);
+    if (!pixels || !Texture::renderRLE(data, palette.colors(), pixels, pitch, h, 0, 0, true)) {
+        if (pixels) { tex->unlock(); }
+        delete tex;
+        return nullptr;
+    }
+    tex->unlock();
     tex->width_ = w;
     tex->height_ = h;
     tex->originX_ = arr[2];
@@ -137,15 +168,20 @@ Texture *Texture::loadFromRLE(Renderer *renderer, const std::string &data, const
 }
 
 Texture *Texture::loadFromRAW(Renderer *renderer, const std::string &data, int width, int height, const ColorPalette &palette) {
-    if (data.empty()) { return nullptr; }
+    if (!renderer || width <= 0 || height <= 0
+        || width > std::numeric_limits<std::int16_t>::max()
+        || height > std::numeric_limits<std::int16_t>::max()
+        || static_cast<std::size_t>(width) > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(height)
+        || data.size() < static_cast<std::size_t>(width) * static_cast<std::size_t>(height)) {
+        return nullptr;
+    }
     const auto *buf = reinterpret_cast<const uint8_t*>(data.data());
     auto *tex = Texture::create(renderer, width, height);
     if (!tex) { return nullptr; }
     const auto *colors = palette.colors();
-    std::uint32_t *pixels;
     int pitch;
-    SDL_LockTexture(static_cast<SDL_Texture*>(tex->data()), nullptr, reinterpret_cast<void**>(&pixels), &pitch);
-    pitch /= sizeof(std::uint32_t);
+    auto *pixels = tex->lock(pitch);
+    if (!pixels) { delete tex; return nullptr; }
     int h = height;
     while (h--) {
         int w = width;
@@ -156,7 +192,7 @@ Texture *Texture::loadFromRAW(Renderer *renderer, const std::string &data, int w
         }
         pixels += pitch;
     }
-    SDL_UnlockTexture(static_cast<SDL_Texture*>(tex->data()));
+    tex->unlock();
     tex->width_ = width;
     tex->height_ = height;
     tex->originX_ = 0;
@@ -164,81 +200,60 @@ Texture *Texture::loadFromRAW(Renderer *renderer, const std::string &data, int w
     return tex;
 }
 
-void Texture::renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int ox, int oy, bool ignoreOrigin) {
-    size_t left = data.size();
-    if (left < 8) {
-        return;
+bool Texture::validateRLE(const std::string &data) {
+    return logic::validateRleData(data);
+}
+
+bool Texture::renderRLE(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int ox, int oy, bool ignoreOrigin) {
+    if (!colors || !pixels || pitch <= 0 || height <= 0 || !validateRLE(data)) { return false; }
+    if (static_cast<std::size_t>(height) >
+        std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(pitch)) {
+        return false;
     }
-    const auto *obuf = reinterpret_cast<const std::uint8_t*>(data.data());
-    struct Header {
-        std::int16_t w, h, x, y;
-    };
-    const auto *hdr = reinterpret_cast<const Header*>(obuf);
-    obuf += 8;
-    left -= 8;
+    std::int16_t header[4];
+    std::memcpy(header, data.data(), sizeof(header));
+    const auto rows = static_cast<int>(header[1]);
+    std::int64_t originX = ox;
+    std::int64_t originY = oy;
     if (!ignoreOrigin) {
-        ox -= hdr->x;
-        oy -= hdr->y;
+        originX -= header[2];
+        originY -= header[3];
     }
-    std::int32_t w = hdr->w, h = hdr->h;
-    if (ox + w <= 0 || oy + h <= 0) { return; }
-    while (left && h--) {
-        auto size = std::uint32_t(*obuf++);
-        if (--left < size) {
-            break;
-        }
-        const auto *buf = obuf;
-        left -= size;
-        obuf += size;
-        if (oy < 0) { ++oy; continue; }
-        if (oy >= height) { break; }
-        auto *ptr = pixels + ox + pitch * (oy++);
-        int x = ox;
-        while (size) {
-            auto cnt = *buf++;
-            --size;
-            if (!size) {
-                break;
-            }
-            ptr += cnt;
-            x += cnt;
-            cnt = *buf++;
-            --size;
-            if (size < cnt) {
-                break;
-            }
-            if (x < 0) {
-                if (x + cnt <= 0) {
-                    ptr += cnt;
-                    buf += cnt;
-                } else {
-                    ptr -= x;
-                    buf -= x;
-                    for (int z = x + cnt; z; --z) {
-                        *ptr++ = colors[*buf++];
-                    }
+
+    std::size_t position = sizeof(header);
+    for (int row = 0; row < rows; ++row) {
+        if (position >= data.size()) { return false; }
+        const auto rowSize = static_cast<std::size_t>(
+            static_cast<std::uint8_t>(data[position++]));
+        if (rowSize > data.size() - position) { return false; }
+        const auto rowEnd = position + rowSize;
+        std::int64_t sourceX = 0;
+        const auto destinationY = originY + row;
+        while (position < rowEnd) {
+            if (rowEnd - position < 2) { return false; }
+            const auto skip = static_cast<std::int64_t>(
+                static_cast<std::uint8_t>(data[position++]));
+            const auto count = static_cast<std::size_t>(
+                static_cast<std::uint8_t>(data[position++]));
+            if (count > rowEnd - position) { return false; }
+            sourceX += skip;
+            for (std::size_t index = 0; index < count; ++index) {
+                const auto destinationX = originX + sourceX
+                    + static_cast<std::int64_t>(index);
+                if (destinationY < 0 || destinationY >= height
+                    || destinationX < 0 || destinationX >= pitch) {
+                    continue;
                 }
-            } else if (x + cnt > pitch) {
-                if (x >= pitch) {
-                    ptr += cnt;
-                    buf += cnt;
-                } else {
-                    for (int z = pitch - x; z; --z) {
-                        *ptr++ = colors[*buf++];
-                    }
-                    int offset = x + cnt - pitch;
-                    ptr += offset;
-                    buf += offset;
-                }
-            } else {
-                for (int z = cnt; z; --z) {
-                    *ptr++ = colors[*buf++];
-                }
+                const auto rowOffset = static_cast<std::size_t>(destinationY)
+                    * static_cast<std::size_t>(pitch);
+                pixels[rowOffset + static_cast<std::size_t>(destinationX)] =
+                    colors[static_cast<std::uint8_t>(data[position + index])];
             }
-            x += cnt;
-            size -= cnt;
+            position += count;
+            sourceX += static_cast<std::int64_t>(count);
         }
     }
+    return true;
 }
 
 inline std::uint32_t blendAlpha(std::uint32_t p1, std::uint32_t p2) {
@@ -254,91 +269,64 @@ inline std::uint32_t blendAlpha(std::uint32_t p1, std::uint32_t p2) {
     return (rb & RBMASK) | (g & GMASK) | 0xFF000000u;
 }
 
-void Texture::renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int ox, int oy, bool ignoreOrigin) {
-    size_t left = data.size();
-    if (left < 8) {
-        return;
+bool Texture::renderRLEBlending(const std::string &data, const std::uint32_t *colors, std::uint32_t *pixels, int pitch, int height, int ox, int oy, bool ignoreOrigin) {
+    if (!colors || !pixels || pitch <= 0 || height <= 0 || !validateRLE(data)) { return false; }
+    if (static_cast<std::size_t>(height) >
+        std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(pitch)) {
+        return false;
     }
-    const auto *obuf = reinterpret_cast<const std::uint8_t*>(data.data());
-    struct Header {
-        std::int16_t w, h, x, y;
-    };
-    const auto *hdr = reinterpret_cast<const Header*>(obuf);
-    obuf += 8;
-    left -= 8;
+    std::int16_t header[4];
+    std::memcpy(header, data.data(), sizeof(header));
+    const auto rows = static_cast<int>(header[1]);
+    std::int64_t originX = ox;
+    std::int64_t originY = oy;
     if (!ignoreOrigin) {
-        ox -= hdr->x;
-        oy -= hdr->y;
+        originX -= header[2];
+        originY -= header[3];
     }
-    std::int32_t w = hdr->w, h = hdr->h;
-    if (ox + w <= 0 || oy + h <= 0) { return; }
-    while (left && h--) {
-        auto size = std::uint32_t(*obuf++);
-        if (--left < size) {
-            break;
-        }
-        const auto *buf = obuf;
-        left -= size;
-        obuf += size;
-        if (oy < 0) { ++oy; continue; }
-        if (oy >= height) { break; }
-        auto *ptr = pixels + ox + pitch * (oy++);
-        int x = ox;
-        while (size) {
-            auto cnt = *buf++;
-            --size;
-            if (!size) {
-                break;
-            }
-            ptr += cnt;
-            x += cnt;
-            cnt = *buf++;
-            --size;
-            if (size < cnt) {
-                break;
-            }
-            if (x < 0) {
-                if (x + cnt <= 0) {
-                    ptr += cnt;
-                    buf += cnt;
-                } else {
-                    ptr -= x;
-                    buf -= x;
-                    for (int z = x + cnt; z; --z) {
-                        *ptr = blendAlpha(*ptr, colors[*buf++]);
-                        ++ptr;
-                    }
+
+    std::size_t position = sizeof(header);
+    for (int row = 0; row < rows; ++row) {
+        if (position >= data.size()) { return false; }
+        const auto rowSize = static_cast<std::size_t>(
+            static_cast<std::uint8_t>(data[position++]));
+        if (rowSize > data.size() - position) { return false; }
+        const auto rowEnd = position + rowSize;
+        std::int64_t sourceX = 0;
+        const auto destinationY = originY + row;
+        while (position < rowEnd) {
+            if (rowEnd - position < 2) { return false; }
+            const auto skip = static_cast<std::int64_t>(
+                static_cast<std::uint8_t>(data[position++]));
+            const auto count = static_cast<std::size_t>(
+                static_cast<std::uint8_t>(data[position++]));
+            if (count > rowEnd - position) { return false; }
+            sourceX += skip;
+            for (std::size_t index = 0; index < count; ++index) {
+                const auto destinationX = originX + sourceX
+                    + static_cast<std::int64_t>(index);
+                if (destinationY < 0 || destinationY >= height
+                    || destinationX < 0 || destinationX >= pitch) {
+                    continue;
                 }
-            } else if (x + cnt > pitch) {
-                if (x >= pitch) {
-                    ptr += cnt;
-                    buf += cnt;
-                } else {
-                    for (int z = pitch - x; z; --z) {
-                        *ptr = blendAlpha(*ptr, colors[*buf++]);
-                        ++ptr;
-                    }
-                    int offset = x + cnt - pitch;
-                    ptr += offset;
-                    buf += offset;
-                }
-            } else {
-                for (int z = cnt; z; --z) {
-                    *ptr = blendAlpha(*ptr, colors[*buf++]);
-                    ++ptr;
-                }
+                const auto rowOffset = static_cast<std::size_t>(destinationY)
+                    * static_cast<std::size_t>(pitch);
+                auto &pixel = pixels[rowOffset + static_cast<std::size_t>(destinationX)];
+                pixel = blendAlpha(pixel,
+                                   colors[static_cast<std::uint8_t>(data[position + index])]);
             }
-            x += cnt;
-            size -= cnt;
+            position += count;
+            sourceX += static_cast<std::int64_t>(count);
         }
     }
+    return true;
 }
 
 std::uint32_t Texture::calcRLEAvgColor(const std::string &data, const std::uint32_t *colors) {
-    size_t left = data.size();
-    if (left < 8) {
+    if (!colors || !validateRLE(data)) {
         return 0;
     }
+    size_t left = data.size();
     const auto *buf = reinterpret_cast<const std::uint8_t*>(data.data());
     struct Header {
         std::int16_t w, h, x, y;
@@ -378,6 +366,7 @@ std::uint32_t Texture::calcRLEAvgColor(const std::string &data, const std::uint3
             }
         }
     }
+    if (pixcount == 0) { return 0; }
     r /= pixcount;
     g /= pixcount;
     b /= pixcount;
@@ -397,11 +386,11 @@ TextureSlice::~TextureSlice() {
     data_ = nullptr;
 }
 
-TextureMgr::TextureMgr(): rectPacker_(new RectPacker(RectPackWidthDefault, RectPackWidthDefault)) {
+TextureMgr::TextureMgr(): rectPacker_(new (std::nothrow) RectPacker(
+    RectPackWidthDefault, RectPackWidthDefault)) {
 }
 
 TextureMgr::~TextureMgr() {
-    delete rectPacker_;
     clear();
 }
 
@@ -410,34 +399,72 @@ void TextureMgr::setPalette(const ColorPalette &col) {
 }
 
 Texture *TextureMgr::loadFromRLE(const std::string &data, std::int16_t index) {
+    if (!renderer_ || !palette_ || !rectPacker_ || index < 0
+        || !Texture::validateRLE(data)) {
+        return nullptr;
+    }
     auto ite = textures_.find(index);
     if (ite != textures_.end()) {
         return ite->second;
     }
-    const auto *arr = reinterpret_cast<const uint16_t*>(data.data());
+    std::int16_t arr[4];
+    std::memcpy(arr, data.data(), sizeof(arr));
     auto w = arr[0], h = arr[1];
     std::int16_t x, y;
     auto rpidx = rectPacker_->pack(w, h, x, y);
     if (rpidx < 0) {
         return nullptr;
     }
-    if (rpidx >= textureContainers_.size()) {
-        textureContainers_.resize(rpidx + 1, nullptr);
-    }
-    auto *tex = textureContainers_[rpidx];
+    std::unique_ptr<Texture> containerCandidate;
+    auto *tex = rpidx < static_cast<int>(textureContainers_.size())
+        ? textureContainers_[rpidx] : nullptr;
     if (tex == nullptr) {
-        tex = Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault);
-        tex->enableBlendMode(true);
-        textureContainers_[rpidx] = tex;
+        containerCandidate.reset(Texture::create(renderer_, RectPackWidthDefault, RectPackWidthDefault));
+        if (!containerCandidate || !containerCandidate->enableBlendMode(true)) {
+            rectPacker_->rollbackLast();
+            return nullptr;
+        }
+        tex = containerCandidate.get();
     }
     int pitch;
-    auto *pixels = tex->lock(pitch, x, y, w, h);
-    if (pixels) {
-        Texture::renderRLE(data, palette_->colors(), pixels, pitch, h, 0, 0, true);
-        tex->unlock();
+    TextureLock lock(tex, pitch, x, y, w, h);
+    if (!lock.valid()
+        || !Texture::renderRLE(data, palette_->colors(), lock.pixels(), pitch, h, 0, 0, true)) {
+        rectPacker_->rollbackLast();
+        return nullptr;
     }
-    auto *texture = new TextureSlice(tex, x, y, w, h, arr[2], arr[3]);
-    textures_[index] = texture;
+    lock.unlock();
+
+    if (containerCandidate) {
+        try {
+            if (rpidx >= static_cast<int>(textureContainers_.size())) {
+                textureContainers_.resize(static_cast<std::size_t>(rpidx) + 1, nullptr);
+            }
+        } catch (...) {
+            rectPacker_->rollbackLast();
+            return nullptr;
+        }
+    }
+    auto *texture = new(std::nothrow) TextureSlice(tex, x, y, w, h, arr[2], arr[3]);
+    if (!texture) {
+        rectPacker_->rollbackLast();
+        return nullptr;
+    }
+    try {
+        const auto inserted = textures_.emplace(index, texture);
+        if (!inserted.second) {
+            delete texture;
+            rectPacker_->rollbackLast();
+            return inserted.first->second;
+        }
+    } catch (...) {
+        delete texture;
+        rectPacker_->rollbackLast();
+        return nullptr;
+    }
+    if (containerCandidate) {
+        textureContainers_[rpidx] = containerCandidate.release();
+    }
     textureIdMax_ = std::max<std::int32_t>(index, textureIdMax_);
     return texture;
 }
@@ -450,14 +477,23 @@ void TextureMgr::loadFromRLE(const std::vector<std::string> &data) {
 }
 
 Texture *TextureMgr::loadFromRAW(const std::string &data, int width, int height, std::int16_t index) {
-    if (textures_.find(index) != textures_.end()) {
+    if (index < 0 || !renderer_ || !palette_ || textures_.find(index) != textures_.end()) {
         return nullptr;
     }
     auto *tex = Texture::loadFromRAW(renderer_, data, width, height, *palette_);
     if (!tex) {
         return nullptr;
     }
-    textures_[index] = tex;
+    try {
+        const auto inserted = textures_.emplace(index, tex);
+        if (!inserted.second) {
+            delete tex;
+            return nullptr;
+        }
+    } catch (...) {
+        delete tex;
+        return nullptr;
+    }
     textureIdMax_ = std::max<std::int32_t>(index, textureIdMax_);
     return tex;
 }
@@ -479,6 +515,16 @@ const Texture *TextureMgr::last() const {
     return (*this)[textureIdMax_];
 }
 
+void TextureMgr::swap(TextureMgr &other) noexcept {
+    using std::swap;
+    swap(textures_, other.textures_);
+    swap(textureContainers_, other.textureContainers_);
+    swap(rectPacker_, other.rectPacker_);
+    swap(textureIdMax_, other.textureIdMax_);
+    swap(renderer_, other.renderer_);
+    swap(palette_, other.palette_);
+}
+
 void TextureMgr::clear() {
     for (auto &p: textures_) {
         delete p.second;
@@ -488,6 +534,10 @@ void TextureMgr::clear() {
         delete p;
     }
     textureContainers_.clear();
+    std::unique_ptr<RectPacker> replacement(new (std::nothrow) RectPacker(
+        RectPackWidthDefault, RectPackWidthDefault));
+    rectPacker_.swap(replacement);
+    textureIdMax_ = 0;
 }
 
 }

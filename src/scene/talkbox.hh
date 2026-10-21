@@ -20,10 +20,12 @@
 #pragma once
 
 #include "nodewithcache.hh"
+#include "logic/talk_layout.hh"
 
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <functional>
 
 namespace hojy::scene {
 
@@ -32,18 +34,29 @@ public:
     using NodeWithCache::NodeWithCache;
 
     void popup(const std::wstring &text, std::int16_t headId, std::int16_t position);
+    void setHeadTextureProvider(std::function<const Texture *(std::int16_t)> provider) {
+        headTextureProvider_ = std::move(provider);
+    }
 
-    void handleKeyInput(Key key) override;
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
 
 private:
+    bool prepareTextResources() override;
+    void ensureLayout() override;
     void makeCache() override;
 
 private:
-    std::vector<std::wstring> text_;
+    logic::TalkPageModel pageModel_;
+    std::wstring sourceText_;
     const Texture *headTex_ = nullptr;
+    std::function<const Texture *(std::int16_t)> headTextureProvider_;
     std::pair<int, int> headScale_ = {2, 1};
+    std::int16_t headId_ = -1;
     std::int16_t position_ = 0;
-    int index_ = 0, dispLines_ = 0;
+    int index_ = 0;
+    bool layoutReady_ = false;
+    Key pendingInput_ = KeyNone;
 };
 
 }

@@ -35,8 +35,11 @@ public:
     Renderer(const Renderer&) = delete;
     ~Renderer();
 
+    [[nodiscard]] bool ready() const noexcept { return ready_; }
+
     void enableLinear(bool linear = true);
-    void setTargetTexture(Texture *tex);
+    bool setTargetTexture(Texture *tex);
+    [[nodiscard]] Texture *targetTexture() const { return targetTexture_; }
     void clear(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void fillRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
     void drawRect(int x, int y, int w, int h, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a);
@@ -49,9 +52,18 @@ public:
     void renderTexture(const Texture *tex, int destx, int desty, int x, int y, int w, int h, bool ignoreOrigin = false);
     void renderTexture(const Texture *tex, int destx, int desty, int destw, int desth, int x, int y, int w, int h, bool ignoreOrigin = false);
 
-    bool canRender();
+    bool canRender(std::uint64_t now);
     void present();
     [[nodiscard]] inline TTF *ttf() { return ttf_; }
+    [[nodiscard]] inline int fontSize() const noexcept { return fontSize_; }
+    void setItemAtlas(const Texture *texture, int cellWidth, int cellHeight) noexcept {
+        itemAtlas_ = texture;
+        itemTexW_ = cellWidth;
+        itemTexH_ = cellHeight;
+    }
+    [[nodiscard]] const Texture *itemAtlas() const noexcept { return itemAtlas_; }
+    [[nodiscard]] int itemTexWidth() const noexcept { return itemTexW_; }
+    [[nodiscard]] int itemTexHeight() const noexcept { return itemTexH_; }
     [[nodiscard]] inline float fps() const { return fps_; }
     [[nodiscard]] std::uint64_t nextRenderTime() const { return nextRenderTime_; }
 
@@ -59,11 +71,48 @@ private:
     float fps_ = 0.f;
     void *renderer_ = nullptr;
     TTF *ttf_ = nullptr;
+    bool ready_ = false;
+    Texture *targetTexture_ = nullptr;
+    int fontSize_ = 16;
+    const Texture *itemAtlas_ = nullptr;
+    int itemTexW_ = 0, itemTexH_ = 0;
 
     int frameCount_ = 0;
     std::uint64_t nextCountTime_ = 0;
     std::uint64_t nextRenderTime_ = 0;
     std::uint64_t renderInterval_ = 0;
+};
+
+/** Restores the caller's render target even when preparation aborts. */
+class RenderTargetGuard final {
+public:
+    RenderTargetGuard(Renderer *renderer, Texture *target): renderer_(renderer) {
+        if (!renderer_) { return; }
+        previous_ = renderer_->targetTexture();
+        active_ = renderer_->setTargetTexture(target);
+    }
+    RenderTargetGuard(const RenderTargetGuard &) = delete;
+    RenderTargetGuard &operator=(const RenderTargetGuard &) = delete;
+    ~RenderTargetGuard() {
+        if (active_ && renderer_) {
+            restored_ = renderer_->setTargetTexture(previous_);
+            if (!restored_ && renderer_->targetTexture() != previous_) {
+                // A failed restoration must not leave a soon-to-be-destroyed
+                // candidate bound as the active render target.
+                restored_ = renderer_->setTargetTexture(nullptr);
+            }
+        }
+    }
+
+    [[nodiscard]] bool valid() const noexcept { return active_; }
+    [[nodiscard]] bool restored() const noexcept { return restored_; }
+    void release() noexcept { active_ = false; }
+
+private:
+    Renderer *renderer_ = nullptr;
+    Texture *previous_ = nullptr;
+    bool active_ = false;
+    bool restored_ = true;
 };
 
 }

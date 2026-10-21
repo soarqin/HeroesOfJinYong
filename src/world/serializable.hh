@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <type_traits>
 #include <utility>
 
 namespace hojy::world::state {
@@ -43,6 +44,12 @@ class SerializableStruct: public Serializable {
 public:
     T *operator->() { return &data_; }
     const T *operator->() const { return &data_; }
+
+    void swap(SerializableStruct &other)
+        noexcept(std::is_nothrow_swappable_v<T>) {
+        using std::swap;
+        swap(data_, other.data_);
+    }
 
     Serializable &operator>>(std::ostream &ostm) override {
         ostm.write(reinterpret_cast<const char*>(&data_), sizeof(data_));
@@ -70,6 +77,10 @@ public:
     T *operator[](size_t index) { return index < data_.size() ? &data_[index] : nullptr; }
     const T *operator[](size_t index) const { return index < data_.size() ? &data_[index] : nullptr; }
     [[nodiscard]] size_t size() const { return data_.size(); }
+
+    void swap(SerializableStructVec &other) noexcept {
+        data_.swap(other.data_);
+    }
 
     Serializable &operator>>(std::ostream &ostm) override {
         for (auto &data: data_) {

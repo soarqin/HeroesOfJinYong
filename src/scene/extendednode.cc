@@ -20,7 +20,6 @@
 #include "extendednode.hh"
 
 #include "colorpalette.hh"
-#include "window.hh"
 #include "core/config.hh"
 
 namespace hojy::scene {
@@ -31,7 +30,7 @@ void ExtendedNode::setTimeToClose(std::uint32_t millisec) {
         closeDeadline_ = 0;
     } else {
         closeType_ = 0;
-        closeDeadline_ = gWindow->currTime() + millisec * 1000ULL;
+        closeDeadline_ = phaseTime() + millisec * 1000ULL;
     }
 }
 
@@ -41,32 +40,80 @@ void ExtendedNode::setWaitForKeyPress() {
 
 void ExtendedNode::addBox(int x0, int y0, int x1, int y1) {
     boxlist_.emplace_back(std::make_tuple(x0, y0, x1 - x0 + 1, y1 - y0 + 1));
-    setDirty();
+    requestPresentationRefresh();
 }
 
 void ExtendedNode::addText(int x, int y, const std::wstring &text, int c0, int c1) {
     textlist_.emplace_back(std::make_tuple(x, y, text, c0, c1));
-    setDirty();
+    requestPresentationRefresh();
 }
 
-void ExtendedNode::addTexture(int x, int y, const Texture *tex, std::pair<int, int> scale) {
-    if (!tex) { return; }
-    texturelist_.emplace_back(std::make_tuple(x, y, tex, scale));
-    setDirty();
+void ExtendedNode::addTextureResource(int x, int y, TextureKind kind, std::int16_t id,
+                                      std::pair<int, int> scale) {
+    std::unique_ptr<ExtendedTextureRequest> request;
+    if (kind == TextureKind::Head) {
+        request = std::make_unique<HeadTextureRequest>(x, y, id, scale);
+    } else {
+        request = std::make_unique<SubMapTextureRequest>(x, y, id, scale);
+    }
+    textureRequests_.push_back(std::move(request));
+    requestPresentationRefresh();
+}
+
+void ExtendedNode::prepareRender() {
+    if (!textureRequests_.empty()) {
+        std::vector<ResolvedTexture> candidate;
+        candidate.reserve(textureRequests_.size());
+        for (const auto &request: textureRequests_) {
+            const auto *texture = textureProvider_
+                ? request->resolve(*textureProvider_) : nullptr;
+            if (!texture) {
+                onPrepareFailed();
+                return;
+            }
+            candidate.push_back(ResolvedTexture{
+                request->x(), request->y(), texture, request->scale()});
+        }
+        texturelist_ = std::move(candidate);
+    } else {
+        texturelist_.clear();
+    }
+    NodeWithCache::prepareRender();
 }
 
 void ExtendedNode::checkTimeout() {
-    if (closeType_ == 0 && gWindow->currTime() >= closeDeadline_) {
-        if (handler_) { handler_(); }
-        requestDelete();
+    if (closeType_ == 0 && phaseTime() >= closeDeadline_) {
+        auto sink = std::move(completionSink_);
+        if (sink) { sink->submit({InputKey::None, true}); }
+        requestPresentationCleanup();
     }
 }
 
-void ExtendedNode::handleKeyInput(Node::Key key) {
-    if (closeType_ != 0) { return; }
-    keyPressed_ = key;
-    if (handler_) { handler_(); }
-    requestDelete();
+void ExtendedNode::consumeKeyIntent(Node::Key key) {
+    if (inputSuspended_) { return; }
+    pendingInput_ = key;
+}
+
+void ExtendedNode::applyInputLogic() {
+    if (inputSuspended_) {
+        pendingInput_ = KeyNone;
+        return;
+    }
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
+    if (closeType_ != 1) { return; }
+    auto sink = std::move(completionSink_);
+    if (sink) { sink->submit({key, false}); }
+    requestPresentationCleanup();
+}
+
+bool ExtendedNode::prepareTextResources() {
+    auto *ttf = renderer_->ttf();
+    bool ready = true;
+    for (const auto &entry: textlist_) {
+        ready = ttf->prepareText(std::get<2>(entry)) && ready;
+    }
+    return ready;
 }
 
 void ExtendedNode::makeCache() {
@@ -86,12 +133,10 @@ void ExtendedNode::makeCache() {
             auto *colorptr = reinterpret_cast<const uint8_t*>(&color);
             ttf->setColor(colorptr[0], colorptr[1], colorptr[2]);
         }
-        ttf->render(std::get<2>(p), std::get<0>(p), std::get<1>(p), true);
+        ttf->renderPrepared(std::get<2>(p), std::get<0>(p), std::get<1>(p), true);
     }
-    for (auto &p: texturelist_) {
-        int x, y; const Texture *tex; std::pair<int, int> scale;
-        std::tie(x, y, tex, scale) = p;
-        renderer_->renderTexture(tex, x, y, scale);
+    for (const auto &p: texturelist_) {
+        renderer_->renderTexture(p.texture, p.x, p.y, p.scale);
     }
     cacheEnd();
 }

@@ -360,21 +360,28 @@ void saveDataLoadsTransactionally() {
 
     auto extraLayer = makeSaveData(333, 3, 7);
     writeSaveSlot(2, extraLayer, true, 2);
-    HOJY_CHECK_EQ(hojy::world::state::gSaveData.load(2), false);
-    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->mainX, 111);
-    HOJY_CHECK_EQ(hojy::world::state::gBag[1], 5);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.load(2), true);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.baseInfo->mainX, 333);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.subMapLayerInfo.size(), 2U);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.subMapEventInfo.size(), 1U);
+    HOJY_CHECK_EQ(hojy::world::state::gBag[3], 7);
 }
 
-void saveRejectsMismatchedCollections() {
+void savePreservesTrailingCollectionsAndRejectsMissingMaps() {
     hojy::world::state::gSaveData.subMapLayerInfo.resize(2);
     hojy::world::state::gSaveData.subMapEventInfo.resize(1);
-    HOJY_CHECK_EQ(hojy::world::state::gSaveData.save(3), false);
-    HOJY_CHECK_EQ(std::filesystem::exists("R3.IDX"), false);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.save(3), true);
+    HOJY_CHECK_EQ(std::filesystem::file_size("S3.IDX"), sizeof(std::uint32_t) * 2);
+    HOJY_CHECK_EQ(std::filesystem::file_size("D3.IDX"), sizeof(std::uint32_t));
 
     const std::array<hojy::world::state::SubMapData, 2> subMaps{};
     HOJY_CHECK_EQ(hojy::world::state::gSaveData.subMapInfo.deserialize(
         std::string(reinterpret_cast<const char *>(subMaps.data()), sizeof(subMaps))), true);
     hojy::world::state::gSaveData.subMapEventInfo.resize(2);
+    hojy::world::state::gSaveData.subMapLayerInfo.resize(1);
+    HOJY_CHECK_EQ(hojy::world::state::gSaveData.save(3), false);
+
+    hojy::world::state::gSaveData.subMapLayerInfo.resize(2);
     HOJY_CHECK_EQ(hojy::world::state::gSaveData.save(3), true);
     HOJY_CHECK_EQ(std::filesystem::file_size("D3.IDX"), sizeof(std::uint32_t) * 2);
 }
@@ -419,7 +426,7 @@ int main() {
         contentLoadCommitsAsOneTransaction();
         stringsRequireAllUiEntries();
         saveDataLoadsTransactionally();
-        saveRejectsMismatchedCollections();
+        savePreservesTrailingCollectionsAndRejectsMissingMaps();
         saveFailureDoesNotMutateLiveBagOrAnySlotFile();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

@@ -19,21 +19,13 @@
 
 #include "title.hh"
 
-#include "window.hh"
-#include "menu.hh"
 #include "colorpalette.hh"
-#include "world/savedata.hh"
-#include "world/action.hh"
-#include "world/strings.hh"
-#include "content/factors.hh"
 #include "content/grpdata.hh"
 #include "core/config.hh"
-#include "util/random.hh"
 #include "util/file.hh"
-#include "util/conv.hh"
-#include "util/math.hh"
-#include <algorithm>
-#include <cstring>
+
+#include <limits>
+#include <vector>
 
 namespace hojy::scene {
 
@@ -41,333 +33,46 @@ Title::~Title() {
     delete big_;
 }
 
-void Title::init() {
-    titleTextureMgr_.setPalette(gNormalPalette);
-    titleTextureMgr_.setRenderer(renderer_);
+bool Title::init() {
+    if (!renderer_) { return false; }
+
+    TextureMgr candidateTextureMgr;
+    candidateTextureMgr.setPalette(gNormalPalette);
+    candidateTextureMgr.setRenderer(renderer_);
 
     renderer_->enableLinear(true);
-    big_ = Texture::loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("TITLE.BIG")), 320, 200, gNormalPalette);
+    auto *candidateBig = Texture::loadFromRAW(
+        renderer_,
+        util::File::getFileContent(core::config.dataFilePath("TITLE.BIG")),
+        320, 200, gNormalPalette);
     renderer_->enableLinear(false);
+    if (!candidateBig) { return false; }
 
     std::vector<std::string> dset;
-    if (::hojy::content::GrpData::loadData("TITLE", dset)) {
-        titleTextureMgr_.loadFromRLE(dset);
-    }
-    setDirty();
-}
-
-bool Title::prepareNewGame() {
-    if (!::hojy::world::state::gSaveData.newGame()) { return false; }
-    if (!::hojy::world::state::gSaveData.charInfo[0]) { return false; }
-    if (::hojy::content::gFactors.initSubMapId < 0
-        || !::hojy::world::state::gSaveData.subMapInfo[
-            ::hojy::content::gFactors.initSubMapId]) {
+    if (!::hojy::content::GrpData::loadData("TITLE", dset)) {
+        delete candidateBig;
         return false;
     }
-    doRandomBaseInfo();
+    for (std::size_t id = 0; id < dset.size(); ++id) {
+        if (id > static_cast<std::size_t>(std::numeric_limits<std::int16_t>::max())
+            || !candidateTextureMgr.loadFromRLE(
+                dset[id], static_cast<std::int16_t>(id))) {
+            delete candidateBig;
+            return false;
+        }
+    }
+    for (const auto id: {0, 1, 2, 3, 4, 5, 6, 7}) {
+        if (!candidateTextureMgr[id]) {
+            delete candidateBig;
+            return false;
+        }
+    }
+
+    titleTextureMgr_.swap(candidateTextureMgr);
+    delete big_;
+    big_ = candidateBig;
+    requestPresentationRefresh();
     return true;
-}
-
-void Title::handleKeyInput(Node::Key key) {
-    switch (key) {
-    case KeyUp:
-        if (currSel_-- == 0) { currSel_ = 2; }
-        setDirty();
-        break;
-    case KeyDown:
-        if (currSel_++ == 2) { currSel_ = 0; }
-        setDirty();
-        break;
-    case KeyOK: case KeySpace:
-        switch (mode_) {
-        case 0:
-            switch (currSel_) {
-            case 0:
-                if (core::config.noNameInput()) {
-                    mainCharName_ = core::config.defaultName();
-                    if (!prepareNewGame()) {
-                        mainCharName_.clear();
-                        auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
-                        msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
-                        break;
-                    }
-                    mode_ = 3;
-                } else {
-                    mainCharName_.clear();
-                    mode_ = 2;
-                    recalcInputRect();
-                    Window::beginInput();
-                }
-                setDirty();
-                break;
-            case 1:
-                currSel_ = 0;
-                mode_ = 1;
-                setDirty();
-                break;
-            case 2:
-                gWindow->closePopup();
-                gWindow->forceQuit();
-                break;
-            }
-            break;
-        case 1: {
-            int sel = int(currSel_) + 1;
-            if (gWindow->loadGame(sel)) {
-                gWindow->closePopup();
-            } else {
-                auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
-                msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
-            }
-            break;
-        }
-        case 2:
-            if (key == KeyOK) {
-                Window::endInput();
-                if (!prepareNewGame()) {
-                    currSel_ = 0;
-                    mode_ = 0;
-                    auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
-                    msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
-                    setDirty();
-                    break;
-                }
-                mode_ = 3;
-                setDirty();
-            }
-            break;
-        }
-        break;
-    case KeyCancel:
-        switch (mode_) {
-        case 2:
-            Window::endInput();
-            /* fallthrough */
-        case 1:
-            currSel_ = 0;
-            mode_ = 0;
-            setDirty();
-            break;
-        }
-        break;
-    case KeyBackspace:
-        switch (mode_) {
-        case 2:
-            if (!mainCharName_.empty()) {
-                mainCharName_.pop_back();
-                recalcInputRect();
-                setDirty();
-            }
-            break;
-        }
-        break;
-    default:
-        break;
-    }
-}
-
-void Title::handleTextInput(const std::wstring &str) {
-    if (mode_ != 2) { return; }
-    bool dirty = false;
-    for (auto &ch: str) {
-        if (mainCharName_.length() < 8 && ch != L' ') {
-            mainCharName_ += ch;
-            recalcInputRect();
-            dirty = true;
-        }
-    }
-    if (dirty) {
-        setDirty();
-    }
-}
-
-void Title::update() {
-    NodeWithCache::update();
-    if (mode_ == 3 && menu_ == nullptr) {
-        ensureConfirmationMenu();
-    }
-}
-
-void Title::ensureConfirmationMenu() {
-    if (menu_ != nullptr || mode_ != 3) { return; }
-    auto *ttf = renderer_->ttf();
-    const auto windowBorder = core::config.windowBorder();
-    const auto lineheight = ttf->fontSize() + TextLineSpacing;
-    const int oy = height_ - lineheight * 5;
-    const int colwidth = ttf->fontSize() * 21 / 4;
-    const int ox = (width_ - colwidth * 4 + 20) / 2;
-    const auto askText = L'\2' + mainCharName_ + L"  \1" + GETTEXT(100);
-    const int mx = ox + ttf->stringWidth(askText) + windowBorder * 2;
-    const int my = oy - windowBorder;
-    auto *menu = new MenuYesNo(this, mx, my, gWindow->width() - mx, gWindow->height() - oy);
-    menu->enableHorizonal(true);
-    menu->popupWithYesNo();
-    menu->setHandler([this] {
-        auto big5Name = util::big5Conv.fromUnicode(mainCharName_);
-        while (big5Name.length() > 8) {
-            mainCharName_.pop_back();
-            big5Name = util::big5Conv.fromUnicode(mainCharName_);
-        }
-        auto *charInfo = ::hojy::world::state::gSaveData.charInfo[0];
-        auto *subMap = ::hojy::world::state::gSaveData.subMapInfo[
-            ::hojy::content::gFactors.initSubMapId];
-        if (!charInfo || !subMap) {
-            auto *failedMenu = menu_;
-            menu_ = nullptr;
-            mode_ = 0;
-            currSel_ = 0;
-            if (failedMenu) { failedMenu->requestDelete(); }
-            auto *msgBox = new MessageBox(this, 0, height_ / 2, width_, height_ / 2);
-            msgBox->popup({GETTEXT(69)}, MessageBox::PressToCloseThis);
-            setDirty();
-            return;
-        }
-        memset(charInfo->name, 0, 10);
-        memcpy(charInfo->name, big5Name.data(), big5Name.length());
-        auto tailName = util::big5Conv.fromUnicode(GETTEXT(110));
-        memset(subMap->name, 0, 10);
-        memcpy(subMap->name, big5Name.data(), big5Name.length());
-        const auto tailLength = std::min<std::size_t>(
-            tailName.length(), 10 - big5Name.length());
-        memcpy(subMap->name + big5Name.length(), tailName.data(), tailLength);
-        fadeOut([] {
-            gWindow->closePopup();
-            gWindow->newGame();
-        });
-    }, [this] {
-        doRandomBaseInfo();
-        setDirty();
-    });
-    menu_ = menu;
-}
-
-void Title::makeCache() {
-    cacheBegin();
-    renderer_->clear(0, 0, 0, 255);
-
-    int w = width_, h = width_ * big_->height() / big_->width();
-    if (h > height_) {
-        h = height_;
-        w = height_ * big_->width() / big_->height();
-    }
-    int x = (width_ - w) / 2;
-    int y = (height_ - h) / 2;
-    renderer_->renderTexture(big_, x, y, w, h, 0, 0, big_->width(), big_->height(), false);
-    switch (mode_) {
-    case 0:
-    case 1: {
-        auto scale = y == 0 ? util::calcSmallestDivision(height_, 200) : util::calcSmallestDivision(width_, 320);
-        const auto *img0 = titleTextureMgr_[0];
-        int x0 = (width_ - (img0->width() + img0->originX()) * scale.first / scale.second) / 2;
-        int y0 = height_ - 65 * scale.first / scale.second;
-        static const std::pair<int, int> offsetY[9] = {
-            {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second},
-            {y0, 20 * scale.first / scale.second * 3}, {y0, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second, 20 * scale.first / scale.second}, {y0 + 20 * scale.first / scale.second * 2, 20 * scale.first / scale.second}, {y0, 40}
-        };
-        if (mode_ == 0) {
-            renderer_->renderTexture(titleTextureMgr_[0], x0, offsetY[0].first, scale);
-            renderer_->renderTexture(titleTextureMgr_[1 + currSel_], x0, offsetY[1 + currSel_].first, scale);
-        } else {
-            renderer_->renderTexture(titleTextureMgr_[4], x0, offsetY[4].first, scale);
-            renderer_->renderTexture(titleTextureMgr_[5 + currSel_], x0, offsetY[5 + currSel_].first, scale);
-        }
-        cacheEnd();
-        break;
-    }
-    case 2: {
-        auto *ttf = renderer_->ttf();
-        y = height_ - (ttf->fontSize() + TextLineSpacing) * 5;
-        ttf->setColor(236, 236, 236);
-        ttf->setAltColor(2, 224, 180, 32);
-        ttf->render(GETTEXT(41) + L'\2' + mainCharName_, width_ / 4, y, false);
-        cacheEnd();
-        break;
-    }
-    case 3: {
-        auto ttf = renderer_->ttf();
-        int lineheight = ttf->fontSize() + TextLineSpacing;
-        y = height_ - lineheight * 5;
-        int hh = lineheight - 2 - TextLineSpacing / 4;
-        int colwidth = ttf->fontSize() * 21 / 4;
-        x = (width_ - colwidth * 4 + 20) / 2;
-        auto askText = L'\2' + mainCharName_ + L"  \1" + GETTEXT(100);
-        auto *data = ::hojy::world::state::gSaveData.charInfo[0];
-        ttf->setColor(236, 236, 236);
-        ttf->setAltColor(2, 224, 180, 32);
-        ttf->render(askText, x, y, false);
-        y += lineheight * 2;
-        drawProperty(GETTEXT(26), data->maxMp, 50, x, y, hh, data->mpType);
-        drawProperty(GETTEXT(101), data->attack, 30, x + colwidth, y, hh);
-        drawProperty(GETTEXT(9), data->speed, 30, x + colwidth * 2, y, hh);
-        drawProperty(GETTEXT(102), data->defence, 30, x + colwidth * 3, y, hh);
-        y += lineheight;
-        drawProperty(GETTEXT(25), data->maxHp, 50, x, y, hh);
-        drawProperty(GETTEXT(103), data->medic, 30, x + colwidth, y, hh);
-        drawProperty(GETTEXT(104), data->poison, 30, x + colwidth * 2, y, hh);
-        drawProperty(GETTEXT(105), data->depoison, 30, x + colwidth * 3, y, hh);
-        y += lineheight;
-        drawProperty(GETTEXT(106), data->fist, 30, x, y, hh);
-        drawProperty(GETTEXT(107), data->sword, 30, x + colwidth, y, hh);
-        drawProperty(GETTEXT(108), data->blade, 30, x + colwidth * 2, y, hh);
-        drawProperty(GETTEXT(109), data->special, 30, x + colwidth * 3, y, hh);
-        if (core::config.showPotential()) {
-            drawProperty(GETTEXT(29), data->potential, 100, x + colwidth * 4, y, hh);
-        }
-        cacheEnd();
-    }
-    }
-}
-
-void Title::doRandomBaseInfo() {
-    (void)this;
-    auto *data = ::hojy::world::state::gSaveData.charInfo[0];
-    data->maxHp = util::gRandom(25, 50);
-    data->hp = data->maxHp;
-    data->maxMp = util::gRandom(25, 50);
-    data->mp = data->maxMp;
-    data->mpType = util::gRandom(0, 1);
-    data->hpAddOnLevelUp = util::gRandom(1, 10);
-    data->attack = util::gRandom(25, 30);
-    data->speed = util::gRandom(25, 30);
-    data->defence = util::gRandom(25, 30);
-    data->medic = util::gRandom(25, 30);
-    data->poison = util::gRandom(25, 30);
-    data->depoison = util::gRandom(25, 30);
-    data->fist = util::gRandom(25, 30);
-    data->sword = util::gRandom(25, 30);
-    data->blade = util::gRandom(25, 30);
-    data->special = util::gRandom(25, 30);
-    data->throwing = util::gRandom(25, 30);
-    data->potential = util::gRandom(1, 100);
-}
-
-void Title::drawProperty(const std::wstring &name, std::int16_t value, std::int16_t maxValue, int x, int y, int h, int mpType) {
-    auto ttf = renderer_->ttf();
-    bool shadow = false;
-    auto dispString = name + L": " + std::to_wstring(value);
-    if (value >= maxValue) {
-        renderer_->fillRect(x, y, ttf->stringWidth(dispString) + 2, h, 216, 20, 24, 255);
-        shadow = true;
-    }
-    if (mpType >= 0) {
-        std::uint8_t r, g, b;
-        std::tie(r, g, b) = ::hojy::world::state::calcColorForMpType(mpType);
-        ttf->setColor(r, g, b);
-    } else {
-        if (value >= maxValue) {
-            ttf->setColor(252, 236, 132);
-        } else {
-            ttf->setColor(216, 20, 24);
-        }
-    }
-    ttf->render(dispString, x, y, shadow);
-}
-
-void Title::recalcInputRect() {
-    auto *ttf = renderer_->ttf();
-    int x = width_ / 4 + ttf->stringWidth(GETTEXT(41) + mainCharName_);
-    int y = height_ - ttf->fontSize() * 5 - TextLineSpacing * 4;
-    Window::setInputRect(x, y, width_ / 2, ttf->fontSize());
 }
 
 }

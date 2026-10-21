@@ -20,8 +20,43 @@
 #pragma once
 
 #include "nodewithcache.hh"
+#include "logic/talk_layout.hh"
+
+#include <memory>
+#include <utility>
 
 namespace hojy::scene {
+
+struct MessageBoxResult final {
+    bool accepted = false;
+};
+
+class MessageBoxResultSink {
+public:
+    virtual ~MessageBoxResultSink() = default;
+    virtual void submit(MessageBoxResult result) = 0;
+};
+
+template<typename Function>
+class MessageBoxResultSinkAdapter final: public MessageBoxResultSink {
+public:
+    explicit MessageBoxResultSinkAdapter(Function function):
+        function_(std::move(function)) {}
+
+    void submit(MessageBoxResult result) override {
+        function_(std::move(result));
+    }
+
+private:
+    Function function_;
+};
+
+template<typename Function>
+std::shared_ptr<MessageBoxResultSink> makeMessageBoxResultSink(
+        Function function) {
+    return std::make_shared<MessageBoxResultSinkAdapter<Function>>(
+        std::move(function));
+}
 
 class MessageBox: public NodeWithCache {
 public:
@@ -43,32 +78,39 @@ public:
     MessageBox(Renderer *renderer, int x, int y, int width, int height):
         NodeWithCache(renderer, x, y, width, height) {}
 
-    inline void setCloseHandler(const std::function<void()> &closeHandler) {
-        closeHandler_ = closeHandler;
+    void setResultSink(std::shared_ptr<MessageBoxResultSink> sink) {
+        resultSink_ = std::move(sink);
     }
-    inline void setYesNoHandler(const std::function<void()> &yesHandler, const std::function<void()> &noHandler) {
-        yesHandler_ = yesHandler;
-        noHandler_ = noHandler;
-    }
+    void executeYesNoSelection(bool yes);
     void popup(const std::vector<std::wstring> &text, Type type = Normal, Align align = Center);
     void update() override;
-    void handleKeyInput(Key key) override;
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
+    void prepareRender() override;
 
 protected:
+    bool prepareTextResources() override;
+    void ensureLayout() override;
     void makeCache() override;
-    void layoutText();
+    bool buildLayoutSnapshot();
     void ensureYesNoMenu();
+    void submitResult(MessageBoxResult result);
 
 protected:
     std::vector<std::wstring> text_;
     Node *menu_ = nullptr;
     Type type_ = Normal;
     Align align_ = Center;
-    std::function<void()> closeHandler_, yesHandler_, noHandler_;
+    std::shared_ptr<MessageBoxResultSink> resultSink_;
     bool layoutReady_ = false;
+    // Popup replacement records stale choice-menu cleanup for the
+    // presentation preparation phase; fixed logic never mutates the node tree.
+    bool presentationMenuCleanupRequested_ = false;
+    bool presentationParentCleanupRequested_ = false;
+    bool frameInitialized_ = false;
     int frameX_ = 0, frameY_ = 0, frameWidth_ = 0, frameHeight_ = 0;
-    std::vector<std::wstring> lines_;
-    int textWidth_ = 0, textHeight_ = 0;
+    logic::TextBlockLayout layout_;
+    Key pendingInput_ = KeyNone;
 };
 
 }

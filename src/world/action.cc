@@ -64,10 +64,11 @@ const std::wstring &propToName(PropType type) {
     return GETTEXT(std::int16_t(type) + 1);
 }
 
-void addUpPropFromEquipToChar(CharacterData *info) {
+void addUpPropFromEquipToChar(const ItemInfo &items, CharacterData *info) {
+    if (!info) { return; }
     for (auto id: info->equip) {
         if (id < 0) { continue; }
-        const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[id];
+        const auto *itemInfo = items[id];
         if (!itemInfo) { continue; }
 #define AddProp(M, N) info->M += itemInfo->add##N
         AddProp(attack, Attack);
@@ -88,6 +89,10 @@ void addUpPropFromEquipToChar(CharacterData *info) {
     }
 }
 
+void addUpPropFromEquipToChar(CharacterData *info) {
+    addUpPropFromEquipToChar(::hojy::world::state::gSaveData.itemInfo, info);
+}
+
 std::uint16_t getExpForLevelUp(std::int16_t level) {
     if (level <= 0
         || static_cast<size_t>(level) > ::hojy::content::gFactors.expForLevelUp.size()) {
@@ -96,8 +101,10 @@ std::uint16_t getExpForLevelUp(std::int16_t level) {
     return ::hojy::content::gFactors.expForLevelUp[static_cast<size_t>(level - 1)];
 }
 
-std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::int16_t potential) {
-    const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
+std::uint16_t getExpForSkillLearn(const ItemInfo &items,
+                                  std::int16_t itemId, std::int16_t level,
+                                  std::int16_t potential) {
+    const auto *itemInfo = items[itemId];
     if (!itemInfo) { return 0; }
     const int tier = battle::potentialTier(potential);
     if (itemInfo->skillId < 0) {
@@ -107,6 +114,12 @@ std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level, std::
     return std::uint16_t(std::clamp<int>(itemInfo->reqExp * (level + 1) * tier, 0, 65535));
 }
 
+std::uint16_t getExpForSkillLearn(std::int16_t itemId, std::int16_t level,
+                                  std::int16_t potential) {
+    return getExpForSkillLearn(::hojy::world::state::gSaveData.itemInfo,
+                               itemId, level, potential);
+}
+
 std::uint16_t getExpForMakeItem(std::int16_t itemId, std::int16_t potential) {
     const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
     if (!itemInfo || itemInfo->reqExpForMakeItem <= 0) { return 0; }
@@ -114,38 +127,38 @@ std::uint16_t getExpForMakeItem(std::int16_t itemId, std::int16_t potential) {
         itemInfo->reqExpForMakeItem * battle::potentialTier(potential), 0, 65535));
 }
 
-bool leaveTeam(std::int16_t id) {
+bool leaveTeam(SaveData &saveData, std::int16_t id) {
     if (id <= 0) { return false; }
-    auto *charInfo = ::hojy::world::state::gSaveData.charInfo[id];
+    auto *charInfo = saveData.charInfo[id];
     if (!charInfo) { return false; }
     for (int i = 0; i < ::hojy::content::TeamMemberCount; ++i) {
-        if (::hojy::world::state::gSaveData.baseInfo->members[i] != id) { continue; }
+        if (saveData.baseInfo->members[i] != id) { continue; }
         for (auto &eq: charInfo->equip) {
             if (eq >= 0) {
-                auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[eq];
+                auto *itemInfo = saveData.itemInfo[eq];
                 if (itemInfo) { itemInfo->user = -1; }
                 eq = -1;
             }
         }
         if (charInfo->learningItem >= 0) {
-            auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[charInfo->learningItem];
+            auto *itemInfo = saveData.itemInfo[charInfo->learningItem];
             if (itemInfo) { itemInfo->user = -1; }
             charInfo->learningItem = -1;
         }
         if (i < ::hojy::content::TeamMemberCount - 1) {
-            memmove(::hojy::world::state::gSaveData.baseInfo->members + i,
-                    ::hojy::world::state::gSaveData.baseInfo->members + i + 1,
+            memmove(saveData.baseInfo->members + i,
+                    saveData.baseInfo->members + i + 1,
                     sizeof(std::int16_t) * (::hojy::content::TeamMemberCount - i - 1));
         }
-        ::hojy::world::state::gSaveData.baseInfo->members[::hojy::content::TeamMemberCount - 1] = -1;
+        saveData.baseInfo->members[::hojy::content::TeamMemberCount - 1] = -1;
         return true;
     }
     return false;
 }
 
-bool skillFull(std::int16_t charId) {
+bool skillFull(const SaveData &saveData, std::int16_t charId) {
     if (charId < 0) { return true; }
-    const auto *charInfo = ::hojy::world::state::gSaveData.charInfo[charId];
+    const auto *charInfo = saveData.charInfo[charId];
     if (!charInfo) { return true; }
     for (auto id: charInfo->skillId) {
         if (id <= 0) { return false; }
@@ -153,11 +166,19 @@ bool skillFull(std::int16_t charId) {
     return true;
 }
 
-bool equipItem(std::int16_t charId, std::int16_t itemId) {
+bool leaveTeam(std::int16_t id) {
+    return leaveTeam(::hojy::world::state::gSaveData, id);
+}
+
+bool skillFull(std::int16_t charId) {
+    return skillFull(::hojy::world::state::gSaveData, charId);
+}
+
+bool equipItem(SaveData &saveData, std::int16_t charId, std::int16_t itemId) {
     if (charId < 0) { return false; }
-    auto *charInfo = ::hojy::world::state::gSaveData.charInfo[charId];
+    auto *charInfo = saveData.charInfo[charId];
     if (!charInfo) { return false; }
-    auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
+    auto *itemInfo = saveData.itemInfo[itemId];
     if (!itemInfo) { return false; }
     switch (itemInfo->itemType) {
     case 1:
@@ -171,7 +192,7 @@ bool equipItem(std::int16_t charId, std::int16_t itemId) {
     if (!canUseItem(charInfo, itemInfo)) { return false; }
     if (itemInfo->user >= 0) {
         /* unequip from old char first */
-        auto *charInfo2 = ::hojy::world::state::gSaveData.charInfo[itemInfo->user];
+        auto *charInfo2 = saveData.charInfo[itemInfo->user];
         if (charInfo2) {
             if (itemInfo->itemType == 1) {
                 charInfo2->equip[itemInfo->equipType] = -1;
@@ -183,14 +204,14 @@ bool equipItem(std::int16_t charId, std::int16_t itemId) {
     if (itemInfo->itemType == 1) {
         itemInfo->user = charId;
         if (charInfo->equip[itemInfo->equipType] >= 0) {
-            auto *itemInfo2 = ::hojy::world::state::gSaveData.itemInfo[charInfo->equip[itemInfo->equipType]];
+            auto *itemInfo2 = saveData.itemInfo[charInfo->equip[itemInfo->equipType]];
             if (itemInfo2) { itemInfo2->user = -1; }
         }
         charInfo->equip[itemInfo->equipType] = itemId;
     } else {
         itemInfo->user = charId;
         if (charInfo->learningItem >= 0) {
-            auto *itemInfo2 = ::hojy::world::state::gSaveData.itemInfo[charInfo->learningItem];
+            auto *itemInfo2 = saveData.itemInfo[charInfo->learningItem];
             if (itemInfo2) { itemInfo2->user = -1; }
         }
         charInfo->learningItem = itemId;
@@ -198,16 +219,27 @@ bool equipItem(std::int16_t charId, std::int16_t itemId) {
     return true;
 }
 
-bool useItem(Bag &bag, CharacterData *charInfo, std::int16_t itemId,
+bool equipItem(std::int16_t charId, std::int16_t itemId) {
+    return equipItem(::hojy::world::state::gSaveData, charId, itemId);
+}
+
+bool useItem(const ItemInfo &items, Bag &bag, CharacterData *charInfo,
+             std::int16_t itemId,
              std::map<PropType, std::int16_t> &changes) {
     if (!charInfo) { return false; }
-    auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
+    const auto *itemInfo = items[itemId];
     if (!itemInfo) { return false; }
     if (bag[itemId] <= 0) { return false; }
     if (!canUseItem(charInfo, itemInfo)) { return false; }
     if (!applyItemChanges(charInfo, itemInfo, changes)) { return false; }
     (void)bag.remove(itemId, 1);
     return true;
+}
+
+bool useItem(Bag &bag, CharacterData *charInfo, std::int16_t itemId,
+             std::map<PropType, std::int16_t> &changes) {
+    return useItem(::hojy::world::state::gSaveData.itemInfo, bag, charInfo,
+                   itemId, changes);
 }
 
 bool useItem(CharacterData *charInfo, std::int16_t itemId,
@@ -382,18 +414,6 @@ std::int16_t getLeaveEventId(std::int16_t id) {
         }
     }
     return -1;
-}
-
-std::tuple<std::uint8_t, std::uint8_t, std::uint8_t> calcColorForMpType(std::int16_t type) {
-    switch (type) {
-    case 0:
-        return std::make_tuple(208, 152, 208);
-    case 1:
-        return std::make_tuple(236, 200, 40);
-    default:
-        break;
-    }
-    return std::make_tuple(252, 252, 252);
 }
 
 std::int16_t calcRealAttack(const CharacterData *c, std::int16_t knowledge, const SkillData *skill, std::int16_t level) {

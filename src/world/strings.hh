@@ -25,6 +25,8 @@
 
 namespace hojy::world::state {
 
+class SaveData;
+
 class Strings {
 public:
     enum Type {
@@ -41,10 +43,14 @@ public:
     };
 
     [[nodiscard]] bool load(const std::string &filename);
+    [[nodiscard]] bool buildForSave(
+        const SaveData &saveData, Strings &output) const noexcept;
     void saveDataLoaded();
-    const std::wstring &operator()(Type type, std::int16_t index) {
+    void swap(Strings &other) noexcept;
+    const std::wstring &operator()(Type type, std::int16_t index) const {
         static const std::wstring empty;
-        return index < strings_[type].size() ? strings_[type][index] : empty;
+        return index >= 0 && index < strings_[type].size()
+            ? strings_[type][index] : empty;
     }
 
 private:

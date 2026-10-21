@@ -37,28 +37,42 @@ public:
     GlobalMap(Renderer *renderer, int x, int y, int width, int height, std::pair<int, int> scale);
     ~GlobalMap() override;
 
-    void load();
+    bool load(std::int32_t initialX = -1, std::int32_t initialY = -1);
     void update() override;
-    void render() override;
+    void prepareRender() override;
+    void render() const override;
     [[nodiscard]] bool onShip() const { return onShip_; }
 
 protected:
     void showShip(bool show);
     bool tryMove(int x, int y, bool checkEvent) override;
-    void updateMainCharTexture() override;
+    void updateMainCharSpriteId() override;
     void resetTime() override;
     bool checkTime() override;
 
 private:
+    struct MiniMapCell final {
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        std::int16_t earthId = -1;
+        bool blocked = false;
+    };
+
     bool onShip_ = false;
+    void prepareMiniMapRender();
     Texture *drawingTerrainTex2_ = nullptr;
     std::vector<std::uint16_t> building_, buildx_, buildy_;
     std::vector<CellInfo> cellInfo_;
+    std::vector<MiniMapCell> miniMapCells_;
     TextureMgr cloudTexMgr_;
     int cloudStartX_[3] = {}, cloudStartY_[3] = {};
     int cloudX_[3] = {}, cloudY_[3] = {};
-    const Texture *cloud_[3] = {};
+    std::int16_t cloudSpriteId_[3] = {-1, -1, -1};
+    std::int16_t preparedCloudSpriteId_[3] = {-2, -2, -2};
+    const Texture *preparedCloud_[3] = {};
     std::map<std::pair<std::int16_t, std::int16_t>, std::int16_t> subMapEntries_;
+    std::uint64_t miniMapRevision_ = 1;
+    std::uint64_t preparedMiniMapRevision_ = 0;
 };
 
 }

@@ -29,10 +29,11 @@ class EndScreen: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    void init();
+    [[nodiscard]] bool init();
     void update() override;
-    void render() override;
-    void handleKeyInput(Key key) override;
+    void render() const override;
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
 
 private:
     void makeCache() override;
@@ -42,6 +43,7 @@ private:
     TextureMgr wordTexMgr_, imgTexMgr_;
     std::int16_t w_ = 0, h_ = 0, tw_ = 0, th_ = 0;
     int stage_ = 0, frame_ = 0, frameTotal_ = 0;
+    Key pendingInput_ = KeyNone;
 };
 
 }

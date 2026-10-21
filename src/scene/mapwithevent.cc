@@ -19,29 +19,23 @@
 
 #include "mapwithevent.hh"
 
-#include "event_helpers.hh"
-#include "window.hh"
-#include "mask.hh"
-#include "menu.hh"
-#include "content/event.hh"
-#include "world/action.hh"
-#include "world/savedata.hh"
-#include "world/strings.hh"
-#include "util/conv.hh"
-#include "util/random.hh"
-#include "util/math.hh"
-#include <fmt/xchar.h>
-#include <algorithm>
+#include <memory>
 
 namespace hojy::scene {
 
-MapWithEvent::~MapWithEvent() = default;
+MapWithEvent::MapWithEvent(Renderer *renderer, int x, int y, int width,
+                           int height, std::pair<int, int> scale)
+    : Map(renderer, x, y, width, height, scale),
+      eventContinuationState_(std::make_shared<EventContinuationState>()),
+      mapInputMode_(std::make_unique<DefaultMapInputMode>()) {
+    eventContinuationState_->owner = this;
+}
 
-
-
-
-
-
+MapWithEvent::~MapWithEvent() {
+    if (eventContinuationState_) {
+        eventContinuationState_->owner = nullptr;
+    }
+}
 
 }
 

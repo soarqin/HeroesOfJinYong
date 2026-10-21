@@ -20,7 +20,9 @@
 #pragma once
 
 #include "nodewithcache.hh"
-#include "world/character.hh"
+#include "status_snapshot.hh"
+
+#include <functional>
 
 namespace hojy::scene {
 
@@ -28,17 +30,31 @@ class StatusView: public NodeWithCache {
 public:
     using NodeWithCache::NodeWithCache;
 
-    void show(const ::hojy::world::state::CharacterData *data, bool calcEquip, bool simpleMode = false);
-    void show(std::int16_t charId);
+    void show(CharacterStatusSnapshot snapshot);
+    void setHeadTextureProvider(std::function<const Texture *(std::int16_t)> provider) {
+        headTextureProvider_ = std::move(provider);
+    }
+    void setBattleAnchor(bool left, int width, int height, int border) noexcept;
 
-    void handleKeyInput(Key key) override;
+    void applyInputLogic() override;
+    void consumeKeyIntent(Key key) override;
+    void prepareRender() override;
 
 protected:
+    bool prepareTextResources() override;
+    void ensureLayout() override;
     void makeCache() override;
 
 protected:
-    ::hojy::world::state::CharacterData data_ {};
+    CharacterStatusSnapshot data_ {};
     bool simpleMode_ = false;
+    bool battleAnchorEnabled_ = false;
+    bool battleAnchorLeft_ = true;
+    int battleAreaWidth_ = 0;
+    int battleAreaHeight_ = 0;
+    int battleAnchorBorder_ = 0;
+    std::function<const Texture *(std::int16_t)> headTextureProvider_;
+    Key pendingInput_ = KeyNone;
 };
 
 }

@@ -19,7 +19,9 @@
 
 #include "dead.hh"
 
+#include "window_command.hh"
 #include "window.hh"
+#include "texture.hh"
 #include "colorpalette.hh"
 #include "world/strings.hh"
 #include "core/config.hh"
@@ -33,17 +35,52 @@ Dead::~Dead() {
     delete big_;
 }
 
-void Dead::init() {
+bool Dead::init() {
     renderer_->enableLinear(true);
-    big_ = Texture::loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200, gNormalPalette);
+    auto *candidate = Texture::loadFromRAW(renderer_, util::File::getFileContent(core::config.dataFilePath("DEAD.BIG")), 320, 200, gNormalPalette);
     renderer_->enableLinear(false);
+    if (!candidate) { return false; }
+    delete big_;
+    big_ = candidate;
+    requestPresentationRefresh();
+    return true;
 }
 
-void Dead::handleKeyInput(Node::Key key) {
+bool Dead::prepareTextResources() {
+    auto *ttf = renderer_->ttf();
+    const auto fontSize = ttf->fontSize() * 3 / 2;
+    nameText_ = GETCHARNAME(0);
+    auto now = time(nullptr);
+    tm localTime{};
+#ifdef _WIN32
+    localtime_s(&localTime, &now);
+#else
+    localTime = *localtime(&now);
+#endif
+    dateText_ = fmt::format(L"{}/{:>2}/{:>2}", localTime.tm_year + 1900,
+                            localTime.tm_mon + 1, localTime.tm_mday);
+    messageText_[0] = GETTEXT(111);
+    messageText_[1] = GETTEXT(112);
+    messageText_[2] = GETTEXT(113);
+    bool ready = ttf->prepareText(nameText_, fontSize);
+    ready = ttf->prepareText(dateText_, fontSize) && ready;
+    for (const auto &message: messageText_) {
+        ready = ttf->prepareText(message, fontSize) && ready;
+    }
+    return ready;
+}
+
+void Dead::consumeKeyIntent(Node::Key key) {
+    pendingInput_ = key;
+}
+
+void Dead::applyInputLogic() {
+    const auto key = pendingInput_;
+    pendingInput_ = KeyNone;
     switch (key) {
     case KeySpace: case KeyOK: case KeyCancel:
-        requestDelete();
-        gWindow->title();
+        requestPresentationCleanup();
+        postSceneCommand(this, [](SceneCommandContext &context) { context.title(); });
         break;
     default:
         break;
@@ -51,6 +88,7 @@ void Dead::handleKeyInput(Node::Key key) {
 }
 
 void Dead::makeCache() {
+    if (!big_) { return; }
     cacheBegin();
     renderer_->clear(0, 0, 0, 255);
 
@@ -65,14 +103,12 @@ void Dead::makeCache() {
     auto *ttf = renderer_->ttf();
     auto fsize = ttf->fontSize() * 3 / 2;
     ttf->setColor(68, 68, 68);
-    ttf->render(GETCHARNAME(0), x + 100 * w / 320, y + 48 * h / 200, false, fsize);
+    ttf->renderPrepared(nameText_, x + 100 * w / 320, y + 48 * h / 200, false, fsize);
     ttf->setColor(176, 4, 8);
-    auto t = time(nullptr);
-    tm ltm = *localtime(&t);
-    ttf->render(fmt::format(L"{}/{:>2}/{:>2}", ltm.tm_year + 1900, ltm.tm_mon + 1, ltm.tm_mday), x + 190 * w / 320, y + 10 * h / 200, false, fsize);
-    ttf->render(GETTEXT(111), x + 185 * w / 320, y + 30 * h / 200, false, fsize);
-    ttf->render(GETTEXT(112), x + 185 * w / 320, y + 50 * h / 200, false, fsize);
-    ttf->render(GETTEXT(113), x + 185 * w / 320, y + 70 * h / 200, false, fsize);
+    ttf->renderPrepared(dateText_, x + 190 * w / 320, y + 10 * h / 200, false, fsize);
+    ttf->renderPrepared(messageText_[0], x + 185 * w / 320, y + 30 * h / 200, false, fsize);
+    ttf->renderPrepared(messageText_[1], x + 185 * w / 320, y + 50 * h / 200, false, fsize);
+    ttf->renderPrepared(messageText_[2], x + 185 * w / 320, y + 70 * h / 200, false, fsize);
     cacheEnd();
 }
 

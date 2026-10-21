@@ -191,7 +191,7 @@ void Warfield::autoActionSkill(
                 movingPath_.emplace_back(cell->x, cell->y);
                 cell = cell->moveParent;
             }
-            stage_ = Moving;
+            setStage(Moving);
             return true;
         }
         battle::runPendingAction(pendingAutoAction_);

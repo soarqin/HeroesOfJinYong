@@ -1,18 +1,14 @@
 #include "warfield.hh"
 
 #include "battle/combat_rules.hh"
+#include "battle_presentation_snapshot_builder.hh"
 #include "battle/turn_order.hh"
 #include "effect.hh"
-#include "window.hh"
-#include "menu.hh"
-#include "statusview.hh"
 #include "world/action.hh"
 #include "world/savedata.hh"
 #include "world/strings.hh"
-#include "core/config.hh"
 
 #include <algorithm>
-#include <fmt/xchar.h>
 #include <tuple>
 
 namespace hojy::scene {
@@ -27,11 +23,11 @@ void Warfield::frameUpdate() {
             if (currentActor_ && battle::shouldContinueAfterMovement(
                     currentActor_->side == 0 && !autoControl_,
                     static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
-                stage_ = Idle;
+                setStage(Idle);
             } else if (currentActor_) {
                 endTurn(currentActor_);
             } else {
-                stage_ = Idle;
+                setStage(Idle);
             }
             break;
         }
@@ -43,7 +39,7 @@ void Warfield::frameUpdate() {
                 if (battle::shouldContinueAfterMovement(
                         currentActor_->side == 0 && !autoControl_,
                         static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
-                    stage_ = Idle;
+                    setStage(Idle);
                 } else {
                     endTurn(currentActor_);
                 }
@@ -80,7 +76,7 @@ void Warfield::frameUpdate() {
         charInfo->y = y;
         cameraX_ = x;
         cameraY_ = y;
-        drawDirty_ = true;
+        markWorldChanged();
         if (const auto actor = participantIndex(charInfo)) {
             if (!recordBattleAction(battle::BattleAction{
                     *actor,
@@ -99,7 +95,7 @@ void Warfield::frameUpdate() {
             if (battle::shouldContinueAfterMovement(
                     currentActor_->side == 0 && !autoControl_,
                     static_cast<bool>(pendingAutoAction_), resumeAutoAttack_)) {
-                stage_ = Idle;
+                setStage(Idle);
             } else {
                 endTurn(currentActor_);
             }
@@ -108,23 +104,36 @@ void Warfield::frameUpdate() {
     }
     case Acting: {
         if (!currentActor_) {
-            stage_ = Idle;
+            setStage(Idle);
             clearActionState(false);
             break;
         }
         fightTexIdx_ = std::min(fightTexIdx_ + 1, fightTexCount_ - 1);
         if (fightFrame_ == 0) {
             const ::hojy::world::state::SkillData *skillInfo;
+            int attackSoundId = 0;
             if (actId_ > 0 && (skillInfo = ::hojy::world::state::gSaveData.skillInfo[actId_]) != nullptr) {
-                gWindow->playAtkSound(skillInfo->soundId);
-            } else {
-                gWindow->playAtkSound(0);
+                attackSoundId = skillInfo->soundId;
             }
+            postBattleCommand(
+                presentationOwnerHandle(), presentationSessionToken(),
+                presentationGeneration_,
+                [attackSoundId](SceneCommandContext &context) {
+                context.playAtkSound(attackSoundId);
+                });
         } else if (fightFrame_ == 3) {
-            gWindow->playEffectSound(effectId_);
+            const auto effectId = effectId_;
+            postBattleCommand(
+                presentationOwnerHandle(), presentationSessionToken(),
+                presentationGeneration_,
+                [effectId](SceneCommandContext &context) {
+                context.playEffectSound(effectId);
+                });
         }
         ++fightFrame_;
-        if (++effectTexIdx_ >= int(gEffect[effectId_].size()) + 3) {
+        ++effectTexIdx_;
+        effectOverlaySnapshot_.frameIndex = effectTexIdx_;
+        if (effectTexIdx_ >= int(gEffect[effectId_].size()) + 3) {
             auto *actor = currentActor_;
             auto postFunc = [this, actor]() {
                 if (currentActor_ != actor) { return; }
@@ -138,6 +147,7 @@ void Warfield::frameUpdate() {
                         skillLevelup_ = false;
                         effectId_ = -1;
                         effectTexIdx_ = -1;
+                        effectOverlaySnapshot_ = {};
                         fightTexIdx_ = -1;
                         fightTexCount_ = 0;
                         fightFrame_ = 0;
@@ -163,6 +173,7 @@ void Warfield::frameUpdate() {
                     actLevel_ = 0;
                     effectId_ = -1;
                     effectTexIdx_ = -1;
+                    effectOverlaySnapshot_ = {};
                     fightTexIdx_ = -1;
                     fightTexCount_ = 0;
                     fightFrame_ = 0;
@@ -173,27 +184,62 @@ void Warfield::frameUpdate() {
             };
             if (skillLevelup_) {
                 skillLevelup_ = false;
-                stage_ = PoppingUp;
-                const auto *skill = ::hojy::world::state::gSaveData.skillInfo[actId_];
+                setStage(PoppingUp);
+                setPresentationStage(BattlePresentationStage::SkillLevelUp);
                 auto *ch = actor;
-                auto *msgBox = new MessageBox(this, 0, height_ / 3, width_, 60);
-                msgBox->popup({fmt::format(GETTEXT(81), GETSKILLNAME(actId_),
-                                           ch->info.skillLevel[actIndex_] / 100 + 1)}, MessageBox::PressToCloseThis);
-                msgBox->setCloseHandler([this, actor, postFunc]() {
+                const auto actorId = actor->id;
+                pendingSkillLevelUpContinuation_ = [this, actor, postFunc]() mutable {
                     if (currentActor_ != actor) { return; }
-                    stage_ = Acting;
+                    setStage(Acting);
                     postFunc();
+                };
+                pendingSkillLevelUpActorId_ = actorId;
+                pendingSkillLevelUpSkillId_ = actId_;
+                pendingSkillLevelUpSkillIndex_ = actIndex_;
+                const auto sessionToken = presentationSessionToken();
+                const auto actionGeneration = presentationGeneration_;
+                auto message = buildBattleSkillLevelMessage(
+                    actId_, static_cast<std::int16_t>(
+                        actor->info.skillLevel[actIndex_] / 100 + 1));
+                postCommand([sessionToken, actorId, actionGeneration,
+                             skillId = actId_, skillIndex = actIndex_,
+                             message = std::move(message)](
+                                    SceneCommandContext &context) {
+                    BattleSkillLevelUpRequest request{
+                        sessionToken, actorId, skillId, skillIndex};
+                    request.actionGeneration = actionGeneration;
+                    request.expectedStage = BattlePresentationStage::SkillLevelUp;
+                    request.message = std::move(message);
+                    context.showBattleSkillLevelUp(std::move(request));
                 });
             } else {
                 postFunc();
             }
         }
-        drawDirty_ = true;
+        markWorldChanged();
         break;
     }
     default:
         break;
     }
+}
+
+void Warfield::resumeAfterSkillLevelUp(std::int16_t actorId) {
+    if (!currentActor_ || currentActor_->id != actorId) {
+        pendingSkillLevelUpContinuation_ = nullptr;
+        pendingSkillLevelUpActorId_ = -1;
+        pendingSkillLevelUpSkillId_ = -1;
+        pendingSkillLevelUpSkillIndex_ = -1;
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    auto continuation = std::move(pendingSkillLevelUpContinuation_);
+    pendingSkillLevelUpContinuation_ = nullptr;
+    pendingSkillLevelUpActorId_ = -1;
+    pendingSkillLevelUpSkillId_ = -1;
+    pendingSkillLevelUpSkillIndex_ = -1;
+    if (continuation) { continuation(); }
 }
 
 void Warfield::nextAction() {
@@ -243,21 +289,12 @@ void Warfield::nextAction() {
         static_cast<bool>(pendingAutoAction_) || resumeAutoAttack_);
     cameraX_ = ch->x;
     cameraY_ = ch->y;
-    drawDirty_ = true;
-    auto *sv = dynamic_cast<StatusView*>(statusPanel_);
-    if (sv) {
-        auto windowBorder = core::config.windowBorder();
-        sv->show(&ch->info, false, true);
-        sv->forceUpdate();
-        sv->setPosition(ch->side == 1 ? windowBorder * 4
-                                      : (width_ - windowBorder * 4 - sv->width()),
-                       height_ * 2 / 5 - sv->height() / 2);
-    }
+    markWorldChanged();
     if (ch->side == 1 || autoControl_) {
         autoAction();
     } else {
         lastMenuIndex_ = 0;
-        playerMenu();
+        requestPlayerMenu();
     }
 }
 
@@ -301,10 +338,10 @@ void Warfield::endTurn(CharInfo *expectedActor) {
             if (cell.charInfo == &ci) { cell.charInfo = nullptr; }
         }
         ci.x = ci.y = -1;
-        drawDirty_ = true;
+        markWorldChanged();
     }
     if (checkWarEnd()) { return; }
-    stage_ = Idle;
+    setStage(Idle);
 }
 
 bool Warfield::checkWarEnd() {

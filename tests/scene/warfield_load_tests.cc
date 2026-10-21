@@ -134,6 +134,25 @@ void testWarfieldRosterRejectsDuplicateCharacterIds() {
         true);
 }
 
+void testOptionalFightTexturesDoNotRequireEveryAnimationList() {
+    std::vector<hojy::content::GrpData::DataSet> result;
+    const auto loaded = hojy::scene::detail::loadOptionalFightTextures(
+        3,
+        [](std::size_t index, hojy::content::GrpData::DataSet &textures) {
+            if (index == 0) { return false; }
+            textures = {index == 1 ? "valid" : "invalid"};
+            return true;
+        },
+        [](const std::string &texture) { return texture == "valid"; },
+        result);
+
+    HOJY_CHECK_EQ(loaded, true);
+    HOJY_CHECK_EQ(result.size(), 3U);
+    HOJY_CHECK_EQ(result[0].empty(), true);
+    HOJY_CHECK_EQ(result[1].size(), 1U);
+    HOJY_CHECK_EQ(result[2].empty(), true);
+}
+
 }
 
 int main() {
@@ -145,6 +164,7 @@ int main() {
         testTextureLookupRejectsInvalidIndices();
         testLayerTextureIdsMustFitLoadedTextureSet();
         testWarfieldRosterRejectsDuplicateCharacterIds();
+        testOptionalFightTexturesDoNotRequireEveryAnimationList();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

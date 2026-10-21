@@ -31,8 +31,11 @@ namespace hojy::world::state {
 class SaveData {
 public:
     bool newGame();
+    bool newGame(Bag &bag);
     bool load(int num);
+    bool load(int num, Bag &bag);
     bool save(int num);
+    void swap(SaveData &other) noexcept;
 
 public:
     BaseInfo baseInfo;

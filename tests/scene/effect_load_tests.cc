@@ -35,8 +35,9 @@ void effectLoadCommitsOnlyValidatedSlices() {
     frames[0] = 1;
     frames[1] = 1;
     HOJY_CHECK_EQ(hojy::content::GrpData::saveData("EXTRA", {"first", "second", "third"}), true);
-    HOJY_CHECK_EQ(effect.load("EXTRA"), false);
-    HOJY_CHECK_EQ(effect[0], before);
+    HOJY_CHECK_EQ(effect.load("EXTRA"), true);
+    HOJY_CHECK_EQ(effect[0].size(), 1U);
+    HOJY_CHECK_EQ(effect[0][0], "first");
 
     std::filesystem::current_path(oldPath, error);
     std::filesystem::remove_all(directory, error);

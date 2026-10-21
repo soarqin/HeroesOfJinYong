@@ -2,11 +2,9 @@
 
 #include "battle/attack_area.hh"
 #include "battle/combat_rules.hh"
+#include "battle_presentation_snapshot_builder.hh"
 #include "content/constants.hh"
 #include "effect.hh"
-#include "menu.hh"
-#include "messagebox.hh"
-#include "window.hh"
 #include "world/action.hh"
 #include "world/bag.hh"
 #include "world/savedata.hh"
@@ -15,48 +13,20 @@
 #include <algorithm>
 #include <fmt/xchar.h>
 #include <functional>
+#include <map>
 #include <utility>
+#include <vector>
 
 namespace hojy::scene {
-class DirectionSelMessageBox: public MessageBox {
-public:
-    using MessageBox::MessageBox;
 
-    void setDirectionHandler(const std::function<void(Map::Direction)> &func) {
-        directionHandler_ = func;
+void Warfield::commitEffectOverlaySnapshot(
+        const std::vector<logic::BattleEffectCell> &cells) noexcept {
+    if (!logic::buildBattleEffectOverlaySnapshot(
+            mapWidth_, mapHeight_, effectId_, effectTexIdx_,
+            cells, effectOverlaySnapshot_)) {
+        effectOverlaySnapshot_ = {};
     }
-    void handleKeyInput(Key key) override {
-        switch (key) {
-        case KeyUp:
-            directionHandler_(Map::DirUp);
-            requestDelete();
-            break;
-        case KeyLeft:
-            directionHandler_(Map::DirLeft);
-            requestDelete();
-            break;
-        case KeyRight:
-            directionHandler_(Map::DirRight);
-            requestDelete();
-            break;
-        case KeyDown:
-            directionHandler_(Map::DirDown);
-            requestDelete();
-            break;
-        case KeyCancel: {
-            auto fn = std::move(closeHandler_);
-            requestDelete();
-            if (fn) { fn(); }
-            break;
-        }
-        default:
-            break;
-        }
-    }
-
-private:
-    std::function<void(Map::Direction)> directionHandler_;
-};
+}
 
 bool Warfield::tryUseSkill(int index) {
     auto *ch = currentActor_;
@@ -83,8 +53,8 @@ bool Warfield::tryUseSkill(int index) {
             break;
         }
         maskSelectableArea(0, steps);
-        stage_ = AttackSelecting;
-        drawDirty_ = true;
+        setStage(AttackSelecting);
+        markWorldChanged();
         return true;
     }
     const auto *skill = ::hojy::world::state::gSaveData.skillInfo[std::max<std::int16_t>(ch->info.skillId[index], 0)];
@@ -98,15 +68,17 @@ bool Warfield::tryUseSkill(int index) {
     actLevel_ = skillLevel;
     switch (skill->attackAreaType) {
     case 1: {
-        auto msgBox = new DirectionSelMessageBox(this, 0, 0, gWindow->width(), gWindow->height());
-        msgBox->popup({GETTEXT(92)});
-        msgBox->setCloseHandler([this]() {
-            clearActionState(false);
-            playerMenu();
-        });
-        msgBox->setDirectionHandler([this, ch](Map::Direction direction) {
-            ch->direction = direction;
-            startActAction();
+        setStage(PoppingUp);
+        setPresentationStage(BattlePresentationStage::DirectionSelection);
+        const auto actorId = ch->id;
+        const auto sessionToken = presentationSessionToken();
+        const auto actionGeneration = presentationGeneration_;
+        postCommand([sessionToken, actorId, actionGeneration](SceneCommandContext &context) {
+            BattleDirectionSelectionRequest request{sessionToken, actorId};
+            request.actionGeneration = actionGeneration;
+            request.expectedStage = BattlePresentationStage::DirectionSelection;
+            request.prompt = GETTEXT(92);
+            context.showBattleDirectionSelection(std::move(request));
         });
         return true;
     }
@@ -115,22 +87,133 @@ bool Warfield::tryUseSkill(int index) {
         return true;
     default:
         maskSelectableArea(0, skill->selRange[actLevel_]);
-        stage_ = AttackSelecting;
-        drawDirty_ = true;
+        setStage(AttackSelecting);
+        markWorldChanged();
         return true;
     }
+}
+
+void Warfield::applyDirectionSelection(std::int16_t actorId,
+                                       Direction direction) {
+    if (!currentActor_ || currentActor_->id != actorId) {
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    currentActor_->direction = direction;
+    setStage(Acting);
+    startActAction();
+}
+
+void Warfield::cancelDirectionSelection(std::int16_t actorId) {
+    if (!currentActor_ || currentActor_->id != actorId) {
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    clearActionState(false);
+    requestPlayerMenu();
+}
+
+void Warfield::selectBattleItem(std::int16_t actorId, std::int16_t itemId) {
+    auto *ch = currentActor_;
+    if (!ch || ch->id != actorId || itemId < 0
+        || static_cast<std::size_t>(itemId) >= ::hojy::world::state::gSaveData.itemInfo.size()) {
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    const auto *itemInfo = ::hojy::world::state::gSaveData.itemInfo[itemId];
+    if (!itemInfo) {
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    if (itemInfo->itemType == 3) {
+        auto candidateInfo = ch->info;
+        auto candidateBag = battleBag_;
+        std::map<::hojy::world::state::PropType, std::int16_t> changes;
+        if (!::hojy::world::state::useItem(candidateBag, &candidateInfo,
+                                           itemId, changes)) {
+            clearActionState(false);
+            setStage(Idle);
+            return;
+        }
+        const auto actor = participantIndex(ch);
+        if (!actor) {
+            clearActionState(false);
+            setStage(Idle);
+            return;
+        }
+        ch->info = std::move(candidateInfo);
+        battleBag_ = std::move(candidateBag);
+        if (!recordBattleAction(battle::BattleAction{
+                *actor,
+                battle::ItemAction{itemId, battle::InventorySource::PartyBag, -1}})) {
+            return;
+        }
+        setStage(PoppingUp);
+        setPresentationStage(BattlePresentationStage::ItemResult);
+        pendingItemResultActorId_ = actorId;
+        pendingItemResultItemId_ = itemId;
+        std::vector<BattleItemChange> changeValues;
+        changeValues.reserve(changes.size());
+        for (const auto &[property, value]: changes) {
+            changeValues.push_back({static_cast<std::int16_t>(property), value});
+        }
+        const auto sessionToken = presentationSessionToken();
+        const auto actionGeneration = presentationGeneration_;
+        auto messages = buildBattleItemResultMessages(itemId, changes);
+        postCommand([sessionToken, actorId, itemId, actionGeneration,
+                     changes = std::move(changeValues),
+                     messages = std::move(messages)](
+                            SceneCommandContext &context) mutable {
+            BattleItemResultRequest request{sessionToken, actorId, itemId,
+                                            std::move(changes)};
+            request.actionGeneration = actionGeneration;
+            request.expectedStage = BattlePresentationStage::ItemResult;
+            request.messages = std::move(messages);
+            context.showBattleItemResult(std::move(request));
+        });
+        return;
+    }
+    if (itemInfo->itemType == 4) {
+        actIndex_ = itemId;
+        actId_ = -4;
+        actLevel_ = 0;
+        actItemSlot_ = -1;
+        attackTimesLeft_ = 1;
+        maskSelectableArea(0, battle::calcTechniqueRange(ch->info.throwing));
+        setStage(AttackSelecting);
+        markWorldChanged();
+        return;
+    }
+}
+
+void Warfield::finishBattleItemResult(
+        std::int16_t actorId, std::int16_t itemId) {
+    if (!currentActor_ || currentActor_->id != actorId
+        || pendingItemResultActorId_ != actorId
+        || pendingItemResultItemId_ != itemId) {
+        clearActionState(false);
+        setStage(Idle);
+        return;
+    }
+    pendingItemResultActorId_ = -1;
+    pendingItemResultItemId_ = -1;
+    endTurn(currentActor_);
 }
 
 void Warfield::startActAction() {
     popupNumbers_.clear();
     auto *ch = currentActor_;
-    if (!ch) { stage_ = Idle; return; }
+    if (!ch) { setStage(Idle); return; }
     if (actId_ < 0) {
         if (cursorX_ < 0 || cursorX_ >= mapWidth_
             || cursorY_ < 0 || cursorY_ >= mapHeight_) {
             if (ch->side == 0) {
                 clearActionState(false);
-                playerMenu();
+                requestPlayerMenu();
             }
             else { endTurn(ch); }
             return;
@@ -139,7 +222,7 @@ void Warfield::startActAction() {
         if (!target) {
             if (ch->side == 0) {
                 clearActionState(false);
-                playerMenu();
+                requestPlayerMenu();
             }
             else { endTurn(ch); }
             return;
@@ -175,7 +258,6 @@ void Warfield::startActAction() {
         }
         std::int16_t result;
         std::uint8_t r, g, b;
-        auto *ttf = renderer_->ttf();
         bool popup;
         bool actionValid = false;
         switch (actId_) {
@@ -260,7 +342,7 @@ void Warfield::startActAction() {
                 if (!recordBattleAction(action)) { return; }
             }
         }
-        stage_ = Acting;
+        setStage(Acting);
         if (cameraX_ != cursorX_ || cameraY_ != cursorY_) {
             ch->direction = calcDirection(cameraX_, cameraY_, cursorX_, cursorY_);
         }
@@ -271,6 +353,12 @@ void Warfield::startActAction() {
         fightTexCount_ += fightTexIdx_;
         effectTexIdx_ = -ch->info.frameDelay[0];
         fightFrame_ = -ch->info.frameSoundDelay[0];
+        std::vector<logic::BattleEffectCell> effectCells;
+        if (validMapCoordinate(cursorX_, cursorY_)
+            && cellInfo_[static_cast<std::size_t>(cursorY_ * mapWidth_ + cursorX_)].buildingId <= 0) {
+            effectCells.push_back({cursorX_, cursorY_});
+        }
+        commitEffectOverlaySnapshot(effectCells);
         return;
     }
     const auto *skillInfo = ::hojy::world::state::gSaveData.skillInfo[actId_];
@@ -278,7 +366,7 @@ void Warfield::startActAction() {
         bool levelup = false;
         effectId_ = skillInfo->effectId;
         auto skillType = skillInfo->skillType;
-        stage_ = Acting;
+        setStage(Acting);
         if ((skillInfo->attackAreaType == 0 || skillInfo->attackAreaType == 3)
             && (cameraX_ != cursorX_ || cameraY_ != cursorY_)) {
             ch->direction = calcDirection(cameraX_, cameraY_, cursorX_, cursorY_);
@@ -306,6 +394,15 @@ void Warfield::startActAction() {
             mapWidth_, mapHeight_, cameraX_, cameraY_, cursorX_, cursorY_,
             skillInfo->attackAreaType, skillInfo->selRange[actLevel_],
             skillInfo->area[actLevel_], attackDirection);
+        std::vector<logic::BattleEffectCell> effectCells;
+        effectCells.reserve(attackCells.size());
+        for (const auto &cell: attackCells) {
+            const auto index = static_cast<std::size_t>(cell.y * mapWidth_ + cell.x);
+            if (cellInfo_[index].buildingId <= 0) {
+                effectCells.push_back({cell.x, cell.y});
+            }
+        }
+        commitEffectOverlaySnapshot(effectCells);
         actionTargets_.clear();
         const auto executedLevel = actLevel_;
         for (const auto &cell: attackCells) {
@@ -334,6 +431,7 @@ void Warfield::startActAction() {
         skillLevelup_ = false;
         effectId_ = -1;
         effectTexIdx_ = -1;
+        effectOverlaySnapshot_ = {};
         fightTexIdx_ = -1;
         fightTexCount_ = 0;
         fightFrame_ = 0;
@@ -364,7 +462,6 @@ void Warfield::makeDamage(Warfield::CharInfo *ch, int x, int y, int distance) {
         if (!wasDead && dead) {
             recalcKnowledge();
         }
-        auto *ttf = renderer_->ttf();
         const auto *skillInfo = actId_ > 0 ? ::hojy::world::state::gSaveData.skillInfo[actId_] : nullptr;
         if (skillInfo && battle::isDrainSkill(*skillInfo)) {
             auto txt = fmt::format(L"{:+}", -dmg);
